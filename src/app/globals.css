@@ -121,18 +121,18 @@
   }
 }
 
-/* ---- Booking Calendar (react-day-picker) — v2 ---- */
+/* ---- Booking Calendar (react-day-picker) tweaks ---- */
 .rdp {
-  --rdp-cell-size: 48px; /* kutu boyu */
-  --rdp-accent-color: #111827;
-  --rdp-background-color: #eef2ff;
+  /* hücreleri büyütelim */
+  --rdp-cell-size: 48px;
+  --rdp-accent-color: #111827; /* seçili vurgu */
+  --rdp-background-color: #eef2ff; /* hover bg */
   margin: 0;
 }
 
 .rdp-months {
-  /* iki ay YAN YANA */
   display: flex;
-  gap: 1rem;
+  gap: 1rem; /* iki ay arasında boşluk */
 }
 
 .rdp-caption {
@@ -140,6 +140,8 @@
 }
 
 .rdp-table {
+  border-collapse: separate;
+  border-spacing: 0;
   width: 100%;
   background: #fff;
 }
@@ -148,50 +150,35 @@
   padding: 8px 0;
   font-size: 12px;
   color: #6b7280;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb; /* üst çizgi */
 }
 
-/* Günleri kutucuk yap */
-.rdp-day {
-  width: var(--rdp-cell-size);
-  height: var(--rdp-cell-size);
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.rdp-row > td {
+  border-right: 1px solid #e5e7eb; /* dikey grid çizgisi */
+  border-bottom: 1px solid #e5e7eb; /* yatay grid çizgisi */
 }
 
-/* Renkler */
+.rdp-row > td:first-child {
+  border-left: 1px solid #e5e7eb;
+}
+
 .rdp-day_disabled {
-  /* geçmiş */
-  background: #f3f4f6 !important;
-  color: #9ca3af !important;
+  color: #9ca3af !important; /* gri */
+  background: #f9fafb !important;
   cursor: not-allowed !important;
 }
-.rdp-day_today {
-  /* bugün */
-  outline: 2px solid #ef4444;
-  outline-offset: -2px;
-  font-weight: 700;
-}
-.rdp-day_reserved {
-  /* rezerve/dolu */
-  background: #dbeafe !important; /* mavi */
-  color: #1e3a8a !important;
-}
-.rdp-day_available {
-  /* müsait (varsayılan turuncu) */
-  background: #ffedd5; /* turuncu-100 */
+
+.rdp-day_selected:not(.rdp-day_outside) {
+  background: #111827 !important; /* siyah */
+  color: #fff !important;
 }
 
-/* Seçili aralık (üstte baskın görünsün) */
-.rdp-day_selected:not(.rdp-day_outside),
 .rdp-day_range_start,
 .rdp-day_range_end {
   background: #111827 !important;
   color: #fff !important;
 }
+
 .rdp-day_range_middle {
   background: #e5e7eb !important;
   color: #111827 !important;

@@ -1,106 +1,210 @@
+// src/components/site/AvailabilityCalendar.tsx
 "use client";
 
 import { useMemo, useState } from "react";
-import { DayPicker, DateRange, Matcher } from "react-day-picker";
-import "react-day-picker/dist/style.css";
-import {
-  startOfToday,
-  parseISO,
-  isBefore,
-  isAfter,
-  isEqual,
-  differenceInCalendarDays,
-} from "date-fns";
+import { DayPicker, DateRange } from "react-day-picker";
 import { tr } from "date-fns/locale";
+import { differenceInCalendarDays, parseISO } from "date-fns";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import BookingForm from "./BookingForm";
 
-export type ReservedRange = { start: string; end: string };
-export type ValidRange = { from: Date; to: Date; nights: number };
+// Yardımcı: TL biçimleyici
+const tl = new Intl.NumberFormat("tr-TR", {
+  style: "currency",
+  currency: "TRY",
+  maximumFractionDigits: 0,
+});
 
-function isInRange(d: Date, from: Date, to: Date) {
-  return (isAfter(d, from) || isEqual(d, from)) && (isBefore(d, to) || isEqual(d, to));
-}
-function overlaps(r1: { from: Date; to: Date }, r2: { from: Date; to: Date }) {
-  return r1.from <= r2.to && r1.to >= r2.from;
-}
+type Range = { from?: Date; to?: Date };
+type Unavailable = { start: string; end: string; type: "reserved" | "blocked" };
 
 export default function AvailabilityCalendar({
-  reservedRanges,
-  minNights = 7,
-  onValidRange,
-  onInvalid,
+  weeklyPrice, // numeric
+  unavailable,
+  villaName,
+  villaImage,
 }: {
-  reservedRanges: ReservedRange[];
-  minNights?: number;
-  onValidRange: (r: ValidRange) => void; // sadece iki tarih seçilip geçerliyse çağrılır
-  onInvalid?: (msg: string) => void; // sadece iki tarih seçilip GEÇERSİZSE çağrılır
+  weeklyPrice: number;
+  unavailable: Unavailable[];
+  villaName: string;
+  villaImage: string;
 }) {
-  const [selected, setSelected] = useState<DateRange | undefined>(undefined);
-  const today = startOfToday();
+  const [range, setRange] = useState<Range>();
+  const [error, setError] = useState<string | null>(null);
+  const [quoteOpen, setQuoteOpen] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
-  // Rezerve günler hem "disabled" hem de "reserved" modifier olarak geçsin
-  const reservedMatchers: Matcher[] = useMemo(
-    () =>
-      reservedRanges.map((r) => ({
-        from: parseISO(r.start),
-        to: parseISO(r.end),
-      })),
-    [reservedRanges],
-  );
+  // Kullanıcı seçimi sonucu hesaplanan ücret
+  const [quote, setQuote] = useState<{
+    from: Date;
+    to: Date;
+    nights: number;
+    perNight: number;
+    subtotal: number;
+    discount: number;
+    total: number;
+    deposit: number;
+  } | null>(null);
 
-  function isReservedDate(d: Date) {
-    return reservedMatchers.some((m) => isInRange(d, (m as any).from, (m as any).to));
-  }
-  function isPast(d: Date) {
-    return isBefore(d, today);
-  }
+  // DayPicker için "disabled" ve renklendirme aralıkları
+  const disabledIntervals = useMemo(() => {
+    return unavailable.map((u) => ({ from: parseISO(u.start), to: parseISO(u.end) }));
+  }, [unavailable]);
 
-  function handleSelect(r?: DateRange) {
-    setSelected(r);
-    // henüz iki uç seçilmediyse: HİÇBİR HATA GÖSTERME (kritik düzeltme)
-    if (!r?.from || !r?.to) return;
+  const reservedIntervals = useMemo(() => {
+    return unavailable
+      .filter((u) => u.type === "reserved")
+      .map((u) => ({ from: parseISO(u.start), to: parseISO(u.end) }));
+  }, [unavailable]);
 
-    // dolu günleri kapsıyor mu?
-    const coversReserved = reservedMatchers.some((m) =>
-      overlaps({ from: r.from, to: r.to }, { from: (m as any).from, to: (m as any).to }),
-    );
-    if (coversReserved) {
-      setSelected(undefined);
-      onInvalid?.("Seçtiğiniz aralıkta dolu gün(ler) var. Lütfen farklı bir aralık seçin.");
+  const blockedIntervals = useMemo(() => {
+    return unavailable
+      .filter((u) => u.type === "blocked")
+      .map((u) => ({ from: parseISO(u.start), to: parseISO(u.end) }));
+  }, [unavailable]);
+
+  function onSelect(next: DateRange | undefined) {
+    setRange(next);
+    setError(null);
+
+    if (!next?.from || !next?.to) return;
+
+    const nights = differenceInCalendarDays(next.to, next.from);
+    if (nights < 7) {
+      setQuote(null);
+      setQuoteOpen(false);
+      setError("Üzgünüz, bu tarih aralığı için minimum rezervasyon 7 gecedir!");
       return;
     }
 
-    const nights = differenceInCalendarDays(r.to, r.from);
-    if (nights < minNights) {
-      setSelected(undefined);
-      onInvalid?.(`Üzgünüz, bu tarih aralığı için minimum rezervasyon ${minNights} gecedir!`);
-      return;
-    }
+    // Basit hesap: haftalık fiyat / 7 * gece sayısı
+    const perNight = weeklyPrice / 7;
+    const subtotal = Math.round(perNight * nights);
+    const discount = nights >= 14 ? Math.round(subtotal * 0.05) : 0; // örnek: 14+ gece %5
+    const total = subtotal - discount;
+    const deposit = Math.round(total * 0.35); // örnek: %35 ön ödeme
 
-    onValidRange({ from: r.from, to: r.to, nights });
+    setQuote({
+      from: next.from,
+      to: next.to,
+      nights,
+      perNight,
+      subtotal,
+      discount,
+      total,
+      deposit,
+    });
+    setQuoteOpen(true);
   }
 
   return (
-    <DayPicker
-      mode="range"
-      locale={tr}
-      numberOfMonths={2} /* yan yana iki ay */
-      paginatedNavigation
-      weekStartsOn={1}
-      showOutsideDays
-      selected={selected}
-      onSelect={handleSelect}
-      disabled={[{ before: today }, ...reservedMatchers]}
-      /* Renkler için modifiye sınıfları */
-      modifiers={{
-        reserved: reservedMatchers,
-        available: (d) => !isPast(d) && !isReservedDate(d),
-      }}
-      modifiersClassNames={{
-        reserved: "rdp-day_reserved",
-        available: "rdp-day_available",
-        today: "rdp-day_today",
-      }}
-      className="booking-calendar"
-    />
+    <div className="mt-8">
+      {/* Hata bandı */}
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-red-700">
+          {error}
+        </div>
+      )}
+
+      {/* Takvim */}
+      <div className="rounded-xl border p-3">
+        <DayPicker
+          locale={tr}
+          mode="range"
+          numberOfMonths={2}
+          showOutsideDays
+          selected={range as DateRange}
+          onSelect={onSelect}
+          disabled={disabledIntervals}
+          modifiers={{
+            reserved: reservedIntervals,
+            blocked: blockedIntervals,
+          }}
+          modifiersClassNames={{
+            reserved: "bg-orange-500 text-white hover:bg-orange-600",
+            blocked: "bg-gray-300 text-gray-500 line-through",
+          }}
+          className="!text-sm"
+        />
+        {/* Lejant */}
+        <div className="mt-2 flex flex-wrap gap-3 text-xs">
+          <Legend colorClass="bg-white border" label="Müsait" />
+          <Legend colorClass="bg-gray-300" label="Dolu" />
+          <Legend colorClass="bg-orange-500" label="Rezerve" />
+        </div>
+      </div>
+
+      {/* Fiyat özet pop-up */}
+      <Dialog open={quoteOpen} onOpenChange={setQuoteOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{villaName} – Rezervasyon Özeti</DialogTitle>
+          </DialogHeader>
+
+          {quote && (
+            <div className="space-y-3">
+              <Row label="Gece Sayısı" value={`${quote.nights} gece`} />
+              <Row label="Gecelik" value={tl.format(quote.perNight)} />
+              <Row label="Ara Toplam" value={tl.format(quote.subtotal)} />
+              {quote.discount > 0 && (
+                <Row label="Kiralama İndirimi" value={`- ${tl.format(quote.discount)}`} />
+              )}
+              <div className="mt-3 border-t pt-3">
+                <Row strong label="Toplam" value={tl.format(quote.total)} />
+                <Row label="Ön Ödeme" value={tl.format(quote.deposit)} />
+              </div>
+
+              <div className="pt-2">
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    setShowForm(true);
+                    setQuoteOpen(false);
+                  }}
+                >
+                  Devam
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Rezervasyon formu */}
+      {showForm && quote && (
+        <div className="mt-6">
+          <BookingForm
+            villaName={villaName}
+            villaImage={villaImage}
+            from={quote.from}
+            to={quote.to}
+            nights={quote.nights}
+            total={quote.total}
+            deposit={quote.deposit}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Row({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className="flex items-center justify-between text-sm">
+      <span className={`text-gray-600 ${strong ? "font-semibold text-gray-800" : ""}`}>
+        {label}
+      </span>
+      <span className={` ${strong ? "font-semibold" : ""}`}>{value}</span>
+    </div>
+  );
+}
+
+function Legend({ colorClass, label }: { colorClass: string; label: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`h-3 w-5 rounded border ${colorClass}`} />
+      <span>{label}</span>
+    </div>
   );
 }

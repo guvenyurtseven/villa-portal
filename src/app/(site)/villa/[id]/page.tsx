@@ -1,11 +1,15 @@
-import Image from "next/image";
-import FeaturesList from "@/components/site/FeaturesList";
-import GalleryWithThumbnails from "@/components/site/GalleryWithThumbnails";
-import BookingPanel from "@/components/site/BookingPanel";
+// src/app/(site)/villa/[id]/page.tsx
 import { mockVillas } from "@/lib/mock-villas";
+import PhotoGallery from "@/components/site/PhotoGallery";
+import FeaturesList from "@/components/site/FeaturesList";
+import AvailabilityCalendar from "@/components/site/AvailabilityCalendar";
 
-export default async function VillaPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params; // Next 15 uyarısını çözmek için await
+interface VillaPageProps {
+  params: Promise<{ id: string }>; // Next 15 async params
+}
+
+export default async function VillaPage({ params }: VillaPageProps) {
+  const { id } = await params;
   const villa = mockVillas.find((v) => v.id === id);
 
   if (!villa) {
@@ -18,38 +22,32 @@ export default async function VillaPage({ params }: { params: Promise<{ id: stri
   }
 
   return (
-    <main className="p-6">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Sol: Galeri + bilgi */}
-        <div className="lg:col-span-2">
-          <GalleryWithThumbnails photos={villa.photos} />
+    <main className="max-w-5xl mx-auto p-6">
+      <h1 className="text-3xl font-bold">{villa.name}</h1>
+      <p className="text-gray-500 mt-1">
+        {villa.location} · {villa.pricePerWeek} / hafta
+      </p>
 
-          <div className="mt-6 bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <h1 className="text-3xl font-bold">{villa.name}</h1>
-            <p className="text-gray-500 mt-1">{villa.location}</p>
-
-            <div className="mt-4 text-xl font-semibold">{villa.pricePerWeek} / hafta</div>
-
-            <FeaturesList
-              bedrooms={villa.features.bedrooms}
-              bathrooms={villa.features.bathrooms}
-              hasPool={villa.features.hasPool}
-              seaDistanceMeters={villa.features.seaDistanceMeters}
-            />
-          </div>
-        </div>
-
-        {/* Sağ: Rezervasyon paneli */}
-        <aside className="lg:col-span-1">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 sticky top-6">
-            <BookingPanel
-              villaId={villa.id}
-              weeklyPrice={villa.weeklyPrice}
-              reservedRanges={villa.reservedRanges}
-            />
-          </div>
-        </aside>
+      {/* Foto galeri */}
+      <div className="mt-6">
+        <PhotoGallery photos={villa.photos} />
       </div>
+
+      {/* Özellikler */}
+      <FeaturesList
+        bedrooms={villa.features.bedrooms}
+        bathrooms={villa.features.bathrooms}
+        pool={villa.features.pool}
+        seaDistance={villa.features.seaDistance}
+      />
+
+      {/* Takvim + fiyat + form */}
+      <AvailabilityCalendar
+        weeklyPrice={villa.weeklyPriceNum}
+        unavailable={villa.unavailable}
+        villaName={villa.name}
+        villaImage={villa.image}
+      />
     </main>
   );
 }
