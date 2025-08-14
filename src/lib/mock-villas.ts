@@ -21,6 +21,7 @@ export type Villa = {
     seaDistance: string;
   };
   unavailable: UnavailableRange[]; // dolu/bloke tarih aralıkları
+  gizli: boolean; // Yeni eklenen özellik
 };
 
 export const mockVillas: Villa[] = [
@@ -50,6 +51,7 @@ export const mockVillas: Villa[] = [
       { start: "2025-08-22", end: "2025-08-25", type: "blocked" },
       { start: "2025-09-08", end: "2025-09-14", type: "reserved" },
     ],
+    gizli: false,
   },
   {
     id: "2",
@@ -75,6 +77,7 @@ export const mockVillas: Villa[] = [
       { start: "2025-08-15", end: "2025-08-22", type: "reserved" },
       { start: "2025-09-01", end: "2025-09-03", type: "blocked" },
     ],
+    gizli: false,
   },
   {
     id: "3",
@@ -95,6 +98,7 @@ export const mockVillas: Villa[] = [
       seaDistance: "500 m",
     },
     unavailable: [{ start: "2025-09-10", end: "2025-09-12", type: "reserved" }],
+    gizli: true, // Bu villa gizli sayfada görünecek
   },
   {
     id: "4",
@@ -115,5 +119,46 @@ export const mockVillas: Villa[] = [
       seaDistance: "0 m",
     },
     unavailable: [{ start: "2025-08-05", end: "2025-08-09", type: "blocked" }],
+    gizli: false,
+  },
+  // Gizli villalar için birkaç örnek daha ekleyelim
+  {
+    id: "5",
+    name: "VIP Özel Villa",
+    location: "Çeşme, İzmir",
+    pricePerWeek: "₺55.000",
+    weeklyPriceNum: 55000,
+    description: "Sadece özel müşteriler için. Ultra lüks ve özel hizmet.",
+    image: "https://picsum.photos/seed/villa5/800/500",
+    photos: [
+      "https://picsum.photos/seed/villa5/800/500",
+      "https://picsum.photos/seed/villa5b/800/500",
+    ],
+    features: {
+      bedrooms: 6,
+      bathrooms: 5,
+      pool: true,
+      seaDistance: "50 m",
+    },
+    unavailable: [],
+    gizli: true,
+  },
+  {
+    id: "6",
+    name: "Premium Deniz Villa",
+    location: "Datça, Muğla",
+    pricePerWeek: "₺45.000",
+    weeklyPriceNum: 45000,
+    description: "Özel koleksiyon villa. Sınırlı erişim.",
+    image: "https://picsum.photos/seed/villa6/800/500",
+    photos: ["https://picsum.photos/seed/villa6/800/500"],
+    features: {
+      bedrooms: 4,
+      bathrooms: 4,
+      pool: true,
+      seaDistance: "20 m",
+    },
+    unavailable: [{ start: "2025-08-28", end: "2025-09-01", type: "reserved" }],
+    gizli: true,
   },
 ];

@@ -31,7 +31,9 @@ export default function VillaCard({ id, name, location, pricePerWeek, image }: V
         <p className="mt-2 font-bold">{pricePerWeek} / hafta</p>
 
         <Button asChild variant="outline" className="mt-3 w-full">
-          <Link href={`/villa/${id}`}>Detaylar</Link>
+          <Link href={`/villa/${id}`} target="_blank" rel="noopener noreferrer">
+            Detaylar
+          </Link>
         </Button>
       </CardContent>
     </Card>

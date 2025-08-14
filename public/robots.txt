@@ -1,0 +1,7 @@
+# robots.txt
+User-agent: *
+Allow: /
+Disallow: /alternative
+
+# Sitemap (opsiyonel)
+# Sitemap: https://yourdomain.com/sitemap.xml
