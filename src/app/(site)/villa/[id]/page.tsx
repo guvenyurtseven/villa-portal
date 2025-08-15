@@ -3,6 +3,7 @@ import { mockVillas } from "@/lib/mock-villas";
 import PhotoGallery from "@/components/site/PhotoGallery";
 import FeaturesList from "@/components/site/FeaturesList";
 import AvailabilityCalendar from "@/components/site/AvailabilityCalendar";
+import MapModal from "@/components/site/MapModal";
 
 interface VillaPageProps {
   params: Promise<{ id: string }>; // Next 15 async params
@@ -40,6 +41,9 @@ export default async function VillaPage({ params }: VillaPageProps) {
         pool={villa.features.pool}
         seaDistance={villa.features.seaDistance}
       />
+
+      {/* Konum Haritası */}
+      <MapModal villaName={villa.name} location={villa.location} coordinates={villa.coordinates} />
 
       {/* Takvim + fiyat + form */}
       <AvailabilityCalendar

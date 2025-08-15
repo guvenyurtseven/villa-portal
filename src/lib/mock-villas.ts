@@ -1,4 +1,5 @@
 // src/lib/mock-villas.ts
+// src/lib/mock-villas.ts
 export type UnavailableRange = {
   start: string; // ISO string (YYYY-MM-DD)
   end: string; // ISO string (YYYY-MM-DD)
@@ -9,6 +10,10 @@ export type Villa = {
   id: string;
   name: string;
   location: string;
+  coordinates: {
+    lat: number;
+    lng: number;
+  };
   pricePerWeek: string; // Görsel gösterim için
   weeklyPriceNum: number; // Hesaplama için (TRY)
   description: string;
@@ -29,6 +34,10 @@ export const mockVillas: Villa[] = [
     id: "1",
     name: "Deniz Manzaralı Lüks Villa",
     location: "Bodrum, Muğla",
+    coordinates: {
+      lat: 37.0344,
+      lng: 27.4305,
+    },
     pricePerWeek: "₺35.000",
     weeklyPriceNum: 35000,
     description:
@@ -57,6 +66,10 @@ export const mockVillas: Villa[] = [
     id: "2",
     name: "Doğa İçinde Sakin Villa",
     location: "Fethiye, Muğla",
+    coordinates: {
+      lat: 36.6219,
+      lng: 29.1167,
+    },
     pricePerWeek: "₺28.000",
     weeklyPriceNum: 28000,
     description:
@@ -83,6 +96,10 @@ export const mockVillas: Villa[] = [
     id: "3",
     name: "Modern Tasarımlı Şehir Villası",
     location: "Kaş, Antalya",
+    coordinates: {
+      lat: 36.2011,
+      lng: 29.6369,
+    },
     pricePerWeek: "₺32.000",
     weeklyPriceNum: 32000,
     description: "Merkeze yakın, modern ve ferah. Özel havuz ve geniş teras.",
@@ -104,6 +121,10 @@ export const mockVillas: Villa[] = [
     id: "4",
     name: "Sahil Kenarında Özel Villa",
     location: "Alaçatı, İzmir",
+    coordinates: {
+      lat: 38.2667,
+      lng: 26.3667,
+    },
     pricePerWeek: "₺40.000",
     weeklyPriceNum: 40000,
     description: "Denize sıfır, özel plaj erişimi. Şık ve konforlu.",
@@ -121,11 +142,14 @@ export const mockVillas: Villa[] = [
     unavailable: [{ start: "2025-08-05", end: "2025-08-09", type: "blocked" }],
     gizli: false,
   },
-  // Gizli villalar için birkaç örnek daha ekleyelim
   {
     id: "5",
     name: "VIP Özel Villa",
     location: "Çeşme, İzmir",
+    coordinates: {
+      lat: 38.3225,
+      lng: 26.3061,
+    },
     pricePerWeek: "₺55.000",
     weeklyPriceNum: 55000,
     description: "Sadece özel müşteriler için. Ultra lüks ve özel hizmet.",
@@ -147,6 +171,10 @@ export const mockVillas: Villa[] = [
     id: "6",
     name: "Premium Deniz Villa",
     location: "Datça, Muğla",
+    coordinates: {
+      lat: 36.7267,
+      lng: 27.6869,
+    },
     pricePerWeek: "₺45.000",
     weeklyPriceNum: 45000,
     description: "Özel koleksiyon villa. Sınırlı erişim.",
