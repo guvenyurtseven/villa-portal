@@ -79,9 +79,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return session;
     },
   },
+  // pages kısmını güncelle
   pages: {
-    signIn: "/admin/login",
-    error: "/admin/login",
+    signIn: "/admin-login", // admin/login yerine admin-login
+    error: "/admin-login",
   },
   session: {
     strategy: "jwt",

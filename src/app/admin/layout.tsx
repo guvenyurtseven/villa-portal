@@ -5,11 +5,12 @@ import AdminSidebar from "@/components/admin/AdminSidebar";
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
 
-  // Login sayfası değilse ve oturum yoksa login'e yönlendir
+  // Session yoksa login'e yönlendir
   if (!session?.user) {
-    redirect("/admin/login");
+    redirect("/admin-login");
   }
 
+  // Session varsa normal layout'u göster
   return (
     <div className="flex h-screen bg-gray-100">
       <AdminSidebar />
