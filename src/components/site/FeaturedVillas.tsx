@@ -1,15 +1,75 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import VillaCard from "./VillaCard";
-import { mockVillas } from "@/lib/mock-villas";
+
+interface Villa {
+  id: string;
+  name: string;
+  location: string;
+  weekly_price: number;
+  description: string | null;
+  bedrooms: number;
+  bathrooms: number;
+  has_pool: boolean;
+  sea_distance: string | null;
+  is_hidden: boolean;
+  primaryPhoto: string;
+  photos: any[];
+}
 
 interface FeaturedVillasProps {
-  showHidden?: boolean; // Gizli villaları gösterip göstermeyeceğini belirler
+  showHidden?: boolean;
 }
 
 export default function FeaturedVillas({ showHidden = false }: FeaturedVillasProps) {
-  // Gizli durumuna göre villaları filtrele
-  const filteredVillas = mockVillas.filter((villa) => (showHidden ? villa.gizli : !villa.gizli));
+  const [villas, setVillas] = useState<Villa[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchVillas() {
+      try {
+        const response = await fetch(`/api/villas?showHidden=${showHidden}`);
+        if (!response.ok) throw new Error("Villalar yüklenemedi");
+
+        const data = await response.json();
+        setVillas(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Bir hata oluştu");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchVillas();
+  }, [showHidden]);
+
+  if (loading) {
+    return (
+      <section className="my-8">
+        <h2 className="text-2xl font-bold mb-4">
+          {showHidden ? "Özel Villalar" : "Öne Çıkan Villalar"}
+        </h2>
+        <div className="flex gap-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="w-72 h-64 bg-gray-200 animate-pulse rounded-xl" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="my-8">
+        <h2 className="text-2xl font-bold mb-4">
+          {showHidden ? "Özel Villalar" : "Öne Çıkan Villalar"}
+        </h2>
+        <div className="text-red-500">Hata: {error}</div>
+      </section>
+    );
+  }
 
   return (
     <section className="my-8">
@@ -17,17 +77,17 @@ export default function FeaturedVillas({ showHidden = false }: FeaturedVillasPro
         {showHidden ? "Özel Villalar" : "Öne Çıkan Villalar"}
       </h2>
 
-      {filteredVillas.length > 0 ? (
+      {villas.length > 0 ? (
         <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 w-full">
           <div className="flex gap-4 pb-4 min-w-max">
-            {filteredVillas.map((villa) => (
+            {villas.map((villa) => (
               <VillaCard
                 key={villa.id}
                 id={villa.id}
                 name={villa.name}
                 location={villa.location}
-                pricePerWeek={villa.pricePerWeek}
-                image={villa.image}
+                pricePerWeek={`₺${villa.weekly_price.toLocaleString("tr-TR")}`}
+                image={villa.primaryPhoto || "/placeholder.jpg"}
               />
             ))}
           </div>
