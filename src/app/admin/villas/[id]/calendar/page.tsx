@@ -10,6 +10,7 @@ import { DayPicker, DateRange } from "react-day-picker";
 import { format, addMonths } from "date-fns";
 import { tr } from "date-fns/locale";
 import "react-day-picker/dist/style.css";
+import { Input } from "@/components/ui/input";
 
 interface Villa {
   id: string;
@@ -42,7 +43,10 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(true);
   const [blocking, setBlocking] = useState(false);
   const router = useRouter();
-
+  // Kullanıcı bilgileri
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
   // Takvim state
   const [selectedRange, setSelectedRange] = useState<DateRange | undefined>();
   const [blockReason, setBlockReason] = useState<"rezervasyon" | "temizlik">("rezervasyon");
@@ -143,33 +147,226 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
       return;
     }
 
+    if (blockReason === "rezervasyon") {
+      if (!customerName || !customerPhone) {
+        alert("Rezervasyon için müşteri adı ve telefonu zorunludur");
+        return;
+      }
+    }
+
     setBlocking(true);
 
     try {
-      const res = await fetch("/api/admin/blocked-dates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          villa_id: villaId,
-          start_date: format(selectedRange.from, "yyyy-MM-dd"),
-          end_date: format(selectedRange.to, "yyyy-MM-dd"),
-          reason: blockReason === "temizlik" ? "Temizlik" : "Rezervasyon",
-        }),
-      });
+      if (blockReason === "rezervasyon") {
+        const resResponse = await fetch("/api/admin/manual-reservation", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            villa_id: villaId,
+            start_date: format(selectedRange.from, "yyyy-MM-dd"),
+            end_date: format(selectedRange.to, "yyyy-MM-dd"),
+            guest_name: customerName,
+            guest_phone: customerPhone,
+            guest_email: customerEmail || "",
+            status: "confirmed",
+            notes: "Admin tarafından oluşturuldu",
+          }),
+        });
 
-      if (res.ok) {
-        setSelectedRange(undefined);
-        fetchData(villaId);
-        alert("Tarihler bloke edildi");
+        if (resResponse.ok) {
+          setSelectedRange(undefined);
+          setCustomerName("");
+          setCustomerPhone("");
+          setCustomerEmail("");
+          fetchData(villaId);
+          alert("Rezervasyon başarıyla oluşturuldu");
+        } else {
+          const error = await resResponse.json();
+          alert(error.error || "Hata oluştu");
+        }
       } else {
-        const error = await res.json();
-        alert(error.error || "Hata oluştu");
+        // Temizlik için normal bloke
+        const res = await fetch("/api/admin/blocked-dates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            villa_id: villaId,
+            start_date: format(selectedRange.from, "yyyy-MM-dd"),
+            end_date: format(selectedRange.to, "yyyy-MM-dd"),
+            reason: "Temizlik",
+          }),
+        });
+
+        if (res.ok) {
+          setSelectedRange(undefined);
+          fetchData(villaId);
+          alert("Tarihler bloke edildi");
+        }
       }
     } catch (error) {
       alert("Hata oluştu");
     } finally {
       setBlocking(false);
     }
+    return (
+      <div className="space-y-6">
+        {/* Villa bilgileri header - aynı */}
+
+        {/* Takvim ve Bloke Etme */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Tarih Bloke Et</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Takvim - aynı */}
+
+            {/* Bloke Tipi Seçimi */}
+            <div className="space-y-3">
+              <Label>Bloke Tipi</Label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="blockType"
+                    value="rezervasyon"
+                    checked={blockReason === "rezervasyon"}
+                    onChange={() => setBlockReason("rezervasyon")}
+                    className="w-4 h-4"
+                  />
+                  <span>Rezervasyon</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="blockType"
+                    value="temizlik"
+                    checked={blockReason === "temizlik"}
+                    onChange={() => setBlockReason("temizlik")}
+                    className="w-4 h-4"
+                  />
+                  <span>Temizlik</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Müşteri Bilgileri (Rezervasyon seçiliyse) */}
+            {blockReason === "rezervasyon" && (
+              <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
+                <h4 className="font-medium">Müşteri Bilgileri</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="customerName">Ad Soyad *</Label>
+                    <Input
+                      id="customerName"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Müşteri adı"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="customerPhone">Telefon *</Label>
+                    <Input
+                      id="customerPhone"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      placeholder="05XX XXX XX XX"
+                      required
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="customerEmail">E-posta (Opsiyonel)</Label>
+                  <Input
+                    id="customerEmail"
+                    type="email"
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    placeholder="musteri@email.com"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Kaydet Butonu - aynı */}
+          </CardContent>
+        </Card>
+
+        {/* Rezervasyonlar */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Rezervasyonlar</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {reservations.length > 0 ? (
+              <div className="space-y-4">
+                {reservations.map((res) => {
+                  const dates = parseDateRange(res.date_range);
+                  return (
+                    <div key={res.id} className="border rounded-lg p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium text-lg">{res.guest_name}</p>
+                          <p className="text-sm text-gray-600">📞 {res.guest_phone}</p>
+                          {res.guest_email && (
+                            <p className="text-sm text-gray-600">✉️ {res.guest_email}</p>
+                          )}
+                          <p className="text-sm mt-2">
+                            📅 {dates.start} - {dates.end}
+                          </p>
+                          <p className="text-sm font-medium mt-1">
+                            💰 ₺{res.total_price?.toLocaleString("tr-TR")}
+                          </p>
+                        </div>
+                        {/* Status badge ve butonlar - aynı */}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-gray-500">Henüz rezervasyon bulunmuyor.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Bloke Tarihler - sadece temizlik gösterilecek */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Temizlik/Bakım Tarihleri</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {blockedDates.filter((b) => b.reason !== "Rezervasyon").length > 0 ? (
+              <div className="space-y-2">
+                {blockedDates
+                  .filter((b) => b.reason !== "Rezervasyon")
+                  .map((block) => {
+                    const dates = parseDateRange(block.date_range);
+                    return (
+                      <div
+                        key={block.id}
+                        className="flex justify-between items-center border rounded-lg p-3"
+                      >
+                        <div>
+                          <p className="font-medium">
+                            {dates.start} - {dates.end}
+                          </p>
+                          <p className="text-sm text-gray-500">{block.reason || "Temizlik"}</p>
+                        </div>
+                        <Button size="sm" variant="ghost" onClick={() => removeBlock(block.id)}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+              </div>
+            ) : (
+              <p className="text-gray-500">Temizlik/bakım için bloke edilmiş tarih bulunmuyor.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   // Bloke kaldır
