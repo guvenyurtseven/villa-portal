@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Calendar, X, Loader2, Home } from "lucide-react";
+import { Calendar, X, Loader2, Home, DollarSign } from "lucide-react";
 import { DayPicker, DateRange } from "react-day-picker";
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
@@ -36,11 +36,19 @@ interface BlockedDate {
   reason: string;
 }
 
+interface PricingPeriod {
+  id: string;
+  start_date: string;
+  end_date: string;
+  nightly_price: number;
+}
+
 export default function VillaCalendarPage({ params }: { params: Promise<{ id: string }> }) {
   const [villaId, setVillaId] = useState<string>("");
   const [villa, setVilla] = useState<Villa | null>(null);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
+  const [pricingPeriods, setPricingPeriods] = useState<PricingPeriod[]>([]);
   const [loading, setLoading] = useState(true);
   const [blocking, setBlocking] = useState(false);
   const router = useRouter();
@@ -53,6 +61,12 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
+
+  // Fiyat dönemi state'leri
+  const [showPricingForm, setShowPricingForm] = useState(false);
+  const [pricingRange, setPricingRange] = useState<DateRange | undefined>();
+  const [nightlyPrice, setNightlyPrice] = useState("");
+  const [savingPrice, setSavingPrice] = useState(false);
 
   const [disabledDates, setDisabledDates] = useState<Date[]>([]);
 
@@ -67,10 +81,16 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
 
   async function fetchData(id: string) {
     try {
-      // Villa bilgilerini al
-      const villaRes = await fetch(`/api/villas/${id}`);
-      const villaData = await villaRes.json();
-      setVilla(villaData);
+      // Villa bilgilerini al - admin API kullan (gizli villalar için)
+      const villaRes = await fetch(`/api/admin/villas/${id}`);
+      if (!villaRes.ok) {
+        const publicRes = await fetch(`/api/villas/${id}`);
+        const villaData = await publicRes.json();
+        setVilla(villaData);
+      } else {
+        const villaData = await villaRes.json();
+        setVilla(villaData);
+      }
 
       // Rezervasyonları al
       const resRes = await fetch(`/api/reservations?villa_id=${id}`);
@@ -81,6 +101,11 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
       const blockRes = await fetch(`/api/admin/blocked-dates?villa_id=${id}`);
       const blockData = await blockRes.json();
       setBlockedDates(blockData || []);
+
+      // Fiyat dönemlerini al
+      const pricingRes = await fetch(`/api/admin/pricing-periods?villa_id=${id}`);
+      const pricingData = await pricingRes.json();
+      setPricingPeriods(pricingData || []);
 
       // Disabled dates hesapla
       const disabled: Date[] = [];
@@ -124,7 +149,63 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
     return { start: "", end: "" };
   }
 
-  // TARİH BLOKE ET FONKSİYONU - ÖNEMLİ!
+  // Fiyat dönemi kaydet
+  async function savePricingPeriod() {
+    if (!pricingRange?.from || !pricingRange?.to || !nightlyPrice) {
+      alert("Lütfen tarih aralığı ve fiyat girin");
+      return;
+    }
+
+    setSavingPrice(true);
+
+    try {
+      const res = await fetch("/api/admin/pricing-periods", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          villa_id: villaId,
+          start_date: format(pricingRange.from, "yyyy-MM-dd"),
+          end_date: format(pricingRange.to, "yyyy-MM-dd"),
+          nightly_price: parseFloat(nightlyPrice),
+        }),
+      });
+
+      if (res.ok) {
+        setPricingRange(undefined);
+        setNightlyPrice("");
+        setShowPricingForm(false);
+        fetchData(villaId);
+        alert("Fiyat dönemi başarıyla eklendi");
+      } else {
+        const error = await res.json();
+        alert(error.error || "Hata oluştu");
+      }
+    } catch (error) {
+      alert("Hata oluştu");
+    } finally {
+      setSavingPrice(false);
+    }
+  }
+
+  // Fiyat dönemi sil
+  async function removePricingPeriod(periodId: string) {
+    if (!confirm("Bu fiyat dönemini silmek istediğinizden emin misiniz?")) return;
+
+    try {
+      const res = await fetch(`/api/admin/pricing-periods?id=${periodId}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        fetchData(villaId);
+        alert("Fiyat dönemi silindi");
+      }
+    } catch (error) {
+      alert("Hata oluştu");
+    }
+  }
+
+  // Tarih bloke et fonksiyonu
   async function blockDates() {
     if (!selectedRange?.from || !selectedRange?.to) {
       alert("Lütfen tarih aralığı seçin");
@@ -142,7 +223,6 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
     setBlocking(true);
 
     try {
-      // Eğer rezervasyon ise
       if (blockReason === "rezervasyon") {
         const resResponse = await fetch("/api/admin/manual-reservation", {
           method: "POST",
@@ -171,7 +251,6 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
           alert(error.error || "Hata oluştu");
         }
       } else {
-        // Temizlik için normal bloke
         const res = await fetch("/api/admin/blocked-dates", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -187,9 +266,6 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
           setSelectedRange(undefined);
           fetchData(villaId);
           alert("Tarihler bloke edildi");
-        } else {
-          const error = await res.json();
-          alert(error.error || "Hata oluştu");
         }
       }
     } catch (error) {
@@ -243,11 +319,12 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
     );
   }
 
-  // Villa'nın birincil fotoğrafını bul
   const primaryPhoto =
     villa?.photos?.find((p: any) => p.is_primary)?.url ||
     villa?.photos?.[0]?.url ||
     "/placeholder.jpg";
+
+  const defaultNightlyPrice = villa ? Math.round(villa.weekly_price / 7) : 0;
 
   return (
     <div className="space-y-6">
@@ -266,6 +343,9 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
               <p className="text-lg font-semibold mt-2">
                 ₺{villa?.weekly_price?.toLocaleString("tr-TR")} / hafta
               </p>
+              <p className="text-sm text-gray-600">
+                (Varsayılan: ₺{defaultNightlyPrice.toLocaleString("tr-TR")} / gece)
+              </p>
             </div>
             <Button variant="outline" onClick={() => router.push("/admin/villas")}>
               <Home className="mr-2 h-4 w-4" />
@@ -275,7 +355,105 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
         </CardContent>
       </Card>
 
-      {/* Takvim ve Bloke Etme */}
+      {/* Özel Fiyat Dönemleri */}
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5" />
+              Özel Fiyat Dönemleri
+            </CardTitle>
+            <Button
+              onClick={() => setShowPricingForm(!showPricingForm)}
+              variant="outline"
+              size="sm"
+            >
+              {showPricingForm ? "İptal" : "Yeni Dönem Ekle"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {showPricingForm && (
+            <div className="mb-6 p-4 border rounded-lg bg-gray-50 space-y-4">
+              <div className="border rounded-lg p-4 bg-white">
+                <Label className="mb-2 block">Tarih Aralığı Seçin</Label>
+                <DayPicker
+                  mode="range"
+                  selected={pricingRange}
+                  onSelect={setPricingRange}
+                  disabled={{ before: new Date() }}
+                  numberOfMonths={2}
+                  locale={tr}
+                />
+              </div>
+
+              {pricingRange?.from && pricingRange?.to && (
+                <>
+                  <div>
+                    <Label htmlFor="nightlyPrice">Gecelik Fiyat (₺)</Label>
+                    <Input
+                      id="nightlyPrice"
+                      type="number"
+                      value={nightlyPrice}
+                      onChange={(e) => setNightlyPrice(e.target.value)}
+                      placeholder="Örn: 6800"
+                      className="mt-1"
+                    />
+                    <p className="text-sm text-gray-600 mt-1">
+                      Seçilen dönem: {format(pricingRange.from, "dd MMM yyyy", { locale: tr })} -
+                      {format(pricingRange.to, "dd MMM yyyy", { locale: tr })}
+                    </p>
+                  </div>
+
+                  <Button
+                    onClick={savePricingPeriod}
+                    disabled={savingPrice || !nightlyPrice}
+                    className="w-full"
+                  >
+                    {savingPrice ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Kaydediliyor...
+                      </>
+                    ) : (
+                      "Fiyat Dönemini Kaydet"
+                    )}
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+
+          {pricingPeriods.length > 0 ? (
+            <div className="space-y-2">
+              {pricingPeriods.map((period) => (
+                <div
+                  key={period.id}
+                  className="flex justify-between items-center border rounded-lg p-3"
+                >
+                  <div>
+                    <p className="font-medium">
+                      {period.start_date} - {period.end_date}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      ₺{period.nightly_price.toLocaleString("tr-TR")} / gece
+                    </p>
+                  </div>
+                  <Button size="sm" variant="ghost" onClick={() => removePricingPeriod(period.id)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500">
+              Özel fiyat dönemi bulunmuyor. Varsayılan fiyat uygulanacak.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Takvim ve Bloke Etme - mevcut kod aynı kalacak */}
       <Card>
         <CardHeader>
           <CardTitle>Tarih Bloke Et</CardTitle>

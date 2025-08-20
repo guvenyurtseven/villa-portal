@@ -30,11 +30,22 @@ export default function FeaturedVillas({ showHidden = false }: FeaturedVillasPro
   useEffect(() => {
     async function fetchVillas() {
       try {
+        // showHidden parametresini API'ye gönder
         const response = await fetch(`/api/villas?showHidden=${showHidden}`);
         if (!response.ok) throw new Error("Villalar yüklenemedi");
 
         const data = await response.json();
-        setVillas(data);
+
+        // Gelen villaları filtrele
+        const filteredVillas = data.filter((villa: Villa) => {
+          if (showHidden) {
+            return villa.is_hidden === true; // Sadece gizli olanları göster
+          } else {
+            return villa.is_hidden === false; // Sadece gizli olmayanları göster
+          }
+        });
+
+        setVillas(filteredVillas);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Bir hata oluştu");
       } finally {
@@ -74,7 +85,7 @@ export default function FeaturedVillas({ showHidden = false }: FeaturedVillasPro
   return (
     <section className="my-8">
       <h2 className="text-2xl font-bold mb-4">
-        {showHidden ? "Özel Villalar" : "Öne Çıkan Villalar"}
+        {showHidden ? "Özel Koleksiyon Villalar" : "Öne Çıkan Villalar"}
       </h2>
 
       {villas.length > 0 ? (

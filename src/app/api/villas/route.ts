@@ -7,7 +7,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const showHidden = searchParams.get("showHidden") === "true";
 
-    let query = supabase
+    // Tüm villaları çek (gizli veya değil)
+    const query = supabase
       .from("villas")
       .select(
         `
@@ -17,9 +18,8 @@ export async function GET(request: Request) {
       )
       .order("created_at", { ascending: false });
 
-    if (!showHidden) {
-      query = query.eq("is_hidden", false);
-    }
+    // showHidden parametresine göre filtreleme YAPMA
+    // Tüm villaları çek, filtreleme client tarafında yapılacak
 
     const { data, error } = await query;
 
@@ -27,6 +27,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Veriyi formatla
     const formattedVillas = data?.map((villa) => ({
       ...villa,
       primaryPhoto:
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
       photos: villa.photos?.sort((a: any, b: any) => a.order_index - b.order_index) || [],
     }));
 
-    return NextResponse.json(formattedVillas);
+    return NextResponse.json(formattedVillas || []);
   } catch (error) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
