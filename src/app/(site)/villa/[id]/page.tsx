@@ -29,59 +29,67 @@ export default async function VillaPage({ params }: VillaPageProps) {
     notFound();
   }
 
-  // Rezervasyonları çek
-  const { data: reservations, error: resError } = await supabase
+  // Rezervasyonları çek (onaylı olanlar)
+  const { data: reservations } = await supabase
     .from("reservations")
-    .select("*")
-    .eq("villa_id", id);
-
-  console.log("Reservations:", reservations, "Error:", resError);
+    .select("date_range, status")
+    .eq("villa_id", id)
+    .eq("status", "confirmed");
 
   // Bloke tarihleri çek
-  const { data: blockedDates, error: blockError } = await supabase
+  const { data: blockedDates } = await supabase
     .from("blocked_dates")
-    .select("*")
+    .select("date_range, reason")
     .eq("villa_id", id);
 
-  console.log("Blocked dates:", blockedDates, "Error:", blockError);
+  // ÖZEL FİYAT DÖNEMLERİNİ ÇEK - YENİ
+  const { data: pricingPeriods } = await supabase
+    .from("villa_pricing_periods")
+    .select("*")
+    .eq("villa_id", id)
+    .order("start_date", { ascending: true });
 
   // Müsait olmayan tarihleri formatla
   const unavailableRanges: any[] = [];
 
   // Onaylı rezervasyonları ekle
-  if (reservations && reservations.length > 0) {
+  if (reservations) {
     reservations.forEach((res: any) => {
-      // Sadece onaylı veya bekleyen rezervasyonları dahil et
-      if (res.status === "confirmed" || res.status === "pending") {
-        const match = res.date_range.match(/\[(\d{4}-\d{2}-\d{2}),(\d{4}-\d{2}-\d{2})\)/);
-        if (match) {
-          unavailableRanges.push({
-            start: match[1],
-            end: match[2],
-            type: "reserved" as const,
-          });
-          console.log("Added reservation:", match[1], "to", match[2]);
-        }
+      // [YYYY-MM-DD,YYYY-MM-DD) veya [YYYY-MM-DD,YYYY-MM-DD] ikisini de destekler
+      const RANGE_RE = /^\[([0-9]{4}-[0-9]{2}-[0-9]{2}),([0-9]{4}-[0-9]{2}-[0-9]{2})[\)\]]$/;
+      const match = (res.date_range as string).match(RANGE_RE);
+
+      if (match) {
+        unavailableRanges.push({
+          start: match[1],
+          end: match[2],
+          type: "reserved" as const,
+        });
       }
     });
   }
 
   // Bloke tarihleri ekle
-  if (blockedDates && blockedDates.length > 0) {
+  if (blockedDates) {
     blockedDates.forEach((block: any) => {
-      const match = block.date_range.match(/\[(\d{4}-\d{2}-\d{2}),(\d{4}-\d{2}-\d{2})\)/);
+      // [YYYY-MM-DD,YYYY-MM-DD) veya [YYYY-MM-DD,YYYY-MM-DD] ikisini de destekler
+      const RANGE_RE = /^\[([0-9]{4}-[0-9]{2}-[0-9]{2}),([0-9]{4}-[0-9]{2}-[0-9]{2})[\)\]]$/;
+      const match = (res.date_range as string).match(RANGE_RE);
+
       if (match) {
+        const type = block.reason === "Rezervasyon" ? "reserved" : "blocked";
         unavailableRanges.push({
           start: match[1],
           end: match[2],
-          type: "reserved" as const, // Tümünü reserved olarak işaretle
+          type: type as "reserved" | "blocked",
         });
-        console.log("Added blocked date:", match[1], "to", match[2], "Reason:", block.reason);
       }
     });
   }
 
-  console.log("Final unavailable ranges:", unavailableRanges);
+  // Debug için log ekleyelim
+  console.log("Pricing periods:", pricingPeriods);
+  console.log("Unavailable ranges:", unavailableRanges);
 
   // Fotoğrafları sırala
   const sortedPhotos =
@@ -123,12 +131,14 @@ export default async function VillaPage({ params }: VillaPageProps) {
         />
       )}
 
-      {/* Takvim + fiyat + form */}
+      {/* Takvim + fiyat + form - PRICING PERIODS EKLENDİ */}
       <AvailabilityCalendar
         weeklyPrice={villa.weekly_price}
         unavailable={unavailableRanges}
         villaName={villa.name}
         villaImage={sortedPhotos[0] || "/placeholder.jpg"}
+        villaId={villa.id}
+        pricingPeriods={pricingPeriods || []}
       />
     </main>
   );

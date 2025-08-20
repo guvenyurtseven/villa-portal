@@ -1,10 +1,16 @@
-// src/components/site/AvailabilityCalendar.tsx
 "use client";
 
 import { useMemo, useState } from "react";
 import { DayPicker, DateRange } from "react-day-picker";
 import { tr } from "date-fns/locale";
-import { differenceInCalendarDays, parseISO, startOfDay, addDays } from "date-fns";
+import {
+  differenceInCalendarDays,
+  parseISO,
+  startOfDay,
+  addDays,
+  format,
+  isWithinInterval,
+} from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import BookingForm from "./BookingForm";
@@ -20,18 +26,31 @@ const tl = new Intl.NumberFormat("tr-TR", {
 
 type Range = { from?: Date; to?: Date };
 type Unavailable = { start: string; end: string; type: "reserved" | "blocked" };
+type PricingPeriod = {
+  id: string;
+  villa_id: string;
+  start_date: string;
+  end_date: string;
+  nightly_price: number;
+};
+
+interface AvailabilityCalendarProps {
+  weeklyPrice: number;
+  unavailable: Unavailable[];
+  villaName: string;
+  villaImage: string;
+  villaId?: string;
+  pricingPeriods?: PricingPeriod[];
+}
 
 export default function AvailabilityCalendar({
   weeklyPrice,
   unavailable,
   villaName,
   villaImage,
-}: {
-  weeklyPrice: number;
-  unavailable: Unavailable[];
-  villaName: string;
-  villaImage: string;
-}) {
+  villaId,
+  pricingPeriods = [],
+}: AvailabilityCalendarProps) {
   const [range, setRange] = useState<Range>();
   const [error, setError] = useState<string | null>(null);
   const [quoteOpen, setQuoteOpen] = useState(false);
@@ -46,10 +65,64 @@ export default function AvailabilityCalendar({
     discount: number;
     total: number;
     deposit: number;
+    priceBreakdown?: Array<{ date: string; price: number }>;
   } | null>(null);
 
   // Bugünün başlangıcı (zaman bileşenlerini sıfırla)
   const today = startOfDay(new Date());
+
+  // Default gecelik fiyat
+  const defaultNightlyPrice = weeklyPrice / 7;
+
+  // Belirli bir tarih için fiyatı hesapla
+  function getPriceForDate(date: Date): number {
+    const dateStr = format(date, "yyyy-MM-dd");
+
+    // Özel fiyat dönemlerini kontrol et
+    for (const period of pricingPeriods) {
+      const periodStart = parseISO(period.start_date);
+      const periodEnd = parseISO(period.end_date);
+
+      if (isWithinInterval(date, { start: periodStart, end: periodEnd })) {
+        return Number(period.nightly_price);
+      }
+    }
+
+    // Özel dönem yoksa default fiyat
+    return defaultNightlyPrice;
+  }
+
+  // Tarih aralığı için toplam fiyatı hesapla
+  function calculateTotalPrice(
+    from: Date,
+    to: Date,
+  ): {
+    subtotal: number;
+    priceBreakdown: Array<{ date: string; price: number }>;
+    nights: number;
+    averagePerNight: number;
+  } {
+    const priceBreakdown: Array<{ date: string; price: number }> = [];
+    let subtotal = 0;
+    let current = new Date(from);
+    let nights = 0;
+
+    // Her gece için fiyatı hesapla
+    while (current < to) {
+      const nightlyPrice = getPriceForDate(current);
+      subtotal += nightlyPrice;
+      priceBreakdown.push({
+        date: format(current, "dd/MM/yyyy"),
+        price: nightlyPrice,
+      });
+      current = addDays(current, 1);
+      nights++;
+    }
+
+    const averagePerNight = nights > 0 ? subtotal / nights : 0;
+
+    return { subtotal, priceBreakdown, nights, averagePerNight };
+  }
 
   // Check-in/out günlerini ve tamamen dolu günleri ayır
   const checkInDays = useMemo(() => {
@@ -113,7 +186,7 @@ export default function AvailabilityCalendar({
     return [{ before: today }, ...fullyBookedDays];
   }, [fullyBookedDays, today]);
 
-  // Aralık çakışması kontrolü - check-in/out günleri hariç
+  // Aralık çakışması kontrolü
   function rangeConflictsWithUnavailable(start: Date, end: Date) {
     const s = startOfDay(start);
     const e = startOfDay(end);
@@ -131,6 +204,27 @@ export default function AvailabilityCalendar({
     return false;
   }
 
+  // Özel fiyat dönemleri için modifiers
+  const pricingModifiers = useMemo(() => {
+    const modifiers: { [key: string]: Date[] } = {};
+
+    pricingPeriods.forEach((period, index) => {
+      const days: Date[] = [];
+      const start = parseISO(period.start_date);
+      const end = parseISO(period.end_date);
+
+      let current = new Date(start);
+      while (current <= end) {
+        days.push(new Date(current));
+        current = addDays(current, 1);
+      }
+
+      modifiers[`pricing_${index}`] = days;
+    });
+
+    return modifiers;
+  }, [pricingPeriods]);
+
   function onSelect(next: DateRange | undefined) {
     // her seçmede range'ı göster (ilk tıklama görsel olarak kalmalı)
     setRange(next);
@@ -145,32 +239,28 @@ export default function AvailabilityCalendar({
     const selFrom = startOfDay(next.from);
     const selTo = startOfDay(next.to);
 
-    // Eğer kullanıcı aynı günü iki kere seçmişse (nights === 0), bunu "tamamlanmış aralık" olarak saymıyoruz.
+    // Eğer kullanıcı aynı günü iki kere seçmişse (nights === 0)
     const nights = differenceInCalendarDays(selTo, selFrom);
     if (nights === 0) {
-      // Sadece tek gün seçildi – görsel olarak bırak, fakat işlem yapma / hata gösterme
-      // (kullanıcı muhtemelen bitişi seçmek isteyecek)
       return;
     }
 
-    // 1) Seçilen aralık içinde geçmiş/güncel unavailable aralığı var mı? (tamamen boş olmalı)
+    // 1) Seçilen aralık içinde geçmiş/güncel unavailable aralığı var mı?
     if (rangeConflictsWithUnavailable(selFrom, selTo)) {
       setError("Lütfen geçerli bir tarih aralığı seçiniz (dolu/kapalı günler arasına yazılamaz).");
-      // seçimi temizle (kullanıcının yeniden seçmesini bekle)
       setRange(undefined);
       return;
     }
 
-    // 2) Minimum gecelik kontrolu - yalnızca geçerli aralık için çalışsın
+    // 2) Minimum gecelik kontrolu
     if (nights < 7) {
       setError("Üzgünüz, bu tarih aralığı için minimum rezervasyon 7 gecedir!");
       setRange(undefined);
       return;
     }
 
-    // Eğer buraya geldiyse seçim geçerli: fiyat hesapla ve özet popup'ını aç
-    const perNight = weeklyPrice / 7;
-    const subtotal = Math.round(perNight * nights);
+    // DÖNEMSEL FİYATLANDIRMA İLE HESAPLAMA - YENİ
+    const { subtotal, priceBreakdown, averagePerNight } = calculateTotalPrice(selFrom, selTo);
     const discount = nights >= 14 ? Math.round(subtotal * 0.05) : 0;
     const total = subtotal - discount;
     const deposit = Math.round(total * 0.35);
@@ -179,15 +269,31 @@ export default function AvailabilityCalendar({
       from: selFrom,
       to: selTo,
       nights,
-      perNight,
+      perNight: Math.round(averagePerNight),
       subtotal,
       discount,
       total,
       deposit,
+      priceBreakdown,
     });
 
     setQuoteOpen(true);
   }
+
+  // Özel fiyat dönemleri için renkler
+  const pricingStyles = useMemo(() => {
+    const styles: { [key: string]: React.CSSProperties } = {};
+
+    pricingPeriods.forEach((period, index) => {
+      const isDiscounted = period.nightly_price < defaultNightlyPrice;
+      styles[`pricing_${index}`] = {
+        backgroundColor: isDiscounted ? "#dcfce7" : "#fee2e2", // Yeşil: indirim, Kırmızı: zam
+        position: "relative",
+      };
+    });
+
+    return styles;
+  }, [pricingPeriods, defaultNightlyPrice]);
 
   return (
     <div className="mt-8">
@@ -198,13 +304,44 @@ export default function AvailabilityCalendar({
         </div>
       )}
 
+      {/* Fiyat Dönemleri Bilgisi */}
+      {pricingPeriods.length > 0 && (
+        <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+          <h3 className="font-semibold text-sm mb-2">Özel Fiyat Dönemleri:</h3>
+          <div className="space-y-1 text-sm">
+            {pricingPeriods.map((period) => {
+              const isDiscounted = period.nightly_price < defaultNightlyPrice;
+              return (
+                <div key={period.id} className="flex items-center gap-2">
+                  <span
+                    className={`w-3 h-3 rounded ${isDiscounted ? "bg-green-300" : "bg-red-300"}`}
+                  />
+                  <span>
+                    {format(parseISO(period.start_date), "dd MMM", { locale: tr })} -
+                    {format(parseISO(period.end_date), "dd MMM", { locale: tr })}:
+                    <strong className="ml-1">₺{period.nightly_price}/gece</strong>
+                    {isDiscounted && <span className="text-green-600 ml-1">(İndirimli)</span>}
+                  </span>
+                </div>
+              );
+            })}
+            <div className="flex items-center gap-2 text-gray-600">
+              <span className="w-3 h-3 rounded bg-white border"></span>
+              <span>
+                Diğer günler: <strong>₺{Math.round(defaultNightlyPrice)}/gece</strong>
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Takvim konteyneri */}
       <div className="rounded-xl border p-3">
         <DayPicker
           locale={tr}
           mode="range"
-          numberOfMonths={2} // yan yana 2 ay
-          fromMonth={today} // takvimi bugünden başlat
+          numberOfMonths={2}
+          fromMonth={today}
           showOutsideDays
           selected={range as DateRange}
           onSelect={onSelect}
@@ -213,6 +350,7 @@ export default function AvailabilityCalendar({
             checkIn: checkInDays,
             checkOut: checkOutDays,
             fullyBooked: fullyBookedDays,
+            ...pricingModifiers,
           }}
           modifiersStyles={{
             checkOut: {
@@ -227,9 +365,11 @@ export default function AvailabilityCalendar({
               backgroundColor: "#fb923c",
               color: "white",
             },
+            ...pricingStyles,
           }}
           className="!text-sm"
         />
+
         {/* Lejant */}
         <div className="mt-2 flex flex-wrap gap-3 text-xs">
           <Legend colorClass="bg-white border" label="Müsait" />
@@ -248,12 +388,18 @@ export default function AvailabilityCalendar({
             <span>Check-in günü</span>
           </div>
           <Legend colorClass="bg-orange-500" label="Rezerve" />
+          {pricingPeriods.some((p) => p.nightly_price < defaultNightlyPrice) && (
+            <Legend colorClass="bg-green-300" label="İndirimli" />
+          )}
+          {pricingPeriods.some((p) => p.nightly_price > defaultNightlyPrice) && (
+            <Legend colorClass="bg-red-300" label="Özel Fiyat" />
+          )}
         </div>
       </div>
 
       {/* Fiyat özet pop-up */}
       <Dialog open={quoteOpen} onOpenChange={setQuoteOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Rezervasyon Özeti</DialogTitle>
             <DialogDescription>{villaName}</DialogDescription>
@@ -261,9 +407,27 @@ export default function AvailabilityCalendar({
 
           {quote && (
             <div className="space-y-3">
-              {/* ... fiyat satırları */}
               <Row label="Gece Sayısı" value={`${quote.nights} gece`} />
-              <Row label="Gecelik" value={tl.format(quote.perNight)} />
+              <Row label="Ortalama Gecelik" value={tl.format(quote.perNight)} />
+
+              {/* Fiyat Detayı */}
+              {quote.priceBreakdown && quote.priceBreakdown.length > 0 && (
+                <details className="border rounded p-2">
+                  <summary className="cursor-pointer text-sm font-medium">Fiyat Detayı</summary>
+                  <div className="mt-2 max-h-40 overflow-y-auto">
+                    {quote.priceBreakdown.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="flex justify-between text-xs py-1 border-b last:border-0"
+                      >
+                        <span>{item.date}</span>
+                        <span>₺{item.price}</span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+
               <Row label="Ara Toplam" value={tl.format(quote.subtotal)} />
               {quote.discount > 0 && (
                 <Row label="Kiralama İndirimi" value={`- ${tl.format(quote.discount)}`} />
@@ -277,6 +441,7 @@ export default function AvailabilityCalendar({
                   className="w-full"
                   onClick={() => {
                     const params = new URLSearchParams({
+                      villaId: villaId || "",
                       villaName,
                       villaImage,
                       from: quote.from.toISOString(),

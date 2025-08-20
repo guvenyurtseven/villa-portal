@@ -1,27 +1,16 @@
-// src/components/site/BookingForm.tsx
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { tr } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2 } from "lucide-react";
 
-const tl = new Intl.NumberFormat("tr-TR", {
-  style: "currency",
-  currency: "TRY",
-  maximumFractionDigits: 0,
-});
-
-export default function BookingForm({
-  villaName,
-  villaImage,
-  from,
-  to,
-  nights,
-  total,
-  deposit,
-}: {
+interface BookingFormProps {
+  villaId?: string;
   villaName: string;
   villaImage: string;
   from: Date;
@@ -29,115 +18,143 @@ export default function BookingForm({
   nights: number;
   total: number;
   deposit: number;
-}) {
-  const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
+}
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+export default function BookingForm({
+  villaId,
+  villaName,
+  villaImage,
+  from,
+  to,
+  nights,
+  total,
+  deposit,
+}: BookingFormProps) {
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    notes: "",
+  });
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
-    const fd = new FormData(e.currentTarget);
-    const payload = {
-      name: fd.get("name"),
-      email: fd.get("email"),
-      phone: fd.get("phone"),
-      message: fd.get("message"),
-      startDate: from.toISOString(),
-      endDate: to.toISOString(),
-    };
+
+    if (!villaId) {
+      alert("Villa bilgisi eksik");
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
-      // Eğer /api/inquiry henüz yoksa, bu fetch başarısız olabilir.
-      await fetch("/api/inquiry", {
+      const response = await fetch("/api/reservations", {
         method: "POST",
-        body: JSON.stringify(payload),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          villa_id: villaId,
+          start_date: format(from, "yyyy-MM-dd"),
+          end_date: format(to, "yyyy-MM-dd"),
+          guest_name: formData.name,
+          guest_email: formData.email,
+          guest_phone: formData.phone,
+          notes: formData.notes,
+        }),
       });
-      setDone(true);
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Başarılı sayfasına yönlendir
+        router.push(`/booking/success?id=${data.reservation.id}`);
+      } else {
+        alert(data.error || "Rezervasyon oluşturulurken hata oluştu");
+      }
+    } catch (error) {
+      alert("Bir hata oluştu. Lütfen tekrar deneyin.");
+      console.error("Booking error:", error);
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   }
 
-  if (done) {
-    return (
-      <div className="rounded-xl border p-6">
-        <p className="text-green-700">
-          Talebiniz alındı. En kısa sürede sizinle iletişime geçeceğiz.
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="name">Ad Soyad *</Label>
+          <Input
+            id="name"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            required
+            disabled={isSubmitting}
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="phone">Telefon *</Label>
+          <Input
+            id="phone"
+            type="tel"
+            value={formData.phone}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            placeholder="05XX XXX XX XX"
+            required
+            disabled={isSubmitting}
+          />
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="email">E-posta *</Label>
+        <Input
+          id="email"
+          type="email"
+          value={formData.email}
+          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+          required
+          disabled={isSubmitting}
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="notes">Notlar (Opsiyonel)</Label>
+        <Textarea
+          id="notes"
+          value={formData.notes}
+          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+          rows={3}
+          placeholder="Varsa özel isteklerinizi belirtebilirsiniz..."
+          disabled={isSubmitting}
+        />
+      </div>
+
+      <div className="pt-4 border-t">
+        <div className="flex justify-between mb-4">
+          <span className="text-gray-600">Ön Ödeme Tutarı:</span>
+          <span className="text-xl font-bold">₺{deposit.toLocaleString("tr-TR")}</span>
+        </div>
+
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              İşleniyor...
+            </>
+          ) : (
+            "Rezervasyonu Tamamla"
+          )}
+        </Button>
+
+        <p className="text-xs text-gray-500 mt-4 text-center">
+          Rezervasyonunuz onaylandıktan sonra size bilgilendirme e-postası gönderilecektir.
         </p>
       </div>
-    );
-  }
-
-  return (
-    <div className="grid gap-6 md:grid-cols-3">
-      {/* Form sol */}
-      <form onSubmit={onSubmit} className="md:col-span-2 rounded-xl border p-6 space-y-3">
-        <h3 className="text-lg font-semibold mb-2">Bilgileriniz</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <input
-            name="name"
-            className="border rounded-md px-3 py-2"
-            placeholder="Adınız Soyadınız"
-            required
-          />
-          <input name="phone" className="border rounded-md px-3 py-2" placeholder="Telefon" />
-          <input
-            name="email"
-            type="email"
-            className="border rounded-md px-3 py-2 md:col-span-2"
-            placeholder="E-posta"
-            required
-          />
-          <textarea
-            name="message"
-            className="border rounded-md px-3 py-2 md:col-span-2"
-            placeholder="Notlarınız (opsiyonel)"
-            rows={4}
-          />
-        </div>
-
-        <div className="pt-2">
-          <Button type="submit" className="w-full md:w-auto" disabled={loading}>
-            {loading ? "Gönderiliyor..." : "Ön Rezervasyon Talebi Gönder"}
-          </Button>
-        </div>
-      </form>
-
-      {/* Sağ özet paneli */}
-      <aside className="rounded-xl border p-6 space-y-3">
-        <div className="flex items-center gap-3">
-          <div className="relative h-16 w-24 overflow-hidden rounded-md">
-            <Image src={villaImage} alt={villaName} fill className="object-cover" />
-          </div>
-          <div>
-            <div className="font-semibold">{villaName}</div>
-            <div className="text-xs text-gray-500">
-              {format(from, "d MMM yyyy", { locale: tr })} →{" "}
-              {format(to, "d MMM yyyy", { locale: tr })} · {nights} gece
-            </div>
-          </div>
-        </div>
-
-        <div className="border-t pt-3 space-y-1 text-sm">
-          <div className="flex justify-between">
-            <span>Toplam</span>
-            <span>{tl.format(total)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Ön Ödeme</span>
-            <span>{tl.format(deposit)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Kalan Ödeme</span>
-            <span>{tl.format(total - deposit)}</span>
-          </div>
-        </div>
-
-        <p className="text-xs text-gray-500">
-          Not: Şu an siteden doğrudan ödeme alınmıyor; gönderdiğiniz ön talep ekibimize iletilir ve
-          tarafınıza dönüş yapılır.
-        </p>
-      </aside>
-    </div>
+    </form>
   );
 }
