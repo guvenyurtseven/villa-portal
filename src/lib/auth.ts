@@ -1,4 +1,4 @@
-import NextAuth from "next-auth";
+import NextAuth, { NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import bcrypt from "bcryptjs";
@@ -9,7 +9,8 @@ const loginSchema = z.object({
   password: z.string().min(6),
 });
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
+// 1) Export your config so other files can import it.
+export const authOptions: NextAuthConfig = {
   providers: [
     Credentials({
       credentials: {
@@ -18,10 +19,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
       async authorize(credentials) {
         const validatedFields = loginSchema.safeParse(credentials);
-
-        if (!validatedFields.success) {
-          return null;
-        }
+        if (!validatedFields.success) return null;
 
         const { email, password } = validatedFields.data;
 
@@ -35,15 +33,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             .eq("is_active", true)
             .single();
 
-          if (error || !admin) {
-            return null;
-          }
+          if (error || !admin) return null;
 
           const passwordMatch = await bcrypt.compare(password, admin.password_hash);
-
-          if (!passwordMatch) {
-            return null;
-          }
+          if (!passwordMatch) return null;
 
           await supabase
             .from("admin_users")
@@ -66,22 +59,25 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id;
-        token.role = user.role;
+        // @ts-expect-error – custom claims
+        token.id = (user as any).id;
+        // @ts-expect-error – custom claims
+        token.role = (user as any).role;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
+        // @ts-expect-error – custom fields
         session.user.id = token.id as string;
+        // @ts-expect-error – custom fields
         session.user.role = token.role as string;
       }
       return session;
     },
   },
-  // pages kısmını güncelle
   pages: {
-    signIn: "/admin-login", // admin/login yerine admin-login
+    signIn: "/admin-login",
     error: "/admin-login",
   },
   session: {
@@ -89,4 +85,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     maxAge: 30 * 24 * 60 * 60,
   },
   secret: process.env.AUTH_SECRET,
-});
+};
+
+// 2) Keep using the modern helper exports.
+export const { handlers, signIn, signOut, auth } = NextAuth(authOptions);
