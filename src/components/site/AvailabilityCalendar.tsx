@@ -4,7 +4,7 @@
 import { useMemo, useState } from "react";
 import { DayPicker, DateRange } from "react-day-picker";
 import { tr } from "date-fns/locale";
-import { differenceInCalendarDays, parseISO, startOfDay } from "date-fns";
+import { differenceInCalendarDays, parseISO, startOfDay, addDays } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import BookingForm from "./BookingForm";
@@ -51,6 +51,52 @@ export default function AvailabilityCalendar({
   // Bugünün başlangıcı (zaman bileşenlerini sıfırla)
   const today = startOfDay(new Date());
 
+  // Check-in/out günlerini ve tamamen dolu günleri ayır
+  const checkInDays = useMemo(() => {
+    const days: Date[] = [];
+    unavailable.forEach((u) => {
+      if (u.type === "reserved") {
+        days.push(startOfDay(parseISO(u.start)));
+      }
+    });
+    return days;
+  }, [unavailable]);
+
+  const checkOutDays = useMemo(() => {
+    const days: Date[] = [];
+    unavailable.forEach((u) => {
+      if (u.type === "reserved") {
+        days.push(startOfDay(parseISO(u.end)));
+      }
+    });
+    return days;
+  }, [unavailable]);
+
+  const fullyBookedDays = useMemo(() => {
+    const days: Date[] = [];
+    unavailable.forEach((u) => {
+      const start = startOfDay(parseISO(u.start));
+      const end = startOfDay(parseISO(u.end));
+
+      if (u.type === "reserved") {
+        // Başlangıç ve bitiş hariç aradaki günler
+        let current = addDays(start, 1);
+        while (current < end) {
+          days.push(new Date(current));
+          current = addDays(current, 1);
+        }
+      } else if (u.type === "blocked") {
+        // Bloke günler tamamen dolu
+        let current = new Date(start);
+        while (current <= end) {
+          days.push(new Date(current));
+          current = addDays(current, 1);
+        }
+      }
+    });
+    return days;
+  }, [unavailable]);
+
   // unavailable aralıklarını DayPicker ile uyumlu range'lere çevir
   const unavailableRanges = useMemo(
     () =>
@@ -62,37 +108,27 @@ export default function AvailabilityCalendar({
     [unavailable],
   );
 
-  // disabled listesi: geçmiş + tüm unavailable range'leri (DayPicker'ın disabled prop'una veriyoruz)
+  // disabled listesi: geçmiş + tamamen dolu günler
   const disabledMatchers = useMemo(() => {
-    const ranges = unavailableRanges.map((r) => ({ from: r.from as Date, to: r.to as Date }));
-    // { before: today } ile bugünden önceki günleri kilitliyoruz
-    return [{ before: today }, ...ranges];
-  }, [unavailableRanges, today]);
+    return [{ before: today }, ...fullyBookedDays];
+  }, [fullyBookedDays, today]);
 
-  // modifiers için ayrı array'ler (renklendirme)
-  const reservedIntervals = useMemo(
-    () =>
-      unavailableRanges
-        .filter((r) => r.type === "reserved")
-        .map((r) => ({ from: r.from, to: r.to })),
-    [unavailableRanges],
-  );
-  const blockedIntervals = useMemo(
-    () =>
-      unavailableRanges
-        .filter((r) => r.type === "blocked")
-        .map((r) => ({ from: r.from, to: r.to })),
-    [unavailableRanges],
-  );
-
-  // Aralık çakışması kontrolü (inclusive)
+  // Aralık çakışması kontrolü - check-in/out günleri hariç
   function rangeConflictsWithUnavailable(start: Date, end: Date) {
     const s = startOfDay(start);
     const e = startOfDay(end);
-    return unavailableRanges.some((u) => {
-      // çakışma: start <= u.to && end >= u.from
-      return s <= (u.to as Date) && e >= (u.from as Date);
-    });
+
+    // Seçilen aralıktaki her günü kontrol et
+    let current = new Date(s);
+    while (current <= e) {
+      // Eğer bu gün tamamen doluysa çakışma var
+      if (fullyBookedDays.some((d) => d.getTime() === current.getTime())) {
+        return true;
+      }
+      current = addDays(current, 1);
+    }
+
+    return false;
   }
 
   function onSelect(next: DateRange | undefined) {
@@ -112,7 +148,7 @@ export default function AvailabilityCalendar({
     // Eğer kullanıcı aynı günü iki kere seçmişse (nights === 0), bunu "tamamlanmış aralık" olarak saymıyoruz.
     const nights = differenceInCalendarDays(selTo, selFrom);
     if (nights === 0) {
-      // Sadece tek gün seçildi — görsel olarak bırak, fakat işlem yapma / hata gösterme
+      // Sadece tek gün seçildi – görsel olarak bırak, fakat işlem yapma / hata gösterme
       // (kullanıcı muhtemelen bitişi seçmek isteyecek)
       return;
     }
@@ -162,7 +198,7 @@ export default function AvailabilityCalendar({
         </div>
       )}
 
-      {/* Takvim konteynerı */}
+      {/* Takvim konteyneri */}
       <div className="rounded-xl border p-3">
         <DayPicker
           locale={tr}
@@ -174,19 +210,43 @@ export default function AvailabilityCalendar({
           onSelect={onSelect}
           disabled={disabledMatchers}
           modifiers={{
-            reserved: reservedIntervals,
-            blocked: blockedIntervals,
+            checkIn: checkInDays,
+            checkOut: checkOutDays,
+            fullyBooked: fullyBookedDays,
           }}
-          modifiersClassNames={{
-            reserved: "bg-orange-500 text-white hover:bg-orange-600",
-            blocked: "bg-gray-300 text-gray-500 line-through",
+          modifiersStyles={{
+            checkOut: {
+              background: "linear-gradient(135deg, #fb923c 50%, white 50%)",
+              color: "black",
+            },
+            checkIn: {
+              background: "linear-gradient(135deg, white 50%, #fb923c 50%)",
+              color: "black",
+            },
+            fullyBooked: {
+              backgroundColor: "#fb923c",
+              color: "white",
+            },
           }}
           className="!text-sm"
         />
         {/* Lejant */}
         <div className="mt-2 flex flex-wrap gap-3 text-xs">
           <Legend colorClass="bg-white border" label="Müsait" />
-          <Legend colorClass="bg-gray-300" label="Dolu" />
+          <div className="flex items-center gap-2">
+            <span
+              className="h-3 w-5 rounded border"
+              style={{ background: "linear-gradient(135deg, #fb923c 50%, white 50%)" }}
+            />
+            <span>Check-out günü</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span
+              className="h-3 w-5 rounded border"
+              style={{ background: "linear-gradient(135deg, white 50%, #fb923c 50%)" }}
+            />
+            <span>Check-in günü</span>
+          </div>
           <Legend colorClass="bg-orange-500" label="Rezerve" />
         </div>
       </div>
