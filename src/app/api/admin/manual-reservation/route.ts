@@ -14,16 +14,24 @@ export async function POST(request: Request) {
     const { villa_id, start_date, end_date, guest_name, guest_phone, guest_email, status, notes } =
       body;
 
+    if (!villa_id || !start_date || !end_date || !guest_name || !guest_phone) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
     const supabase = createServiceRoleClient();
 
-    // Villa fiyatını al
-    const { data: villa } = await supabase
+    // Villa bilgilerini al
+    const { data: villa, error: villaError } = await supabase
       .from("villas")
       .select("weekly_price")
       .eq("id", villa_id)
       .single();
 
-    // Fiyat hesapla
+    if (villaError || !villa) {
+      return NextResponse.json({ error: "Villa not found" }, { status: 404 });
+    }
+
+    // Tarih hesaplama
     const startDateObj = new Date(start_date);
     const endDateObj = new Date(end_date);
     const days = Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24));
@@ -34,14 +42,14 @@ export async function POST(request: Request) {
     const dateRange = `[${start_date},${end_date})`;
 
     // Rezervasyon oluştur
-    const { data: reservation, error } = await supabase
+    const { data: reservation, error: reservationError } = await supabase
       .from("reservations")
       .insert({
         villa_id,
         date_range: dateRange,
         guest_name,
-        guest_phone,
         guest_email: guest_email || null,
+        guest_phone,
         total_price: totalPrice,
         status: status || "confirmed",
         notes: notes || "Admin tarafından oluşturuldu",
@@ -49,14 +57,21 @@ export async function POST(request: Request) {
       .select()
       .single();
 
-    if (error) {
-      if (error.code === "23P01") {
-        return NextResponse.json({ error: "Bu tarihler zaten dolu" }, { status: 409 });
+    if (reservationError) {
+      console.error("Reservation creation error:", reservationError);
+      if (reservationError.code === "23P01") {
+        return NextResponse.json(
+          { error: "Bu tarihler zaten rezerve edilmiş veya bloke edilmiş" },
+          { status: 409 },
+        );
       }
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: reservationError.message }, { status: 500 });
     }
 
-    return NextResponse.json(reservation);
+    return NextResponse.json({
+      success: true,
+      reservation,
+    });
   } catch (error) {
     console.error("Manual reservation error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Calendar, X, Loader2, Home, DollarSign } from "lucide-react";
 import { DayPicker, DateRange } from "react-day-picker";
-import { format } from "date-fns";
+import { format, startOfDay, addDays, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
 import "react-day-picker/dist/style.css";
+import Image from "next/image";
 
 interface Villa {
   id: string;
@@ -68,8 +69,6 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
   const [nightlyPrice, setNightlyPrice] = useState("");
   const [savingPrice, setSavingPrice] = useState(false);
 
-  const [disabledDates, setDisabledDates] = useState<Date[]>([]);
-
   useEffect(() => {
     async function init() {
       const { id } = await params;
@@ -81,7 +80,7 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
 
   async function fetchData(id: string) {
     try {
-      // Villa bilgilerini al - admin API kullan (gizli villalar için)
+      // Villa bilgilerini al
       const villaRes = await fetch(`/api/admin/villas/${id}`);
       if (!villaRes.ok) {
         const publicRes = await fetch(`/api/villas/${id}`);
@@ -106,33 +105,6 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
       const pricingRes = await fetch(`/api/admin/pricing-periods?villa_id=${id}`);
       const pricingData = await pricingRes.json();
       setPricingPeriods(pricingData || []);
-
-      // Disabled dates hesapla
-      const disabled: Date[] = [];
-
-      // Rezervasyonları ekle
-      resData?.forEach((res: Reservation) => {
-        if (res.status !== "cancelled") {
-          const dates = parseDateRange(res.date_range);
-          const start = new Date(dates.start);
-          const end = new Date(dates.end);
-          for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-            disabled.push(new Date(d));
-          }
-        }
-      });
-
-      // Bloke tarihleri ekle
-      blockData?.forEach((block: BlockedDate) => {
-        const dates = parseDateRange(block.date_range);
-        const start = new Date(dates.start);
-        const end = new Date(dates.end);
-        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-          disabled.push(new Date(d));
-        }
-      });
-
-      setDisabledDates(disabled);
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -148,6 +120,139 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
     }
     return { start: "", end: "" };
   }
+
+  // Check-in günleri - useMemo'yu her zaman çağır
+  const checkInDays = useMemo(() => {
+    const days: Date[] = [];
+
+    reservations.forEach((res) => {
+      if (res.status !== "cancelled") {
+        const dates = parseDateRange(res.date_range);
+        days.push(startOfDay(parseISO(dates.start)));
+      }
+    });
+
+    blockedDates.forEach((block) => {
+      if (block.reason === "Rezervasyon") {
+        const dates = parseDateRange(block.date_range);
+        days.push(startOfDay(parseISO(dates.start)));
+      }
+    });
+
+    return days;
+  }, [reservations, blockedDates]);
+
+  // Check-out günleri - useMemo'yu her zaman çağır
+  const checkOutDays = useMemo(() => {
+    const days: Date[] = [];
+
+    reservations.forEach((res) => {
+      if (res.status !== "cancelled") {
+        const dates = parseDateRange(res.date_range);
+        days.push(startOfDay(parseISO(dates.end)));
+      }
+    });
+
+    blockedDates.forEach((block) => {
+      if (block.reason === "Rezervasyon") {
+        const dates = parseDateRange(block.date_range);
+        days.push(startOfDay(parseISO(dates.end)));
+      }
+    });
+
+    return days;
+  }, [reservations, blockedDates]);
+
+  const turnoverDays = useMemo(() => {
+    const inSet = new Set(checkInDays.map((d) => d.getTime()));
+    const outSet = new Set(checkOutDays.map((d) => d.getTime()));
+    const both: Date[] = [];
+    inSet.forEach((t) => {
+      if (outSet.has(t)) both.push(new Date(t));
+    });
+    return both;
+  }, [checkInDays, checkOutDays]);
+
+  // Tamamen dolu günler - useMemo'yu her zaman çağır
+  const fullyBookedDays = useMemo(() => {
+    const days: Date[] = [];
+
+    reservations.forEach((res) => {
+      if (res.status !== "cancelled") {
+        const dates = parseDateRange(res.date_range);
+        const start = startOfDay(parseISO(dates.start));
+        const end = startOfDay(parseISO(dates.end));
+
+        let current = addDays(start, 1);
+        while (current < end) {
+          days.push(new Date(current));
+          current = addDays(current, 1);
+        }
+      }
+    });
+
+    blockedDates.forEach((block) => {
+      const dates = parseDateRange(block.date_range);
+      const start = startOfDay(parseISO(dates.start));
+      const end = startOfDay(parseISO(dates.end));
+
+      if (block.reason === "Rezervasyon") {
+        let current = addDays(start, 1);
+        while (current < end) {
+          days.push(new Date(current));
+          current = addDays(current, 1);
+        }
+      } else {
+        // Temizlik vb. tamamen bloke
+        let current = new Date(start);
+        while (current <= end) {
+          days.push(new Date(current));
+          current = addDays(current, 1);
+        }
+      }
+    });
+
+    return days;
+  }, [reservations, blockedDates]);
+
+  // Disabled dates - useMemo'yu her zaman çağır
+  const disabledDates = useMemo(() => {
+    const today = startOfDay(new Date());
+    return [{ before: today }, ...fullyBookedDays, ...turnoverDays];
+  }, [fullyBookedDays, turnoverDays]);
+
+  // Fiyat dönemleri için modifiers - useMemo'yu her zaman çağır
+  const pricingModifiers = useMemo(() => {
+    const modifiers: { [key: string]: Date[] } = {};
+
+    pricingPeriods.forEach((period, index) => {
+      const days: Date[] = [];
+      const start = parseISO(period.start_date);
+      const end = parseISO(period.end_date);
+
+      let current = new Date(start);
+      while (current <= end) {
+        days.push(new Date(current));
+        current = addDays(current, 1);
+      }
+
+      modifiers[`pricing_${index}`] = days;
+    });
+
+    return modifiers;
+  }, [pricingPeriods]);
+
+  // Fiyat dönemleri için stiller - useMemo'yu her zaman çağır
+  const pricingStyles = useMemo(() => {
+    const styles: { [key: string]: React.CSSProperties } = {};
+    pricingPeriods.forEach((_, index) => {
+      styles[`pricing_${index}`] = {
+        position: "relative",
+        boxShadow: "inset 0 -4px #f9a8d4",
+      };
+    });
+    return styles;
+  }, [pricingPeriods]);
 
   // Fiyat dönemi kaydet
   async function savePricingPeriod() {
@@ -205,14 +310,13 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  // Tarih bloke et fonksiyonu
+  // Tarih bloke et
   async function blockDates() {
     if (!selectedRange?.from || !selectedRange?.to) {
       alert("Lütfen tarih aralığı seçin");
       return;
     }
 
-    // Rezervasyon için müşteri bilgisi kontrolü
     if (blockReason === "rezervasyon") {
       if (!customerName || !customerPhone) {
         alert("Rezervasyon için müşteri adı ve telefonu zorunludur");
@@ -266,6 +370,9 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
           setSelectedRange(undefined);
           fetchData(villaId);
           alert("Tarihler bloke edildi");
+        } else {
+          const error = await res.json();
+          alert(error.error || "Hata oluştu");
         }
       }
     } catch (error) {
@@ -311,6 +418,7 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  // Loading durumunda boş render
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -332,11 +440,14 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
       <Card>
         <CardContent className="p-6">
           <div className="flex items-center gap-6">
-            <img
-              src={primaryPhoto}
-              alt={villa?.name}
+            <Image
+              src={primaryPhoto ?? "/placeholder.jpg"}
+              alt={villa?.name ?? "Villa"}
+              width={128}
+              height={128}
               className="w-32 h-32 object-cover rounded-lg"
             />
+
             <div className="flex-1">
               <h1 className="text-2xl font-bold">{villa?.name}</h1>
               <p className="text-gray-500 mt-1">{villa?.location}</p>
@@ -453,22 +564,119 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
         </CardContent>
       </Card>
 
-      {/* Takvim ve Bloke Etme - mevcut kod aynı kalacak */}
+      {/* Takvim ve Bloke Etme */}
       <Card>
         <CardHeader>
           <CardTitle>Tarih Bloke Et</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* Takvim Açıklaması */}
+          <div className="bg-blue-50 p-4 rounded-lg text-sm">
+            <p className="font-medium mb-2">📌 Takvim Kullanımı:</p>
+            <ul className="space-y-1 text-gray-700">
+              <li>
+                • Check-in ve check-out günleri seçilebilir (aynı gün hem bitiş hem başlangıç
+                olabilir)
+              </li>
+              <li>• Rezervasyonlar arası geçiş günlerinde temizlik yapılır</li>
+            </ul>
+          </div>
+
           {/* Takvim */}
           <div className="border rounded-lg p-4">
             <DayPicker
               mode="range"
               selected={selectedRange}
               onSelect={setSelectedRange}
-              disabled={[...disabledDates, { before: new Date() }]}
+              disabled={disabledDates}
               numberOfMonths={2}
               locale={tr}
+              modifiers={{
+                checkIn: checkInDays,
+                checkOut: checkOutDays,
+                turnover: turnoverDays,
+                fullyBooked: fullyBookedDays,
+                ...pricingModifiers,
+              }}
+              modifiersStyles={{
+                turnover: {
+                  background:
+                    "linear-gradient(135deg, transparent 44%, white 44%, white 56%, transparent 56%), #fb923c",
+                  color: "black",
+                  backgroundSize: "100% 100%",
+                  backgroundRepeat: "no-repeat",
+                  pointerEvents: "none",
+                  cursor: "not-allowed",
+                },
+                checkOut: {
+                  background: "linear-gradient(135deg, #fb923c 50%, white 50%)",
+                  color: "black",
+                },
+                checkIn: {
+                  background: "linear-gradient(135deg, white 50%, #fb923c 50%)",
+                  color: "black",
+                },
+                fullyBooked: {
+                  backgroundColor: "#fb923c",
+                  color: "white",
+                  textDecoration: "line-through",
+                },
+                ...pricingStyles,
+              }}
+              className="!text-sm"
             />
+          </div>
+
+          {/* Lejant */}
+          <div className="mt-2 flex flex-wrap gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="h-3 w-5 rounded border bg-white" />
+              <span>Müsait</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span
+                className="h-3 w-5 rounded border"
+                style={{ background: "linear-gradient(135deg, #fb923c 50%, white 50%)" }}
+              />
+              <span>Check-out günü</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span
+                className="h-3 w-5 rounded border"
+                style={{ background: "linear-gradient(135deg, white 50%, #fb923c 50%)" }}
+              />
+              <span>Check-in günü</span>
+            </div>
+            {/* Turnover */}
+            <div className="flex items-center gap-2">
+              <span
+                className="h-3 w-5 rounded border"
+                style={{
+                  background:
+                    "linear-gradient(135deg, transparent 44%, white 44%, white 56%, transparent 56%), #fb923c",
+                }}
+              />
+              <span>Devir günü (Check-in + Check-out)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="h-3 w-5 rounded bg-orange-500" />
+              <span>Dolu</span>
+            </div>
+            {pricingPeriods.some((p) => p.nightly_price < defaultNightlyPrice) && (
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-5 rounded bg-green-300" />
+                <span>İndirimli</span>
+              </div>
+            )}
+            {pricingPeriods.some((p) => p.nightly_price > defaultNightlyPrice) && (
+              <div className="flex items-center gap-2">
+                <span
+                  className="h-3 w-5 rounded border bg-white"
+                  style={{ boxShadow: "inset 0 -4px #f9a8d4" }} // takvimdeki pembe alt çizgi ile aynı
+                />
+                <span>Özel Fiyat</span>
+              </div>
+            )}
           </div>
 
           {/* Seçilen Tarihler */}
@@ -587,7 +795,7 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
         </CardContent>
       </Card>
 
-      {/* Rezervasyonlar */}
+      {/* Rezervasyonlar - Mevcut kod aynı kalacak */}
       <Card>
         <CardHeader>
           <CardTitle>Rezervasyonlar</CardTitle>

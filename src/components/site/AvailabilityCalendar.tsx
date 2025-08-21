@@ -17,6 +17,8 @@ import BookingForm from "./BookingForm";
 import { useRouter } from "next/navigation";
 import { DialogDescription } from "@radix-ui/react-dialog";
 
+const LIGHT_ORANGE = "rgba(251, 146, 60, 0.28)"; // #fb923c ~%28 opaklık
+
 // TL biçimleyici
 const tl = new Intl.NumberFormat("tr-TR", {
   style: "currency",
@@ -145,6 +147,16 @@ export default function AvailabilityCalendar({
     return days;
   }, [unavailable]);
 
+  const turnoverDays = useMemo(() => {
+    const inSet = new Set(checkInDays.map((d) => d.getTime()));
+    const outSet = new Set(checkOutDays.map((d) => d.getTime()));
+    const both: Date[] = [];
+    inSet.forEach((t) => {
+      if (outSet.has(t)) both.push(new Date(t));
+    });
+    return both;
+  }, [checkInDays, checkOutDays]);
+
   const fullyBookedDays = useMemo(() => {
     const days: Date[] = [];
     unavailable.forEach((u) => {
@@ -183,8 +195,8 @@ export default function AvailabilityCalendar({
 
   // disabled listesi: geçmiş + tamamen dolu günler
   const disabledMatchers = useMemo(() => {
-    return [{ before: today }, ...fullyBookedDays];
-  }, [fullyBookedDays, today]);
+    return [{ before: today }, ...fullyBookedDays, ...turnoverDays];
+  }, [fullyBookedDays, today, turnoverDays]);
 
   // Aralık çakışması kontrolü
   function rangeConflictsWithUnavailable(start: Date, end: Date) {
@@ -283,17 +295,14 @@ export default function AvailabilityCalendar({
   // Özel fiyat dönemleri için renkler
   const pricingStyles = useMemo(() => {
     const styles: { [key: string]: React.CSSProperties } = {};
-
-    pricingPeriods.forEach((period, index) => {
-      const isDiscounted = period.nightly_price < defaultNightlyPrice;
+    pricingPeriods.forEach((_, index) => {
       styles[`pricing_${index}`] = {
-        backgroundColor: isDiscounted ? "#dcfce7" : "#fee2e2", // Yeşil: indirim, Kırmızı: zam
         position: "relative",
+        boxShadow: "inset 0 -4px #f9a8d4",
       };
     });
-
     return styles;
-  }, [pricingPeriods, defaultNightlyPrice]);
+  }, [pricingPeriods]);
 
   return (
     <div className="mt-8">
@@ -349,10 +358,20 @@ export default function AvailabilityCalendar({
           modifiers={{
             checkIn: checkInDays,
             checkOut: checkOutDays,
+            turnover: turnoverDays,
             fullyBooked: fullyBookedDays,
             ...pricingModifiers,
           }}
           modifiersStyles={{
+            turnover: {
+              background:
+                "linear-gradient(135deg, transparent 44%, white 44%, white 56%, transparent 56%), #fb923c",
+              color: "black",
+              backgroundSize: "100% 100%",
+              backgroundRepeat: "no-repeat",
+              pointerEvents: "none", // <- fare etkileşimini de kes
+              cursor: "not-allowed", // <- görsel geri bildirim
+            },
             checkOut: {
               background: "linear-gradient(135deg, #fb923c 50%, white 50%)",
               color: "black",
@@ -387,12 +406,29 @@ export default function AvailabilityCalendar({
             />
             <span>Check-in günü</span>
           </div>
+          {/* Turnover */}
+          <div className="flex items-center gap-2">
+            <span
+              className="h-3 w-5 rounded border"
+              style={{
+                background:
+                  "linear-gradient(135deg, transparent 44%, white 44%, white 56%, transparent 56%), #fb923c",
+              }}
+            />
+            <span>Devir günü (Check-in + Check-out)</span>
+          </div>
           <Legend colorClass="bg-orange-500" label="Rezerve" />
-          {pricingPeriods.some((p) => p.nightly_price < defaultNightlyPrice) && (
+          {pricingPeriods.some((p) => p.nightly_price > defaultNightlyPrice) && (
             <Legend colorClass="bg-green-300" label="İndirimli" />
           )}
-          {pricingPeriods.some((p) => p.nightly_price > defaultNightlyPrice) && (
-            <Legend colorClass="bg-red-300" label="Özel Fiyat" />
+          {pricingPeriods.some((p) => p.nightly_price < defaultNightlyPrice) && (
+            <div className="flex items-center gap-2">
+              <span
+                className="h-3 w-5 rounded border bg-white"
+                style={{ boxShadow: "inset 0 -4px #f9a8d4" }} // Takvimdeki pembe alt çizgiyle aynı
+              />
+              <span>Özel Fiyat</span>
+            </div>
           )}
         </div>
       </div>
