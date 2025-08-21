@@ -1,62 +1,56 @@
-// src/app/api/admin/villas/[id]/route.ts
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { auth } from "@/lib/auth";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 
-// Yardımcı: Storage path'i public URL'den çıkar
+// Public URL'den storage path'ini çıkar (villa-photos bucket'ı için)
 function extractStoragePathFromPublicUrl(url: string) {
-  // .../storage/v1/object/public/villa-photos/<PATH>
   const marker = "/storage/v1/object/public/villa-photos/";
   const idx = url.indexOf(marker);
   if (idx === -1) return null;
   return url.slice(idx + marker.length);
 }
 
-function getAdminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-}
-
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await auth();
-  if (!session?.user) {
-    return new NextResponse("Unauthorized", { status: 401 });
-  }
-  const supabase = getAdminClient();
+  if (!session?.user) return new NextResponse("Unauthorized", { status: 401 });
 
-  const { data: villa, error: vErr } = await supabase
+  const { id } = await ctx.params;
+  const supabase = createServiceRoleClient();
+
+  const { data: villa, error: villaErr } = await supabase
     .from("villas")
     .select("*")
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
-  if (vErr || !villa) {
-    return new NextResponse("Not found", { status: 404 });
-  }
+  if (villaErr || !villa) return new NextResponse("Not found", { status: 404 });
 
-  const { data: photos, error: pErr } = await supabase
+  const { data: photos, error: photosErr } = await supabase
     .from("villa_photos")
     .select("*")
-    .eq("villa_id", params.id)
+    .eq("villa_id", id)
     .order("order_index", { ascending: true });
 
-  if (pErr) {
-    return NextResponse.json({ villa, photos: [] });
+  if (photosErr) {
+    console.error("Photo load error:", photosErr);
   }
 
-  return NextResponse.json({ villa, photos });
+  return NextResponse.json({ villa, photos: photos ?? [] });
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await auth();
-  if (!session?.user) {
-    return new NextResponse("Unauthorized", { status: 401 });
-  }
+  if (!session?.user) return new NextResponse("Unauthorized", { status: 401 });
 
-  const supabase = getAdminClient();
-  const body = await req.json().catch(() => null);
+  const { id } = await ctx.params;
+  const supabase = createServiceRoleClient();
+
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return new NextResponse("Bad Request", { status: 400 });
+  }
 
   if (!body || !body.villa || !Array.isArray(body.photos)) {
     return new NextResponse("Bad Request", { status: 400 });
@@ -74,8 +68,39 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     lat: number | null;
     lng: number | null;
     is_hidden: boolean;
+    priority?: number;
   };
 
+  // ---- 1) VİLLAYI GÜNCELLE (priority dahil) ----
+  const priority =
+    typeof villaPayload.priority === "number"
+      ? Math.min(5, Math.max(1, Math.trunc(villaPayload.priority)))
+      : undefined;
+
+  const { error: upErr } = await supabase
+    .from("villas")
+    .update({
+      name: villaPayload.name,
+      location: villaPayload.location,
+      weekly_price: villaPayload.weekly_price,
+      description: villaPayload.description,
+      bedrooms: villaPayload.bedrooms,
+      bathrooms: villaPayload.bathrooms,
+      has_pool: villaPayload.has_pool,
+      sea_distance: villaPayload.sea_distance,
+      lat: villaPayload.lat,
+      lng: villaPayload.lng,
+      is_hidden: villaPayload.is_hidden,
+      ...(priority !== undefined ? { priority } : {}),
+    })
+    .eq("id", id);
+
+  if (upErr) {
+    console.error("Villa update error:", upErr);
+    return new NextResponse("Villa update failed", { status: 500 });
+  }
+
+  // ---- 2) FOTOĞRAFLARI SENKRONİZE ET ----
   const photosPayload = (body.photos as any[]).map((p, idx) => ({
     id: p.id as string | undefined,
     url: String(p.url),
@@ -83,136 +108,92 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     order_index: Number(p.order_index ?? idx),
   }));
 
-  // 1) Villa güncelle
-  {
-    const { error } = await supabase
-      .from("villas")
-      .update({
-        name: villaPayload.name,
-        location: villaPayload.location,
-        weekly_price: villaPayload.weekly_price,
-        description: villaPayload.description,
-        bedrooms: villaPayload.bedrooms,
-        bathrooms: villaPayload.bathrooms,
-        has_pool: villaPayload.has_pool,
-        sea_distance: villaPayload.sea_distance,
-        lat: villaPayload.lat,
-        lng: villaPayload.lng,
-        is_hidden: villaPayload.is_hidden,
-      })
-      .eq("id", params.id);
-
-    if (error) {
-      console.error("Villa update error:", error);
-      return new NextResponse("Villa update failed", { status: 500 });
-    }
-  }
-
-  // 2) Fotoğrafları senkronize et
   const { data: currentPhotos, error: curErr } = await supabase
     .from("villa_photos")
     .select("*")
-    .eq("villa_id", params.id);
+    .eq("villa_id", id);
 
   if (curErr) {
-    console.error(curErr);
+    console.error("Load current photos error:", curErr);
     return new NextResponse("Photo load failed", { status: 500 });
   }
 
-  const currentMap = new Map<string, any>();
+  const currentById = new Map<string, any>();
   for (const p of currentPhotos ?? []) {
-    if (p.id) currentMap.set(p.id, p);
+    if (p.id) currentById.set(p.id, p);
   }
 
-  const desiredIds = new Set<string>();
-  for (const p of photosPayload) {
-    if (p.id) desiredIds.add(p.id);
-  }
-
-  // 2a) Silinecek fotoğraflar (DB + Storage)
+  // 2a) Silinecekler (payload'da olmayan mevcutlar)
+  const desiredIds = new Set(photosPayload.map((p) => p.id).filter(Boolean) as string[]);
   const toDelete = (currentPhotos ?? []).filter((p: any) => !desiredIds.has(p.id));
-  if (toDelete.length > 0) {
+
+  if (toDelete.length) {
     const ids = toDelete.map((p: any) => p.id);
     const paths = toDelete
       .map((p: any) => extractStoragePathFromPublicUrl(p.url))
       .filter(Boolean) as string[];
 
-    // DB'den sil
-    const { error: delErr } = await supabase.from("villa_photos").delete().in("id", ids);
-
-    if (delErr) {
-      console.error("DB photo delete error:", delErr);
+    const { error: delDbErr } = await supabase.from("villa_photos").delete().in("id", ids);
+    if (delDbErr) {
+      console.error("DB photo delete error:", delDbErr);
       return new NextResponse("Photo delete failed", { status: 500 });
     }
 
-    // Storage'tan sil (best effort)
-    if (paths.length > 0) {
-      const { error: stErr } = await supabase.storage.from("villa-photos").remove(paths);
-
-      if (stErr) {
-        // loglayıp devam
-        console.warn("Storage remove warning:", stErr);
-      }
+    if (paths.length) {
+      const { error: delStErr } = await supabase.storage.from("villa-photos").remove(paths);
+      if (delStErr) console.warn("Storage remove warning:", delStErr);
     }
   }
 
-  // 2b) Eklenecek fotoğraflar (id yok)
-  const toInsert = photosPayload.filter((p: any) => !p.id);
-  if (toInsert.length > 0) {
-    const insertRows = toInsert.map((p) => ({
-      villa_id: params.id,
+  // 2b) Eklenecekler (id'si olmayanlar)
+  const toInsert = photosPayload.filter((p) => !p.id);
+  if (toInsert.length) {
+    const rows = toInsert.map((p) => ({
+      villa_id: id,
       url: p.url,
       is_primary: !!p.is_primary,
       order_index: Number(p.order_index ?? 0),
     }));
-
-    const { error: insErr } = await supabase.from("villa_photos").insert(insertRows);
+    const { error: insErr } = await supabase.from("villa_photos").insert(rows);
     if (insErr) {
       console.error("Photo insert error:", insErr);
       return new NextResponse("Photo insert failed", { status: 500 });
     }
   }
 
-  // 2c) Güncellenecek fotoğraflar (id var)
-  const toUpdate = photosPayload.filter((p: any) => p.id && currentMap.has(p.id));
+  // 2c) Güncellenecekler (id'si olanlar)
+  const toUpdate = photosPayload.filter((p) => p.id && currentById.has(p.id!));
   for (const p of toUpdate) {
-    const { error: upErr } = await supabase
+    const { error: updErr } = await supabase
       .from("villa_photos")
       .update({
-        url: p.url, // normalde URL değişmez ama güvenli olsun
+        url: p.url,
         is_primary: !!p.is_primary,
         order_index: Number(p.order_index ?? 0),
       })
-      .eq("id", p.id);
-
-    if (upErr) {
-      console.error("Photo update error:", upErr);
+      .eq("id", p.id as string);
+    if (updErr) {
+      console.error("Photo update error:", updErr);
       return new NextResponse("Photo update failed", { status: 500 });
     }
   }
 
-  // 2d) Yalnızca 1 kapak olsun — garanti altına al
-  {
-    // payload’a göre kapak olanı bul
-    const primary = photosPayload.find((p) => p.is_primary);
-    if (primary) {
-      // tümünü false yap
-      const { error: resetErr } = await supabase
+  // 2d) Tek kapak garantisi (payload'a göre)
+  const primary = photosPayload.find((p) => p.is_primary);
+  if (primary) {
+    const { error: resetErr } = await supabase
+      .from("villa_photos")
+      .update({ is_primary: false })
+      .eq("villa_id", id);
+    if (!resetErr) {
+      const { error: setErr } = await supabase
         .from("villa_photos")
-        .update({ is_primary: false })
-        .eq("villa_id", params.id);
-      if (resetErr) {
-        console.error("Primary reset error:", resetErr);
-      } else {
-        const { error: setErr } = await supabase
-          .from("villa_photos")
-          .update({ is_primary: true })
-          .eq("villa_id", params.id)
-          .eq("url", primary.url); // eşleştirme
-        if (setErr) {
-          console.error("Primary set error:", setErr);
-        }
-      }
+        .update({ is_primary: true })
+        .eq("villa_id", id)
+        .eq("url", primary.url);
+      if (setErr) console.warn("Primary set warning:", setErr);
+    } else {
+      console.warn("Primary reset warning:", resetErr);
     }
   }
 

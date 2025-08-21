@@ -22,6 +22,7 @@ type Villa = {
   lat: number | null;
   lng: number | null;
   is_hidden: boolean | null;
+  priority?: number | null; // 🔴 yeni
 };
 
 type Photo = {
@@ -53,6 +54,7 @@ export default function VillaEditForm({
     lat: initialVilla.lat ?? 0,
     lng: initialVilla.lng ?? 0,
     is_hidden: Boolean(initialVilla.is_hidden ?? false),
+    priority: Number(initialVilla.priority ?? 1), // 🔴 yeni
   });
 
   const [photos, setPhotos] = useState<Photo[]>(
@@ -70,12 +72,12 @@ export default function VillaEditForm({
       alert("En az bir fotoğraf ekleyin.");
       return;
     }
-    if (!photos.some((p) => p.is_primary)) {
-      photos[0].is_primary = true;
-    }
+    if (!photos.some((p) => p.is_primary)) photos[0].is_primary = true;
 
     setSaving(true);
     try {
+      const priority = Math.min(5, Math.max(1, Number(form.priority) || 1));
+
       const payload = {
         villa: {
           name: form.name.trim(),
@@ -89,6 +91,7 @@ export default function VillaEditForm({
           lat: form.lat === null ? null : Number(form.lat),
           lng: form.lng === null ? null : Number(form.lng),
           is_hidden: !!form.is_hidden,
+          priority, // 🔴 yeni
         },
         photos: photos.map((p, i) => ({
           id: p.id,
@@ -225,6 +228,22 @@ export default function VillaEditForm({
               Gizli (yayında değil)
             </label>
           </div>
+
+          {/* 🔴 Öncelik alanı */}
+          <div>
+            <label className="text-sm font-medium" htmlFor="priority">
+              Öncelik Puanı (1-5)
+            </label>
+            <Input
+              id="priority"
+              type="number"
+              min={1}
+              max={5}
+              value={form.priority}
+              onChange={(e) => onChange("priority", e.target.value)}
+              required
+            />
+          </div>
         </div>
 
         <div>
@@ -238,7 +257,7 @@ export default function VillaEditForm({
         </div>
       </Card>
 
-      {/* Alt: Fotoğraflar (ayrı bölüm, sade) */}
+      {/* Alt: Fotoğraflar */}
       <Card className="p-4 space-y-4">
         <h2 className="text-lg font-semibold">Fotoğraflar</h2>
         <PhotoManager

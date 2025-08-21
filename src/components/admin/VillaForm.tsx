@@ -4,475 +4,231 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Upload, X, Loader2, Image as ImageIcon } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { Card } from "@/components/ui/card";
+import PhotoManager from "@/components/admin/PhotoManager";
+
+type Photo = { id?: string; url: string; is_primary: boolean; order_index: number };
 
 export default function VillaForm() {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
-  const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([]);
-  const [uploadingPhotos, setUploadingPhotos] = useState(false);
-  const [formData, setFormData] = useState({
+  const [saving, setSaving] = useState(false);
+
+  const [form, setForm] = useState({
     name: "",
     location: "",
-    lat: "",
-    lng: "",
     weekly_price: "",
     description: "",
     bedrooms: "1",
     bathrooms: "1",
     has_pool: false,
     sea_distance: "",
+    lat: "",
+    lng: "",
     is_hidden: false,
+    priority: "1", // 🔴 yeni
   });
 
-  // Fotoğraf yükleme fonksiyonu
-  // handlePhotoUpload fonksiyonunda değişiklik yapın:
+  const [photos, setPhotos] = useState<Photo[]>([]);
 
-  // Dosya adını temizleme fonksiyonu ekleyin (component'in üstüne)
-  function sanitizeFileName(fileName: string): string {
-    // Türkçe karakterleri değiştir
-    const turkishChars: { [key: string]: string } = {
-      ş: "s",
-      Ş: "S",
-      ğ: "g",
-      Ğ: "G",
-      ü: "u",
-      Ü: "U",
-      ı: "i",
-      İ: "I",
-      ö: "o",
-      Ö: "O",
-      ç: "c",
-      Ç: "C",
-      â: "a",
-      Â: "A",
-      î: "i",
-      Î: "I",
-    };
+  const onChange = (key: keyof typeof form, val: any) =>
+    setForm((prev) => ({ ...prev, [key]: val }));
 
-    let sanitized = fileName;
-
-    // Türkçe karakterleri değiştir
-    for (const [turkish, english] of Object.entries(turkishChars)) {
-      sanitized = sanitized.replace(new RegExp(turkish, "g"), english);
-    }
-
-    // Boşlukları ve özel karakterleri değiştir
-    sanitized = sanitized
-      .replace(/\s+/g, "-") // Boşlukları tire ile değiştir
-      .replace(/[^a-zA-Z0-9.-]/g, "") // Sadece harf, rakam, nokta ve tire bırak
-      .replace(/--+/g, "-") // Çoklu tireleri tek tire yap
-      .toLowerCase(); // Küçük harfe çevir
-
-    return sanitized;
-  }
-
-  // handlePhotoUpload fonksiyonunu güncelle
-  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    // Maksimum 40 fotoğraf kontrolü
-    if (uploadedPhotos.length + files.length > 40) {
-      alert("Maksimum 40 fotoğraf yükleyebilirsiniz");
-      return;
-    }
-
-    setUploadingPhotos(true);
-    const supabase = createClient();
-    const newPhotos: string[] = [];
-
-    try {
-      for (const file of Array.from(files)) {
-        // Dosya boyutu kontrolü (15MB)
-        if (file.size > 15 * 1024 * 1024) {
-          alert(`${file.name} dosyası 15MB'dan büyük`);
-          continue;
-        }
-
-        // Dosya tipi kontrolü
-        if (!file.type.startsWith("image/")) {
-          alert(`${file.name} bir resim dosyası değil`);
-          continue;
-        }
-
-        // Dosya adını temizle ve unique yap
-        const sanitizedName = sanitizeFileName(file.name);
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}-${sanitizedName}`;
-        const filePath = `${fileName}`; // villa-photos/ prefix'ini kaldırdık, bucket adı zaten belirtiliyor
-
-        // Supabase Storage'a yükle
-        const { data, error } = await supabase.storage.from("villa-photos").upload(filePath, file);
-
-        if (error) {
-          console.error("Upload error:", error);
-          alert(`${file.name} yüklenirken hata oluştu: ${error.message}`);
-          continue;
-        }
-
-        // Public URL'i al
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("villa-photos").getPublicUrl(filePath);
-
-        newPhotos.push(publicUrl);
-      }
-
-      setUploadedPhotos([...uploadedPhotos, ...newPhotos]);
-
-      if (newPhotos.length > 0) {
-        alert(`${newPhotos.length} fotoğraf başarıyla yüklendi`);
-      }
-    } catch (error) {
-      console.error("Upload error:", error);
-      alert("Fotoğraf yüklenirken hata oluştu");
-    } finally {
-      setUploadingPhotos(false);
-      // Input'u temizle
-      e.target.value = "";
-    }
-  }
-
-  // Fotoğraf silme
-  function removePhoto(index: number) {
-    setUploadedPhotos(uploadedPhotos.filter((_, i) => i !== index));
-  }
-
-  // Fotoğraf sırasını değiştirme
-  function movePhoto(fromIndex: number, toIndex: number) {
-    const newPhotos = [...uploadedPhotos];
-    const [movedPhoto] = newPhotos.splice(fromIndex, 1);
-    newPhotos.splice(toIndex, 0, movedPhoto);
-    setUploadedPhotos(newPhotos);
-  }
-
-  async function onSubmit(e: React.FormEvent) {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (uploadedPhotos.length === 0) {
-      alert("En az bir fotoğraf eklemelisiniz");
+    if (!photos.length) {
+      alert("En az bir fotoğraf ekleyin.");
       return;
     }
 
-    setIsLoading(true);
-
+    setSaving(true);
     try {
-      const response = await fetch("/api/admin/villas", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const priority = Math.min(5, Math.max(1, parseInt(form.priority || "1", 10)));
+
+      const payload = {
+        villa: {
+          name: form.name.trim(),
+          location: form.location.trim(),
+          weekly_price: parseFloat(form.weekly_price || "0"),
+          description: form.description?.trim() || null,
+          bedrooms: parseInt(form.bedrooms || "0", 10),
+          bathrooms: parseInt(form.bathrooms || "0", 10),
+          has_pool: !!form.has_pool,
+          sea_distance: form.sea_distance?.trim() || null,
+          lat: form.lat ? parseFloat(form.lat) : null,
+          lng: form.lng ? parseFloat(form.lng) : null,
+          is_hidden: !!form.is_hidden,
+          priority, // 🔴 yeni
         },
-        body: JSON.stringify({
-          ...formData,
-          lat: formData.lat ? parseFloat(formData.lat) : null,
-          lng: formData.lng ? parseFloat(formData.lng) : null,
-          weekly_price: parseFloat(formData.weekly_price),
-          bedrooms: parseInt(formData.bedrooms),
-          bathrooms: parseInt(formData.bathrooms),
-          photos: uploadedPhotos, // Fotoğrafları da gönder
-        }),
+        photos: photos.map((p, i) => ({
+          url: p.url,
+          is_primary: i === 0 ? true : !!p.is_primary,
+          order_index: i,
+        })),
+      };
+
+      const res = await fetch("/api/admin/villas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
 
-      if (response.ok) {
-        router.push("/admin/villas");
-        router.refresh();
-      } else {
-        alert("Villa eklenirken hata oluştu");
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(t || "Oluşturma başarısız");
       }
-    } catch (error) {
-      alert("Bir hata oluştu");
+
+      alert("Villa oluşturuldu.");
+      router.push("/admin/villas");
+    } catch (e) {
+      console.error(e);
+      alert("Bir hata oluştu. Lütfen tekrar deneyin.");
     } finally {
-      setIsLoading(false);
+      setSaving(false);
     }
-  }
+  };
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Genel Bilgiler</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <Card className="p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Yeni Villa</h2>
+          <Button type="submit" disabled={saving}>
+            {saving ? "Kaydediliyor..." : "Kaydet"}
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="name">Villa Adı</Label>
+            <label className="text-sm font-medium">Villa Adı</label>
+            <Input value={form.name} onChange={(e) => onChange("name", e.target.value)} required />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Konum</label>
             <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              value={form.location}
+              onChange={(e) => onChange("location", e.target.value)}
               required
-              disabled={isLoading}
             />
           </div>
-
           <div>
-            <Label htmlFor="location">Konum</Label>
+            <label className="text-sm font-medium">Haftalık Fiyat (₺)</label>
             <Input
-              id="location"
-              value={formData.location}
-              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              required
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="lat">Enlem (Latitude)</Label>
-              <Input
-                id="lat"
-                type="number"
-                step="0.000001"
-                value={formData.lat}
-                onChange={(e) => setFormData({ ...formData, lat: e.target.value })}
-                disabled={isLoading}
-              />
-            </div>
-            <div>
-              <Label htmlFor="lng">Boylam (Longitude)</Label>
-              <Input
-                id="lng"
-                type="number"
-                step="0.000001"
-                value={formData.lng}
-                onChange={(e) => setFormData({ ...formData, lng: e.target.value })}
-                disabled={isLoading}
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="weekly_price">Haftalık Fiyat (TL)</Label>
-            <Input
-              id="weekly_price"
               type="number"
-              value={formData.weekly_price}
-              onChange={(e) => setFormData({ ...formData, weekly_price: e.target.value })}
+              min={0}
+              value={form.weekly_price}
+              onChange={(e) => onChange("weekly_price", e.target.value)}
               required
-              disabled={isLoading}
             />
           </div>
-
-          <div>
-            <Label htmlFor="description">Açıklama</Label>
-            <Textarea
-              id="description"
-              rows={4}
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              disabled={isLoading}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Özellikler</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="bedrooms">Yatak Odası Sayısı</Label>
-              <Input
-                id="bedrooms"
-                type="number"
-                min="1"
-                max="10"
-                value={formData.bedrooms}
-                onChange={(e) => setFormData({ ...formData, bedrooms: e.target.value })}
-                disabled={isLoading}
-              />
-            </div>
-            <div>
-              <Label htmlFor="bathrooms">Banyo Sayısı</Label>
-              <Input
-                id="bathrooms"
-                type="number"
-                min="1"
-                max="10"
-                value={formData.bathrooms}
-                onChange={(e) => setFormData({ ...formData, bathrooms: e.target.value })}
-                disabled={isLoading}
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="sea_distance">Denize Mesafe</Label>
-            <Input
-              id="sea_distance"
-              placeholder="Örn: 150 m"
-              value={formData.sea_distance}
-              onChange={(e) => setFormData({ ...formData, sea_distance: e.target.value })}
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2">
             <Checkbox
               id="has_pool"
-              checked={formData.has_pool}
-              onCheckedChange={(checked) =>
-                setFormData({ ...formData, has_pool: checked as boolean })
-              }
-              disabled={isLoading}
+              checked={form.has_pool}
+              onCheckedChange={(v) => onChange("has_pool", !!v)}
             />
-            <Label htmlFor="has_pool">Özel Havuz</Label>
+            <label htmlFor="has_pool" className="text-sm">
+              Havuz var
+            </label>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div>
+            <label className="text-sm font-medium">Yatak Odası</label>
+            <Input
+              type="number"
+              min={0}
+              value={form.bedrooms}
+              onChange={(e) => onChange("bedrooms", e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Banyo</label>
+            <Input
+              type="number"
+              min={0}
+              value={form.bathrooms}
+              onChange={(e) => onChange("bathrooms", e.target.value)}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Denize Mesafe</label>
+            <Input
+              value={form.sea_distance}
+              onChange={(e) => onChange("sea_distance", e.target.value)}
+              placeholder="Örn: 500 m"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Latitude</label>
+            <Input
+              type="number"
+              step="0.000001"
+              value={form.lat}
+              onChange={(e) => onChange("lat", e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Longitude</label>
+            <Input
+              type="number"
+              step="0.000001"
+              value={form.lng}
+              onChange={(e) => onChange("lng", e.target.value)}
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
             <Checkbox
               id="is_hidden"
-              checked={formData.is_hidden}
-              onCheckedChange={(checked) =>
-                setFormData({ ...formData, is_hidden: checked as boolean })
-              }
-              disabled={isLoading}
+              checked={form.is_hidden}
+              onCheckedChange={(v) => onChange("is_hidden", !!v)}
             />
-            <Label htmlFor="is_hidden">Gizli (Sadece özel link ile görünür)</Label>
+            <label htmlFor="is_hidden" className="text-sm">
+              Gizli (yayında değil)
+            </label>
           </div>
-        </CardContent>
+
+          {/* 🔴 Öncelik alanı */}
+          <div>
+            <label className="text-sm font-medium" htmlFor="priority">
+              Öncelik Puanı (1-5)
+            </label>
+            <Input
+              id="priority"
+              type="number"
+              min={1}
+              max={5}
+              value={form.priority}
+              onChange={(e) => onChange("priority", e.target.value)}
+              required
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="text-sm font-medium">Açıklama</label>
+          <Textarea
+            rows={6}
+            value={form.description}
+            onChange={(e) => onChange("description", e.target.value)}
+            placeholder="Villa açıklaması..."
+          />
+        </div>
       </Card>
 
-      {/* Fotoğraf Yükleme Alanı */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Fotoğraflar (Maksimum 40)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Yükleme Butonu */}
-            <div>
-              <Label
-                htmlFor="photos"
-                className="cursor-pointer inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
-              >
-                {uploadingPhotos ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Yükleniyor...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="mr-2 h-4 w-4" />
-                    Fotoğraf Seç ({uploadedPhotos.length}/40)
-                  </>
-                )}
-              </Label>
-              <Input
-                id="photos"
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handlePhotoUpload}
-                disabled={isLoading || uploadingPhotos}
-                className="hidden"
-              />
-              <p className="text-sm text-gray-500 mt-2">
-                JPG, PNG veya WebP formatında maksimum 15MB boyutunda dosyalar yükleyebilirsiniz.
-              </p>
-            </div>
-
-            {/* Yüklenen Fotoğraflar */}
-            {uploadedPhotos.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {uploadedPhotos.map((photo, index) => (
-                  <div key={index} className="relative group">
-                    <img
-                      src={photo}
-                      alt={`Villa foto ${index + 1}`}
-                      className="w-full h-32 object-cover rounded-lg border"
-                    />
-
-                    {/* Sil Butonu */}
-                    <button
-                      type="button"
-                      onClick={() => removePhoto(index)}
-                      className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Fotoğrafı sil"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-
-                    {/* Ana Fotoğraf Etiketi */}
-                    {index === 0 && (
-                      <span className="absolute bottom-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                        Ana Fotoğraf
-                      </span>
-                    )}
-
-                    {/* Sıra Numarası */}
-                    <span className="absolute top-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                      {index + 1}
-                    </span>
-
-                    {/* Sıralama Butonları */}
-                    <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {index > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => movePhoto(index, index - 1)}
-                          className="bg-blue-500 text-white p-1 rounded text-xs"
-                          title="Öne taşı"
-                        >
-                          ←
-                        </button>
-                      )}
-                      {index < uploadedPhotos.length - 1 && (
-                        <button
-                          type="button"
-                          onClick={() => movePhoto(index, index + 1)}
-                          className="bg-blue-500 text-white p-1 rounded text-xs"
-                          title="Arkaya taşı"
-                        >
-                          →
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Boş Durum */}
-            {uploadedPhotos.length === 0 && (
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                <ImageIcon className="mx-auto h-12 w-12 text-gray-400" />
-                <p className="mt-2 text-sm text-gray-600">Henüz fotoğraf yüklenmemiş</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  En az 1, maksimum 40 fotoğraf yükleyebilirsiniz
-                </p>
-              </div>
-            )}
-          </div>
-        </CardContent>
+      <Card className="p-4 space-y-4">
+        <h2 className="text-lg font-semibold">Fotoğraflar</h2>
+        <PhotoManager villaId="new" initialPhotos={[]} onChange={setPhotos} />
+        <div className="pt-2 flex justify-end">
+          <Button type="submit" disabled={saving}>
+            {saving ? "Kaydediliyor..." : "Kaydet"}
+          </Button>
+        </div>
       </Card>
-
-      <div className="flex gap-4">
-        <Button type="submit" disabled={isLoading || uploadingPhotos}>
-          {isLoading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Kaydediliyor...
-            </>
-          ) : (
-            "Kaydet"
-          )}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.push("/admin/villas")}
-          disabled={isLoading}
-        >
-          İptal
-        </Button>
-      </div>
     </form>
   );
 }
