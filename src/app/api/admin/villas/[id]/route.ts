@@ -3,45 +3,71 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-// Not: Next.js 15'te params Promise olabilir; özelliğine erişmeden önce await etmeliyiz.
+const FEATURE_KEYS = [
+  "heated_pool",
+  "sheltered_pool",
+  "tv_satellite",
+  "master_bathroom",
+  "jacuzzi",
+  "fireplace",
+  "children_pool",
+  "in_site",
+  "private_pool",
+  "playground",
+  "internet",
+  "security",
+  "sauna",
+  "hammam",
+  "indoor_pool",
+  "baby_bed",
+  "high_chair",
+  "foosball",
+  "table_tennis",
+  "underfloor_heating",
+  "generator",
+  "billiards",
+  "pet_friendly",
+] as const;
+
 export async function PATCH(
   req: NextRequest,
   ctx: { params: { id: string } } | { params: Promise<{ id: string }> },
 ) {
-  // 🔧 params'ı await edip "params.id" kullanımını ortadan kaldırıyoruz
-  const villaParams = await Promise.resolve((ctx as any).params);
-  const villaId: string = villaParams.id;
+  // Next 15: params Promise olabilir → önce await
+  const { id: villaId } = await Promise.resolve((ctx as any).params);
 
   const supabase = createServiceRoleClient();
 
-  let body: any = {};
+  let payload: any = {};
   try {
-    body = await req.json();
+    payload = await req.json();
   } catch {
     return NextResponse.json({ error: "Geçersiz JSON" }, { status: 400 });
   }
 
-  const { villa, photos = [], categoryIds } = body || {};
+  const { villa, photos = [], categoryIds } = payload || {};
 
-  // 1) Villa bilgileri
+  // 1) villa update
   if (villa && typeof villa === "object") {
-    const updateData: any = {};
-    if ("name" in villa) updateData.name = String(villa.name).trim();
-    if ("location" in villa) updateData.location = String(villa.location).trim();
-    if ("weekly_price" in villa) updateData.weekly_price = Number(villa.weekly_price || 0);
-    if ("description" in villa) updateData.description = villa.description ?? null;
-    if ("bedrooms" in villa) updateData.bedrooms = villa.bedrooms ?? null;
-    if ("bathrooms" in villa) updateData.bathrooms = villa.bathrooms ?? null;
-    if ("has_pool" in villa) updateData.has_pool = !!villa.has_pool;
-    if ("sea_distance" in villa) updateData.sea_distance = villa.sea_distance ?? null;
-    if ("lat" in villa) updateData.lat = villa.lat === null ? null : Number(villa.lat);
-    if ("lng" in villa) updateData.lng = villa.lng === null ? null : Number(villa.lng);
-    if ("is_hidden" in villa) updateData.is_hidden = !!villa.is_hidden;
-    if ("priority" in villa)
-      updateData.priority = Math.min(5, Math.max(1, Number(villa.priority) || 1));
+    const upd: any = {};
+    if ("name" in villa) upd.name = String(villa.name).trim();
+    if ("location" in villa) upd.location = villa.location ?? null;
+    if ("weekly_price" in villa) upd.weekly_price = Number(villa.weekly_price || 0);
+    if ("description" in villa) upd.description = villa.description ?? null;
+    if ("bedrooms" in villa) upd.bedrooms = Number(villa.bedrooms || 0);
+    if ("bathrooms" in villa) upd.bathrooms = Number(villa.bathrooms || 0);
+    if ("has_pool" in villa) upd.has_pool = !!villa.has_pool;
+    if ("sea_distance" in villa) upd.sea_distance = villa.sea_distance ?? null;
+    if ("lat" in villa) upd.lat = villa.lat === null || villa.lat === "" ? null : Number(villa.lat);
+    if ("lng" in villa) upd.lng = villa.lng === null || villa.lng === "" ? null : Number(villa.lng);
+    if ("is_hidden" in villa) upd.is_hidden = !!villa.is_hidden;
+    if ("priority" in villa) upd.priority = Math.min(5, Math.max(1, Number(villa.priority || 1)));
 
-    if (Object.keys(updateData).length > 0) {
-      const { error: upErr } = await supabase.from("villas").update(updateData).eq("id", villaId);
+    // boolean özellikler:
+    for (const k of FEATURE_KEYS) if (k in villa) upd[k] = !!villa[k];
+
+    if (Object.keys(upd).length > 0) {
+      const { error: upErr } = await supabase.from("villas").update(upd).eq("id", villaId);
       if (upErr) {
         console.error("Villa update error:", upErr);
         return NextResponse.json({ error: "Villa güncelleme başarısız" }, { status: 500 });
@@ -49,7 +75,7 @@ export async function PATCH(
     }
   }
 
-  // 2) Fotoğraflar (tam senkronizasyon)
+  // 2) foto senkronizasyonu
   if (Array.isArray(photos)) {
     const { data: currentPhotos, error: curErr } = await supabase
       .from("villa_photos")
@@ -68,39 +94,35 @@ export async function PATCH(
     // silinecekler
     const toDelete = [...currentIds].filter((id) => !incomingIds.has(id));
     if (toDelete.length > 0) {
-      const { error: delErr } = await supabase.from("villa_photos").delete().in("id", toDelete);
-      if (delErr) console.error("Photo delete error:", delErr);
+      await supabase.from("villa_photos").delete().in("id", toDelete);
     }
 
     // güncellenecekler
     for (const p of incomingWithId) {
-      const { id, url, is_primary, order_index } = p;
-      const { error: updErr } = await supabase
+      await supabase
         .from("villa_photos")
         .update({
-          url: String(url),
-          is_primary: !!is_primary,
-          order_index: Number(order_index || 0),
+          url: String(p.url),
+          is_primary: !!p.is_primary,
+          order_index: Number(p.order_index || 0),
         })
-        .eq("id", id);
-      if (updErr) console.error("Photo update error:", updErr);
+        .eq("id", p.id);
     }
 
     // eklenecekler
     const toInsert = photos
       .filter((p: any) => !p.id)
-      .map((p: any) => ({
+      .map((p: any, i: number) => ({
         villa_id: villaId,
         url: String(p.url),
         is_primary: !!p.is_primary,
-        order_index: Number(p.order_index || 0),
+        order_index: Number(p.order_index ?? i),
       }));
     if (toInsert.length > 0) {
-      const { error: insPErr } = await supabase.from("villa_photos").insert(toInsert);
-      if (insPErr) console.error("Photo insert error:", insPErr);
+      await supabase.from("villa_photos").insert(toInsert);
     }
 
-    // kapak fotoğrafı tutarlılığı: en küçük order_index = kapak
+    // kapak tutarlılığı
     const { data: allAfter } = await supabase
       .from("villa_photos")
       .select("id, order_index")
@@ -116,7 +138,7 @@ export async function PATCH(
     }
   }
 
-  // 3) Kategori bağlantıları (diff)
+  // 3) kategori bağlantıları (opsiyonel)
   if (Array.isArray(categoryIds)) {
     const { data: currentLinks } = await supabase
       .from("villa_categories")
@@ -130,18 +152,15 @@ export async function PATCH(
     const toRemove = [...current].filter((x) => !next.has(x));
 
     if (toRemove.length > 0) {
-      const { error: delLinkErr } = await supabase
+      await supabase
         .from("villa_categories")
         .delete()
         .eq("villa_id", villaId)
         .in("category_id", toRemove);
-      if (delLinkErr) console.error("Category unlink error:", delLinkErr);
     }
-
     if (toAdd.length > 0) {
       const rows = toAdd.map((cid) => ({ villa_id: villaId, category_id: cid }));
-      const { error: addLinkErr } = await supabase.from("villa_categories").insert(rows);
-      if (addLinkErr) console.error("Category link insert error:", addLinkErr);
+      await supabase.from("villa_categories").insert(rows);
     }
   }
 

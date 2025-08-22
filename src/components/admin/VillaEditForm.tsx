@@ -23,6 +23,31 @@ type Villa = {
   lng: number | null;
   is_hidden: boolean | null;
   priority?: number | null;
+
+  // boolean özellik kolonları (opsiyonel)
+  heated_pool?: boolean | null;
+  sheltered_pool?: boolean | null;
+  tv_satellite?: boolean | null;
+  master_bathroom?: boolean | null;
+  jacuzzi?: boolean | null;
+  fireplace?: boolean | null;
+  children_pool?: boolean | null;
+  in_site?: boolean | null;
+  private_pool?: boolean | null;
+  playground?: boolean | null;
+  internet?: boolean | null;
+  security?: boolean | null;
+  sauna?: boolean | null;
+  hammam?: boolean | null;
+  indoor_pool?: boolean | null;
+  baby_bed?: boolean | null;
+  high_chair?: boolean | null;
+  foosball?: boolean | null;
+  table_tennis?: boolean | null;
+  underfloor_heating?: boolean | null;
+  generator?: boolean | null;
+  billiards?: boolean | null;
+  pet_friendly?: boolean | null;
 };
 
 type Photo = {
@@ -33,6 +58,35 @@ type Photo = {
 };
 
 type CategoryOption = { id: string; name: string; slug: string };
+
+// Özellik listesi
+const FEATURE_DEFS = [
+  { key: "heated_pool", label: "Isıtmalı Havuz" },
+  { key: "sheltered_pool", label: "Korunaklı havuz" },
+  { key: "tv_satellite", label: "TV - Uydu" },
+  { key: "master_bathroom", label: "Ebeveyn Banyosu" },
+  { key: "jacuzzi", label: "Jakuzi" },
+  { key: "fireplace", label: "Şömine" },
+  { key: "children_pool", label: "Çocuk Havuzu" },
+  { key: "in_site", label: "Site İçinde" },
+  { key: "private_pool", label: "Özel Havuzlu" },
+  { key: "playground", label: "Oyun Alanı" },
+  { key: "internet", label: "İnternet Bağlantısı" },
+  { key: "security", label: "Güvenlik" },
+  { key: "sauna", label: "Sauna" },
+  { key: "hammam", label: "Hamam" },
+  { key: "indoor_pool", label: "Kapalı Havuz" },
+  { key: "baby_bed", label: "Bebek Yatağı" },
+  { key: "high_chair", label: "Mama Sandalyesi" },
+  { key: "foosball", label: "Langırt" },
+  { key: "table_tennis", label: "Masa Tenisi" },
+  { key: "underfloor_heating", label: "Yerden Isıtma" },
+  { key: "generator", label: "Jeneratör" },
+  { key: "billiards", label: "Bilardo" },
+  { key: "pet_friendly", label: "Evcil Hayvan İzinli" },
+] as const;
+
+type FeatureKey = (typeof FEATURE_DEFS)[number]["key"];
 
 export default function VillaEditForm({
   initialVilla,
@@ -71,11 +125,22 @@ export default function VillaEditForm({
 
   const [categoryIds, setCategoryIds] = useState<string[]>(initialCategoryIds ?? []);
 
+  // Özellikler state (initialVilla değerlerinden)
+  const [features, setFeatures] = useState<Record<FeatureKey, boolean>>(
+    Object.fromEntries(FEATURE_DEFS.map((f) => [f.key, !!(initialVilla as any)[f.key]])) as Record<
+      FeatureKey,
+      boolean
+    >,
+  );
+
   const onChange = (key: keyof typeof form, val: any) =>
     setForm((prev) => ({ ...prev, [key]: val }));
 
   const toggleCategory = (id: string) =>
     setCategoryIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const toggleFeature = (key: FeatureKey, next: boolean) =>
+    setFeatures((prev) => ({ ...prev, [key]: next }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,6 +168,8 @@ export default function VillaEditForm({
           lng: form.lng === null ? null : Number(form.lng),
           is_hidden: !!form.is_hidden,
           priority,
+          // boolean özellikler:
+          ...features,
         },
         photos: photos.map((p, i) => ({
           id: p.id,
@@ -110,7 +177,7 @@ export default function VillaEditForm({
           is_primary: !!p.is_primary,
           order_index: i,
         })),
-        categoryIds, // 🔴 yeni
+        categoryIds,
       };
 
       const res = await fetch(`/api/admin/villas/${initialVilla.id}`, {
@@ -295,6 +362,24 @@ export default function VillaEditForm({
             </p>
           </div>
         ) : null}
+
+        {/* Özellikler */}
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Emlak Özellikleri</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {FEATURE_DEFS.map((f) => (
+              <label key={f.key} className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-black"
+                  checked={!!features[f.key]}
+                  onChange={(e) => toggleFeature(f.key, e.target.checked)}
+                />
+                <span className="text-sm">{f.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
       </Card>
 
       {/* Alt: Fotoğraflar */}

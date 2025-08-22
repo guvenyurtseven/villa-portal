@@ -1,27 +1,50 @@
-export type FeatureDef = { key: string; label: string };
+export type FeatureKey =
+  | "heated_pool"
+  | "sheltered_pool"
+  | "tv_satellite"
+  | "master_bathroom"
+  | "jacuzzi"
+  | "fireplace"
+  | "children_pool"
+  | "in_site"
+  | "private_pool"
+  | "playground"
+  | "internet"
+  | "security"
+  | "sauna"
+  | "hammam"
+  | "indoor_pool"
+  | "baby_bed"
+  | "high_chair"
+  | "foosball"
+  | "table_tennis"
+  | "underfloor_heating"
+  | "generator"
+  | "billiards"
+  | "pet_friendly";
 
-export const FEATURE_DEFS: FeatureDef[] = [
-  { key: "isitmali-havuz", label: "Isıtmalı Havuz" },
-  { key: "korunakli-havuz", label: "Korunaklı Havuz" },
-  { key: "tv-uydu", label: "TV - Uydu" },
-  { key: "ebeveyn-banyosu", label: "Ebeveyn Banyosu" },
-  { key: "jakuzi", label: "Jakuzi" },
-  { key: "somine", label: "Şömine" },
-  { key: "cocuk-havuzu", label: "Çocuk Havuzu" },
-  { key: "site-icinde", label: "Site İçinde" },
-  { key: "ozel-havuzlu", label: "Özel Havuzlu" },
-  { key: "oyun-alani", label: "Oyun Alanı" },
-  { key: "internet-baglantisi", label: "İnternet Bağlantısı" },
-  { key: "guvenlik", label: "Güvenlik" },
+export const FEATURES: { key: FeatureKey; label: string }[] = [
+  { key: "heated_pool", label: "Isıtmalı Havuz" },
+  { key: "sheltered_pool", label: "Korunaklı havuz" },
+  { key: "tv_satellite", label: "TV - Uydu" },
+  { key: "master_bathroom", label: "Ebeveyn Banyosu" },
+  { key: "jacuzzi", label: "Jakuzi" },
+  { key: "fireplace", label: "Şömine" },
+  { key: "children_pool", label: "Çocuk Havuzu" },
+  { key: "in_site", label: "Site İçinde" },
+  { key: "private_pool", label: "Özel Havuzlu" },
+  { key: "playground", label: "Oyun Alanı" },
+  { key: "internet", label: "İnternet Bağlantısı" },
+  { key: "security", label: "Güvenlik" },
   { key: "sauna", label: "Sauna" },
-  { key: "hamam", label: "Hamam" },
-  { key: "kapali-havuz", label: "Kapalı Havuz" },
-  { key: "bebek-yatagi", label: "Bebek Yatağı" },
-  { key: "mama-sandalyesi", label: "Mama Sandalyesi" },
-  { key: "langirt", label: "Langırt" },
-  { key: "masa-tenisi", label: "Masa Tenisi" },
-  { key: "yerden-isitma", label: "Yerden Isıtma" },
-  { key: "jenerator", label: "Jeneratör" },
-  { key: "bilardo", label: "Bilardo" },
-  { key: "evcil-hayvan-izinli", label: "Evcil Hayvan İzinli" },
+  { key: "hammam", label: "Hamam" },
+  { key: "indoor_pool", label: "Kapalı Havuz" },
+  { key: "baby_bed", label: "Bebek Yatağı" },
+  { key: "high_chair", label: "Mama Sandalyesi" },
+  { key: "foosball", label: "Langırt" },
+  { key: "table_tennis", label: "Masa Tenisi" },
+  { key: "underfloor_heating", label: "Yerden Isıtma" },
+  { key: "generator", label: "Jeneratör" },
+  { key: "billiards", label: "Bilardo" },
+  { key: "pet_friendly", label: "Evcil Hayvan İzinli" },
 ];

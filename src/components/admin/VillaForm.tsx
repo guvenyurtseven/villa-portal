@@ -10,8 +10,36 @@ import { Card } from "@/components/ui/card";
 import PhotoManager from "@/components/admin/PhotoManager";
 
 type Photo = { id?: string; url: string; is_primary: boolean; order_index: number };
-
 type CategoryOption = { id: string; name: string; slug: string };
+
+// Özellik tanımları (boolean kolon adları + görünen etiket)
+const FEATURE_DEFS = [
+  { key: "heated_pool", label: "Isıtmalı Havuz" },
+  { key: "sheltered_pool", label: "Korunaklı havuz" },
+  { key: "tv_satellite", label: "TV - Uydu" },
+  { key: "master_bathroom", label: "Ebeveyn Banyosu" },
+  { key: "jacuzzi", label: "Jakuzi" },
+  { key: "fireplace", label: "Şömine" },
+  { key: "children_pool", label: "Çocuk Havuzu" },
+  { key: "in_site", label: "Site İçinde" },
+  { key: "private_pool", label: "Özel Havuzlu" },
+  { key: "playground", label: "Oyun Alanı" },
+  { key: "internet", label: "İnternet Bağlantısı" },
+  { key: "security", label: "Güvenlik" },
+  { key: "sauna", label: "Sauna" },
+  { key: "hammam", label: "Hamam" },
+  { key: "indoor_pool", label: "Kapalı Havuz" },
+  { key: "baby_bed", label: "Bebek Yatağı" },
+  { key: "high_chair", label: "Mama Sandalyesi" },
+  { key: "foosball", label: "Langırt" },
+  { key: "table_tennis", label: "Masa Tenisi" },
+  { key: "underfloor_heating", label: "Yerden Isıtma" },
+  { key: "generator", label: "Jeneratör" },
+  { key: "billiards", label: "Bilardo" },
+  { key: "pet_friendly", label: "Evcil Hayvan İzinli" },
+] as const;
+
+type FeatureKey = (typeof FEATURE_DEFS)[number]["key"];
 
 export default function VillaForm({ categories = [] }: { categories?: CategoryOption[] }) {
   const router = useRouter();
@@ -32,6 +60,11 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
     priority: "1",
   });
 
+  // Özellikler state (hepsi false)
+  const [features, setFeatures] = useState<Record<FeatureKey, boolean>>(
+    Object.fromEntries(FEATURE_DEFS.map((f) => [f.key, false])) as Record<FeatureKey, boolean>,
+  );
+
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
 
@@ -40,6 +73,9 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
 
   const toggleCategory = (id: string) =>
     setCategoryIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const toggleFeature = (key: FeatureKey, next: boolean) =>
+    setFeatures((prev) => ({ ...prev, [key]: next }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,13 +102,15 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
           lng: form.lng ? parseFloat(form.lng) : null,
           is_hidden: !!form.is_hidden,
           priority,
+          // boolean özellikleri ekle
+          ...features,
         },
         photos: photos.map((p, i) => ({
           url: p.url,
           is_primary: i === 0 ? true : !!p.is_primary,
           order_index: i,
         })),
-        categoryIds, // 🔴 yeni
+        categoryIds,
       };
 
       const res = await fetch("/api/admin/villas", {
@@ -254,6 +292,24 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
             </p>
           </div>
         ) : null}
+
+        {/* Özellikler */}
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Emlak Özellikleri</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {FEATURE_DEFS.map((f) => (
+              <label key={f.key} className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-black"
+                  checked={!!features[f.key]}
+                  onChange={(e) => toggleFeature(f.key, e.target.checked)}
+                />
+                <span className="text-sm">{f.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
       </Card>
 
       <Card className="p-4 space-y-4">

@@ -4,46 +4,49 @@ import FeaturesList from "@/components/site/FeaturesList";
 import AvailabilityCalendar from "@/components/site/AvailabilityCalendar";
 import MapModal from "@/components/site/MapModal";
 import { notFound } from "next/navigation";
+import VillaFeatures from "@/components/site/VillaFeatures";
 
 interface VillaPageProps {
   params: Promise<{ id: string }>;
 }
 
 export default async function VillaPage({ params }: VillaPageProps) {
+  // Next 15: params Promise olabilir → önce await!
   const { id } = await params;
+
   const supabase = await createClient();
 
-  // Villa bilgilerini çek
+  // Villa + fotoğraflar
   const { data: villa, error } = await supabase
     .from("villas")
     .select(
       `
       *,
-      photos:villa_photos(*)
+      photos:villa_photos(id, url, is_primary, order_index)
     `,
     )
     .eq("id", id)
     .single();
 
-  // Villa bulunamadıysa veya gizliyse 404
+  // Villa bulunamadı veya gizli ise 404
   if (error || !villa || villa.is_hidden) {
     notFound();
   }
 
-  // Rezervasyonları çek (onaylı olanlar)
+  // Onaylı rezervasyonlar
   const { data: reservations } = await supabase
     .from("reservations")
     .select("date_range, status")
     .eq("villa_id", id)
     .eq("status", "confirmed");
 
-  // Bloke tarihleri çek
+  // Bloke tarihleri
   const { data: blockedDates } = await supabase
     .from("blocked_dates")
     .select("date_range, reason")
     .eq("villa_id", id);
 
-  // Özel fiyat dönemlerini çek
+  // Özel fiyat dönemleri
   const { data: pricingPeriods } = await supabase
     .from("villa_pricing_periods")
     .select("*")
@@ -59,7 +62,7 @@ export default async function VillaPage({ params }: VillaPageProps) {
 
   const RANGE_RE = /^\[([0-9]{4}-[0-9]{2}-[0-9]{2}),([0-9]{4}-[0-9]{2}-[0-9]{2})[\)\]]$/;
 
-  // Onaylı rezervasyonları ekle
+  // Onaylı rezervasyonlar
   if (reservations) {
     reservations.forEach((r: any) => {
       const match = String(r.date_range ?? "").match(RANGE_RE);
@@ -73,33 +76,49 @@ export default async function VillaPage({ params }: VillaPageProps) {
     });
   }
 
-  // Bloke tarihleri ekle (BUGFIX: 'res' yerine 'block' kullanıldı)
+  // Bloke tarihleri (temizlik vs.) — kullanıcı tarafında aynı davranır
   if (blockedDates) {
     blockedDates.forEach((block: any) => {
       const match = String(block.date_range ?? "").match(RANGE_RE);
       if (match) {
-        // Kullanıcı tarafında temizlik de rezervasyon gibi davranır
-        unavailableRanges.push({ start: match[1], end: match[2], type: "reserved" });
+        unavailableRanges.push({
+          start: match[1],
+          end: match[2],
+          type: "reserved",
+        });
       }
     });
   }
 
-  // Debug (isteğe bağlı)
-  // console.log("Pricing periods:", pricingPeriods);
-  // console.log("Unavailable ranges:", unavailableRanges);
+  // --- FOTOĞRAFLAR: güvenli dizi ---
+  const photosRaw: Array<{
+    id?: string;
+    url?: string | null;
+    is_primary?: boolean | null;
+    order_index?: number | null;
+  }> = Array.isArray(villa.photos) ? villa.photos : [];
 
-  // Fotoğrafları sırala
-  const sortedPhotos =
-    villa.photos
-      ?.slice()
-      .sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0))
-      ?.map((p: any) => p.url) || [];
+  const safePhotos = photosRaw
+    // boş/bozuk URL'leri ele
+    .filter((p) => typeof p?.url === "string" && p.url!.trim().length > 0)
+    // sırala
+    .sort((a, b) => Number(a.order_index ?? 0) - Number(b.order_index ?? 0))
+    // galerinin beklediği forma getir
+    .map((p) => ({
+      id: p.id,
+      url: p.url as string,
+      alt: villa.name as string,
+      is_primary: !!p.is_primary,
+      order_index: Number(p.order_index ?? 0),
+    }));
+
+  const coverUrl = safePhotos[0]?.url || "/placeholder.jpg";
 
   return (
     <main className="max-w-5xl mx-auto p-6">
       <h1 className="text-3xl font-bold">{villa.name}</h1>
       <p className="text-gray-500 mt-1">
-        {villa.location} · ₺{villa.weekly_price?.toLocaleString("tr-TR")} / hafta
+        {villa.location} · ₺{Number(villa.weekly_price ?? 0).toLocaleString("tr-TR")} / hafta
       </p>
 
       {/* Açıklama */}
@@ -107,16 +126,19 @@ export default async function VillaPage({ params }: VillaPageProps) {
 
       {/* Foto galeri */}
       <div className="mt-6">
-        <PhotoGallery photos={sortedPhotos} />
+        <PhotoGallery photos={safePhotos} />
       </div>
 
-      {/* Özellikler */}
+      {/* Özet özellikler (oda/banyo/havuz/mesafe) */}
       <FeaturesList
         bedrooms={villa.bedrooms}
         bathrooms={villa.bathrooms}
         pool={villa.has_pool}
         seaDistance={villa.sea_distance || "Belirtilmemiş"}
       />
+
+      {/* Detaylı boolean özellikler */}
+      <VillaFeatures villa={villa as any} className="mt-6" />
 
       {/* Konum Haritası */}
       {villa.lat != null && villa.lng != null && (
@@ -135,7 +157,7 @@ export default async function VillaPage({ params }: VillaPageProps) {
         weeklyPrice={villa.weekly_price}
         unavailable={unavailableRanges}
         villaName={villa.name}
-        villaImage={sortedPhotos[0] || "/placeholder.jpg"}
+        villaImage={coverUrl}
         villaId={villa.id}
         pricingPeriods={pricingPeriods || []}
       />

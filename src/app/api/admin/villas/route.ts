@@ -3,75 +3,100 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
+// Formların gönderdiği boolean özellik anahtarları
+const FEATURE_KEYS = [
+  "heated_pool",
+  "sheltered_pool",
+  "tv_satellite",
+  "master_bathroom",
+  "jacuzzi",
+  "fireplace",
+  "children_pool",
+  "in_site",
+  "private_pool",
+  "playground",
+  "internet",
+  "security",
+  "sauna",
+  "hammam",
+  "indoor_pool",
+  "baby_bed",
+  "high_chair",
+  "foosball",
+  "table_tennis",
+  "underfloor_heating",
+  "generator",
+  "billiards",
+  "pet_friendly",
+] as const;
+
 export async function POST(req: NextRequest) {
   const supabase = createServiceRoleClient();
 
-  let body: any = {};
+  let payload: any = {};
   try {
-    body = await req.json();
+    payload = await req.json();
   } catch {
     return NextResponse.json({ error: "Geçersiz JSON" }, { status: 400 });
   }
 
-  const { villa, photos = [], categoryIds = [] } = body || {};
-  if (!villa?.name || !villa?.location) {
-    return NextResponse.json({ error: "Zorunlu alanlar eksik" }, { status: 400 });
-  }
-  if (!Array.isArray(photos) || photos.length === 0) {
-    return NextResponse.json({ error: "En az bir fotoğraf gönderin" }, { status: 400 });
+  const { villa, photos = [], categoryIds } = payload || {};
+  if (!villa?.name) {
+    return NextResponse.json({ error: "İsim zorunlu" }, { status: 400 });
   }
 
-  // 1) Villa kaydı
-  const toInsert = {
+  // villa alanlarını derle
+  const data: any = {
     name: String(villa.name).trim(),
-    location: String(villa.location).trim(),
-    weekly_price: Number(villa.weekly_price || 0),
+    location: villa.location ?? null,
+    weekly_price:
+      typeof villa.weekly_price === "number" ? villa.weekly_price : Number(villa.weekly_price || 0),
     description: villa.description ?? null,
-    bedrooms: villa.bedrooms ?? null,
-    bathrooms: villa.bathrooms ?? null,
+    bedrooms: typeof villa.bedrooms === "number" ? villa.bedrooms : Number(villa.bedrooms || 0),
+    bathrooms: typeof villa.bathrooms === "number" ? villa.bathrooms : Number(villa.bathrooms || 0),
     has_pool: !!villa.has_pool,
     sea_distance: villa.sea_distance ?? null,
-    lat: villa.lat === null || villa.lat === undefined ? null : Number(villa.lat),
-    lng: villa.lng === null || villa.lng === undefined ? null : Number(villa.lng),
+    lat: villa.lat === null || villa.lat === "" ? null : Number(villa.lat),
+    lng: villa.lng === null || villa.lng === "" ? null : Number(villa.lng),
     is_hidden: !!villa.is_hidden,
-    priority: Math.min(5, Math.max(1, Number(villa.priority) || 1)),
+    priority: Math.min(5, Math.max(1, Number(villa.priority || 1))),
   };
 
-  const { data: ins, error: insErr } = await supabase
+  // boolean özellikleri ekle
+  for (const k of FEATURE_KEYS) data[k] = !!villa[k];
+
+  // 1) villa insert
+  const { data: inserted, error: insErr } = await supabase
     .from("villas")
-    .insert(toInsert)
+    .insert(data)
     .select("id")
     .single();
 
-  if (insErr || !ins?.id) {
-    console.error("Villa insert error:", insErr);
-    return NextResponse.json({ error: "Villa ekleme başarısız" }, { status: 500 });
+  if (insErr || !inserted) {
+    console.error(insErr);
+    return NextResponse.json({ error: "Villa oluşturulamadı" }, { status: 500 });
   }
 
-  const villaId: string = ins.id as string;
+  const villaId = inserted.id;
 
-  // 2) Fotoğraflar (ilk foto kapak)
-  const normalizedPhotos = photos.map((p: any, i: number) => ({
-    villa_id: villaId,
-    url: String(p.url),
-    is_primary: i === 0 ? true : !!p.is_primary,
-    order_index: i,
-  }));
-
-  const { error: photoErr } = await supabase.from("villa_photos").insert(normalizedPhotos);
-  if (photoErr) {
-    console.error("Photo insert error:", photoErr);
-    // soft-fail: kaydı dönelim ama log aldık
+  // 2) foto ekleme (varsa)
+  if (Array.isArray(photos) && photos.length > 0) {
+    const rows = photos.map((p: any, i: number) => ({
+      villa_id: villaId,
+      url: String(p.url),
+      is_primary: !!p.is_primary,
+      order_index: p.order_index ?? i,
+    }));
+    const { error: phErr } = await supabase.from("villa_photos").insert(rows);
+    if (phErr) console.error("photo insert error", phErr);
   }
 
-  // 3) Kategori bağlantıları
+  // 3) kategori linkleri (opsiyonel)
   if (Array.isArray(categoryIds) && categoryIds.length > 0) {
-    const rows = categoryIds.map((cid: string) => ({ villa_id: villaId, category_id: cid }));
-    const { error: linkErr } = await supabase.from("villa_categories").insert(rows);
-    if (linkErr) {
-      console.error("Category link insert error:", linkErr);
-    }
+    const linkRows = categoryIds.map((cid: string) => ({ villa_id: villaId, category_id: cid }));
+    const { error: linkErr } = await supabase.from("villa_categories").insert(linkRows);
+    if (linkErr) console.error("category link insert error", linkErr);
   }
 
-  return NextResponse.json({ ok: true, id: villaId });
+  return NextResponse.json({ id: villaId });
 }
