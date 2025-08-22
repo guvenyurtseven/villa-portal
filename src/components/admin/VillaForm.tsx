@@ -11,7 +11,9 @@ import PhotoManager from "@/components/admin/PhotoManager";
 
 type Photo = { id?: string; url: string; is_primary: boolean; order_index: number };
 
-export default function VillaForm() {
+type CategoryOption = { id: string; name: string; slug: string };
+
+export default function VillaForm({ categories = [] }: { categories?: CategoryOption[] }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
 
@@ -27,13 +29,17 @@ export default function VillaForm() {
     lat: "",
     lng: "",
     is_hidden: false,
-    priority: "1", // 🔴 yeni
+    priority: "1",
   });
 
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
 
   const onChange = (key: keyof typeof form, val: any) =>
     setForm((prev) => ({ ...prev, [key]: val }));
+
+  const toggleCategory = (id: string) =>
+    setCategoryIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,13 +65,14 @@ export default function VillaForm() {
           lat: form.lat ? parseFloat(form.lat) : null,
           lng: form.lng ? parseFloat(form.lng) : null,
           is_hidden: !!form.is_hidden,
-          priority, // 🔴 yeni
+          priority,
         },
         photos: photos.map((p, i) => ({
           url: p.url,
           is_primary: i === 0 ? true : !!p.is_primary,
           order_index: i,
         })),
+        categoryIds, // 🔴 yeni
       };
 
       const res = await fetch("/api/admin/villas", {
@@ -122,6 +129,7 @@ export default function VillaForm() {
               required
             />
           </div>
+
           <div className="flex items-center gap-2">
             <Checkbox
               id="has_pool"
@@ -192,7 +200,6 @@ export default function VillaForm() {
             </label>
           </div>
 
-          {/* 🔴 Öncelik alanı */}
           <div>
             <label className="text-sm font-medium" htmlFor="priority">
               Öncelik Puanı (1-5)
@@ -218,6 +225,35 @@ export default function VillaForm() {
             placeholder="Villa açıklaması..."
           />
         </div>
+
+        {/* Kategoriler */}
+        {categories?.length ? (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Kategoriler</p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {categories.map((c) => {
+                const checked = categoryIds.includes(c.id);
+                return (
+                  <label
+                    key={c.id}
+                    className="inline-flex items-center gap-2 rounded border px-3 py-2 cursor-pointer hover:bg-muted"
+                  >
+                    <input
+                      type="checkbox"
+                      className="accent-black"
+                      checked={checked}
+                      onChange={() => toggleCategory(c.id)}
+                    />
+                    <span className="text-sm">{c.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Bir villa birden fazla kategoriye dahil olabilir.
+            </p>
+          </div>
+        ) : null}
       </Card>
 
       <Card className="p-4 space-y-4">

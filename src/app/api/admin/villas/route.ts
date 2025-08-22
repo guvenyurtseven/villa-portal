@@ -1,76 +1,77 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { auth } from "@/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 
-function getAdminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-}
+export const runtime = "nodejs";
 
-export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user) return new NextResponse("Unauthorized", { status: 401 });
+export async function POST(req: NextRequest) {
+  const supabase = createServiceRoleClient();
 
-  const supabase = getAdminClient();
-  const body = await req.json().catch(() => null);
-  if (!body || !body.villa || !Array.isArray(body.photos)) {
-    return new NextResponse("Bad Request", { status: 400 });
+  let body: any = {};
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Geçersiz JSON" }, { status: 400 });
   }
 
-  const v = body.villa as {
-    name: string;
-    location: string;
-    weekly_price: number;
-    description: string | null;
-    bedrooms: number;
-    bathrooms: number;
-    has_pool: boolean;
-    sea_distance: string | null;
-    lat: number | null;
-    lng: number | null;
-    is_hidden: boolean;
-    priority?: number;
+  const { villa, photos = [], categoryIds = [] } = body || {};
+  if (!villa?.name || !villa?.location) {
+    return NextResponse.json({ error: "Zorunlu alanlar eksik" }, { status: 400 });
+  }
+  if (!Array.isArray(photos) || photos.length === 0) {
+    return NextResponse.json({ error: "En az bir fotoğraf gönderin" }, { status: 400 });
+  }
+
+  // 1) Villa kaydı
+  const toInsert = {
+    name: String(villa.name).trim(),
+    location: String(villa.location).trim(),
+    weekly_price: Number(villa.weekly_price || 0),
+    description: villa.description ?? null,
+    bedrooms: villa.bedrooms ?? null,
+    bathrooms: villa.bathrooms ?? null,
+    has_pool: !!villa.has_pool,
+    sea_distance: villa.sea_distance ?? null,
+    lat: villa.lat === null || villa.lat === undefined ? null : Number(villa.lat),
+    lng: villa.lng === null || villa.lng === undefined ? null : Number(villa.lng),
+    is_hidden: !!villa.is_hidden,
+    priority: Math.min(5, Math.max(1, Number(villa.priority) || 1)),
   };
 
-  const priority = Math.min(5, Math.max(1, Math.trunc(v.priority ?? 1)));
-
-  const { data: villa, error } = await supabase
+  const { data: ins, error: insErr } = await supabase
     .from("villas")
-    .insert({
-      name: v.name,
-      location: v.location,
-      weekly_price: v.weekly_price,
-      description: v.description,
-      bedrooms: v.bedrooms,
-      bathrooms: v.bathrooms,
-      has_pool: v.has_pool,
-      sea_distance: v.sea_distance,
-      lat: v.lat,
-      lng: v.lng,
-      is_hidden: v.is_hidden,
-      priority, // 🔴 yeni
-    })
-    .select("*")
+    .insert(toInsert)
+    .select("id")
     .single();
 
-  if (error || !villa) {
-    console.error(error);
-    return new NextResponse("Insert failed", { status: 500 });
+  if (insErr || !ins?.id) {
+    console.error("Villa insert error:", insErr);
+    return NextResponse.json({ error: "Villa ekleme başarısız" }, { status: 500 });
   }
 
-  const photos = body.photos as Array<{ url: string; is_primary: boolean; order_index: number }>;
-  if (Array.isArray(photos) && photos.length) {
-    const rows = photos.map((p) => ({
-      villa_id: villa.id,
-      url: p.url,
-      is_primary: !!p.is_primary,
-      order_index: Number(p.order_index ?? 0),
-    }));
-    const { error: pErr } = await supabase.from("villa_photos").insert(rows);
-    if (pErr) console.error("photo insert warn:", pErr);
+  const villaId: string = ins.id as string;
+
+  // 2) Fotoğraflar (ilk foto kapak)
+  const normalizedPhotos = photos.map((p: any, i: number) => ({
+    villa_id: villaId,
+    url: String(p.url),
+    is_primary: i === 0 ? true : !!p.is_primary,
+    order_index: i,
+  }));
+
+  const { error: photoErr } = await supabase.from("villa_photos").insert(normalizedPhotos);
+  if (photoErr) {
+    console.error("Photo insert error:", photoErr);
+    // soft-fail: kaydı dönelim ama log aldık
   }
 
-  return NextResponse.json({ ok: true, id: villa.id });
+  // 3) Kategori bağlantıları
+  if (Array.isArray(categoryIds) && categoryIds.length > 0) {
+    const rows = categoryIds.map((cid: string) => ({ villa_id: villaId, category_id: cid }));
+    const { error: linkErr } = await supabase.from("villa_categories").insert(rows);
+    if (linkErr) {
+      console.error("Category link insert error:", linkErr);
+    }
+  }
+
+  return NextResponse.json({ ok: true, id: villaId });
 }

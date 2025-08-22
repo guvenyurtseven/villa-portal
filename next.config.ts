@@ -9,7 +9,11 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
-        hostname: "natnhxcqtfzhrfqdqvrl.supabase.co",
+        hostname: "images.unsplash.com", // kategori kapakları
+      },
+      {
+        protocol: "https",
+        hostname: "natnhxcqtfzhrfqdqvrl.supabase.co", // Supabase storage (villa fotoğrafları)
       },
     ],
   },

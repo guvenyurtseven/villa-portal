@@ -1,0 +1,27 @@
+export type FeatureDef = { key: string; label: string };
+
+export const FEATURE_DEFS: FeatureDef[] = [
+  { key: "isitmali-havuz", label: "Isıtmalı Havuz" },
+  { key: "korunakli-havuz", label: "Korunaklı Havuz" },
+  { key: "tv-uydu", label: "TV - Uydu" },
+  { key: "ebeveyn-banyosu", label: "Ebeveyn Banyosu" },
+  { key: "jakuzi", label: "Jakuzi" },
+  { key: "somine", label: "Şömine" },
+  { key: "cocuk-havuzu", label: "Çocuk Havuzu" },
+  { key: "site-icinde", label: "Site İçinde" },
+  { key: "ozel-havuzlu", label: "Özel Havuzlu" },
+  { key: "oyun-alani", label: "Oyun Alanı" },
+  { key: "internet-baglantisi", label: "İnternet Bağlantısı" },
+  { key: "guvenlik", label: "Güvenlik" },
+  { key: "sauna", label: "Sauna" },
+  { key: "hamam", label: "Hamam" },
+  { key: "kapali-havuz", label: "Kapalı Havuz" },
+  { key: "bebek-yatagi", label: "Bebek Yatağı" },
+  { key: "mama-sandalyesi", label: "Mama Sandalyesi" },
+  { key: "langirt", label: "Langırt" },
+  { key: "masa-tenisi", label: "Masa Tenisi" },
+  { key: "yerden-isitma", label: "Yerden Isıtma" },
+  { key: "jenerator", label: "Jeneratör" },
+  { key: "bilardo", label: "Bilardo" },
+  { key: "evcil-hayvan-izinli", label: "Evcil Hayvan İzinli" },
+];

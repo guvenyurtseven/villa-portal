@@ -22,7 +22,7 @@ type Villa = {
   lat: number | null;
   lng: number | null;
   is_hidden: boolean | null;
-  priority?: number | null; // 🔴 yeni
+  priority?: number | null;
 };
 
 type Photo = {
@@ -32,12 +32,18 @@ type Photo = {
   order_index: number;
 };
 
+type CategoryOption = { id: string; name: string; slug: string };
+
 export default function VillaEditForm({
   initialVilla,
   initialPhotos,
+  categories = [],
+  initialCategoryIds = [],
 }: {
   initialVilla: Villa;
   initialPhotos: Photo[];
+  categories?: CategoryOption[];
+  initialCategoryIds?: string[];
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -54,7 +60,7 @@ export default function VillaEditForm({
     lat: initialVilla.lat ?? 0,
     lng: initialVilla.lng ?? 0,
     is_hidden: Boolean(initialVilla.is_hidden ?? false),
-    priority: Number(initialVilla.priority ?? 1), // 🔴 yeni
+    priority: Number(initialVilla.priority ?? 1),
   });
 
   const [photos, setPhotos] = useState<Photo[]>(
@@ -63,8 +69,13 @@ export default function VillaEditForm({
       .map((p, i) => ({ ...p, order_index: i })),
   );
 
+  const [categoryIds, setCategoryIds] = useState<string[]>(initialCategoryIds ?? []);
+
   const onChange = (key: keyof typeof form, val: any) =>
     setForm((prev) => ({ ...prev, [key]: val }));
+
+  const toggleCategory = (id: string) =>
+    setCategoryIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,7 +102,7 @@ export default function VillaEditForm({
           lat: form.lat === null ? null : Number(form.lat),
           lng: form.lng === null ? null : Number(form.lng),
           is_hidden: !!form.is_hidden,
-          priority, // 🔴 yeni
+          priority,
         },
         photos: photos.map((p, i) => ({
           id: p.id,
@@ -99,6 +110,7 @@ export default function VillaEditForm({
           is_primary: !!p.is_primary,
           order_index: i,
         })),
+        categoryIds, // 🔴 yeni
       };
 
       const res = await fetch(`/api/admin/villas/${initialVilla.id}`, {
@@ -229,7 +241,6 @@ export default function VillaEditForm({
             </label>
           </div>
 
-          {/* 🔴 Öncelik alanı */}
           <div>
             <label className="text-sm font-medium" htmlFor="priority">
               Öncelik Puanı (1-5)
@@ -255,6 +266,35 @@ export default function VillaEditForm({
             placeholder="Villa açıklaması..."
           />
         </div>
+
+        {/* Kategoriler */}
+        {categories?.length ? (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Kategoriler</p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {categories.map((c) => {
+                const checked = categoryIds.includes(c.id);
+                return (
+                  <label
+                    key={c.id}
+                    className="inline-flex items-center gap-2 rounded border px-3 py-2 cursor-pointer hover:bg-muted"
+                  >
+                    <input
+                      type="checkbox"
+                      className="accent-black"
+                      checked={checked}
+                      onChange={() => toggleCategory(c.id)}
+                    />
+                    <span className="text-sm">{c.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Bir villa birden fazla kategoriye dahil olabilir.
+            </p>
+          </div>
+        ) : null}
       </Card>
 
       {/* Alt: Fotoğraflar */}

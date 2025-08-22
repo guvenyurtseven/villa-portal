@@ -1,13 +1,15 @@
-// src/app/admin/villas/[id]/edit/page.tsx
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import VillaEditForm from "@/components/admin/VillaEditForm";
 import { notFound } from "next/navigation";
 
-export default async function EditVillaPage(props: { params: Promise<{ id: string }> }) {
-  const { id } = await props.params;
-  const supabase = createServiceRoleClient(); // ✅ artık doğru fonksiyon
+interface Props {
+  params: { id: string } | Promise<{ id: string }>;
+}
 
-  // Villa verisini çek
+export default async function EditVillaPage({ params }: Props) {
+  const { id } = await Promise.resolve(params);
+  const supabase = createServiceRoleClient();
+
   const { data: villa, error: villaErr } = await supabase
     .from("villas")
     .select("*")
@@ -15,31 +17,38 @@ export default async function EditVillaPage(props: { params: Promise<{ id: strin
     .single();
 
   if (villaErr || !villa) {
-    console.error("Villa yüklenemedi:", villaErr);
-    notFound();
+    return notFound();
   }
 
-  // Fotoğrafları çek
-  const { data: photos, error: photosErr } = await supabase
+  const { data: photos } = await supabase
     .from("villa_photos")
     .select("*")
     .eq("villa_id", id)
     .order("order_index", { ascending: true });
 
-  if (photosErr) {
-    console.error("Fotoğraflar yüklenemedi:", photosErr);
-  }
+  const { data: categories } = await supabase
+    .from("categories")
+    .select("id, name, slug")
+    .order("name", { ascending: true });
+
+  const { data: currentLinks } = await supabase
+    .from("villa_categories")
+    .select("category_id")
+    .eq("villa_id", id);
+
+  const selectedCategoryIds = (currentLinks ?? []).map((r) => r.category_id);
 
   return (
-    <div className="container py-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold">
-          Villa Düzenle: <span className="font-bold">{villa.name}</span>
-        </h1>
-        <p className="text-sm text-muted-foreground">ID: {id}</p>
-      </div>
+    <main className="max-w-5xl mx-auto p-6 space-y-6">
+      <h1 className="text-2xl font-semibold">Villa Düzenle: {villa.name}</h1>
+      <p className="text-sm text-muted-foreground">ID: {id}</p>
 
-      <VillaEditForm initialVilla={villa} initialPhotos={photos ?? []} />
-    </div>
+      <VillaEditForm
+        initialVilla={villa as any}
+        initialPhotos={(photos ?? []) as any}
+        categories={(categories ?? []) as any}
+        initialCategoryIds={selectedCategoryIds}
+      />
+    </main>
   );
 }

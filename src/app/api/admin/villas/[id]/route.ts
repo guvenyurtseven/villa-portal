@@ -1,201 +1,149 @@
-import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
-// Public URL'den storage path'ini çıkar (villa-photos bucket'ı için)
-function extractStoragePathFromPublicUrl(url: string) {
-  const marker = "/storage/v1/object/public/villa-photos/";
-  const idx = url.indexOf(marker);
-  if (idx === -1) return null;
-  return url.slice(idx + marker.length);
-}
+export const runtime = "nodejs";
 
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user) return new NextResponse("Unauthorized", { status: 401 });
+// Not: Next.js 15'te params Promise olabilir; özelliğine erişmeden önce await etmeliyiz.
+export async function PATCH(
+  req: NextRequest,
+  ctx: { params: { id: string } } | { params: Promise<{ id: string }> },
+) {
+  // 🔧 params'ı await edip "params.id" kullanımını ortadan kaldırıyoruz
+  const villaParams = await Promise.resolve((ctx as any).params);
+  const villaId: string = villaParams.id;
 
-  const { id } = await ctx.params;
   const supabase = createServiceRoleClient();
 
-  const { data: villa, error: villaErr } = await supabase
-    .from("villas")
-    .select("*")
-    .eq("id", id)
-    .single();
-
-  if (villaErr || !villa) return new NextResponse("Not found", { status: 404 });
-
-  const { data: photos, error: photosErr } = await supabase
-    .from("villa_photos")
-    .select("*")
-    .eq("villa_id", id)
-    .order("order_index", { ascending: true });
-
-  if (photosErr) {
-    console.error("Photo load error:", photosErr);
-  }
-
-  return NextResponse.json({ villa, photos: photos ?? [] });
-}
-
-export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user) return new NextResponse("Unauthorized", { status: 401 });
-
-  const { id } = await ctx.params;
-  const supabase = createServiceRoleClient();
-
-  let body: any;
+  let body: any = {};
   try {
     body = await req.json();
   } catch {
-    return new NextResponse("Bad Request", { status: 400 });
+    return NextResponse.json({ error: "Geçersiz JSON" }, { status: 400 });
   }
 
-  if (!body || !body.villa || !Array.isArray(body.photos)) {
-    return new NextResponse("Bad Request", { status: 400 });
-  }
+  const { villa, photos = [], categoryIds } = body || {};
 
-  const villaPayload = body.villa as {
-    name: string;
-    location: string;
-    weekly_price: number;
-    description: string | null;
-    bedrooms: number;
-    bathrooms: number;
-    has_pool: boolean;
-    sea_distance: string | null;
-    lat: number | null;
-    lng: number | null;
-    is_hidden: boolean;
-    priority?: number;
-  };
+  // 1) Villa bilgileri
+  if (villa && typeof villa === "object") {
+    const updateData: any = {};
+    if ("name" in villa) updateData.name = String(villa.name).trim();
+    if ("location" in villa) updateData.location = String(villa.location).trim();
+    if ("weekly_price" in villa) updateData.weekly_price = Number(villa.weekly_price || 0);
+    if ("description" in villa) updateData.description = villa.description ?? null;
+    if ("bedrooms" in villa) updateData.bedrooms = villa.bedrooms ?? null;
+    if ("bathrooms" in villa) updateData.bathrooms = villa.bathrooms ?? null;
+    if ("has_pool" in villa) updateData.has_pool = !!villa.has_pool;
+    if ("sea_distance" in villa) updateData.sea_distance = villa.sea_distance ?? null;
+    if ("lat" in villa) updateData.lat = villa.lat === null ? null : Number(villa.lat);
+    if ("lng" in villa) updateData.lng = villa.lng === null ? null : Number(villa.lng);
+    if ("is_hidden" in villa) updateData.is_hidden = !!villa.is_hidden;
+    if ("priority" in villa)
+      updateData.priority = Math.min(5, Math.max(1, Number(villa.priority) || 1));
 
-  // ---- 1) VİLLAYI GÜNCELLE (priority dahil) ----
-  const priority =
-    typeof villaPayload.priority === "number"
-      ? Math.min(5, Math.max(1, Math.trunc(villaPayload.priority)))
-      : undefined;
-
-  const { error: upErr } = await supabase
-    .from("villas")
-    .update({
-      name: villaPayload.name,
-      location: villaPayload.location,
-      weekly_price: villaPayload.weekly_price,
-      description: villaPayload.description,
-      bedrooms: villaPayload.bedrooms,
-      bathrooms: villaPayload.bathrooms,
-      has_pool: villaPayload.has_pool,
-      sea_distance: villaPayload.sea_distance,
-      lat: villaPayload.lat,
-      lng: villaPayload.lng,
-      is_hidden: villaPayload.is_hidden,
-      ...(priority !== undefined ? { priority } : {}),
-    })
-    .eq("id", id);
-
-  if (upErr) {
-    console.error("Villa update error:", upErr);
-    return new NextResponse("Villa update failed", { status: 500 });
-  }
-
-  // ---- 2) FOTOĞRAFLARI SENKRONİZE ET ----
-  const photosPayload = (body.photos as any[]).map((p, idx) => ({
-    id: p.id as string | undefined,
-    url: String(p.url),
-    is_primary: Boolean(p.is_primary),
-    order_index: Number(p.order_index ?? idx),
-  }));
-
-  const { data: currentPhotos, error: curErr } = await supabase
-    .from("villa_photos")
-    .select("*")
-    .eq("villa_id", id);
-
-  if (curErr) {
-    console.error("Load current photos error:", curErr);
-    return new NextResponse("Photo load failed", { status: 500 });
-  }
-
-  const currentById = new Map<string, any>();
-  for (const p of currentPhotos ?? []) {
-    if (p.id) currentById.set(p.id, p);
-  }
-
-  // 2a) Silinecekler (payload'da olmayan mevcutlar)
-  const desiredIds = new Set(photosPayload.map((p) => p.id).filter(Boolean) as string[]);
-  const toDelete = (currentPhotos ?? []).filter((p: any) => !desiredIds.has(p.id));
-
-  if (toDelete.length) {
-    const ids = toDelete.map((p: any) => p.id);
-    const paths = toDelete
-      .map((p: any) => extractStoragePathFromPublicUrl(p.url))
-      .filter(Boolean) as string[];
-
-    const { error: delDbErr } = await supabase.from("villa_photos").delete().in("id", ids);
-    if (delDbErr) {
-      console.error("DB photo delete error:", delDbErr);
-      return new NextResponse("Photo delete failed", { status: 500 });
-    }
-
-    if (paths.length) {
-      const { error: delStErr } = await supabase.storage.from("villa-photos").remove(paths);
-      if (delStErr) console.warn("Storage remove warning:", delStErr);
+    if (Object.keys(updateData).length > 0) {
+      const { error: upErr } = await supabase.from("villas").update(updateData).eq("id", villaId);
+      if (upErr) {
+        console.error("Villa update error:", upErr);
+        return NextResponse.json({ error: "Villa güncelleme başarısız" }, { status: 500 });
+      }
     }
   }
 
-  // 2b) Eklenecekler (id'si olmayanlar)
-  const toInsert = photosPayload.filter((p) => !p.id);
-  if (toInsert.length) {
-    const rows = toInsert.map((p) => ({
-      villa_id: id,
-      url: p.url,
-      is_primary: !!p.is_primary,
-      order_index: Number(p.order_index ?? 0),
-    }));
-    const { error: insErr } = await supabase.from("villa_photos").insert(rows);
-    if (insErr) {
-      console.error("Photo insert error:", insErr);
-      return new NextResponse("Photo insert failed", { status: 500 });
-    }
-  }
-
-  // 2c) Güncellenecekler (id'si olanlar)
-  const toUpdate = photosPayload.filter((p) => p.id && currentById.has(p.id!));
-  for (const p of toUpdate) {
-    const { error: updErr } = await supabase
+  // 2) Fotoğraflar (tam senkronizasyon)
+  if (Array.isArray(photos)) {
+    const { data: currentPhotos, error: curErr } = await supabase
       .from("villa_photos")
-      .update({
-        url: p.url,
-        is_primary: !!p.is_primary,
-        order_index: Number(p.order_index ?? 0),
-      })
-      .eq("id", p.id as string);
-    if (updErr) {
-      console.error("Photo update error:", updErr);
-      return new NextResponse("Photo update failed", { status: 500 });
-    }
-  }
+      .select("id")
+      .eq("villa_id", villaId);
 
-  // 2d) Tek kapak garantisi (payload'a göre)
-  const primary = photosPayload.find((p) => p.is_primary);
-  if (primary) {
-    const { error: resetErr } = await supabase
-      .from("villa_photos")
-      .update({ is_primary: false })
-      .eq("villa_id", id);
-    if (!resetErr) {
-      const { error: setErr } = await supabase
+    if (curErr) {
+      console.error("Fetch current photos error:", curErr);
+      return NextResponse.json({ error: "Fotoğraflar alınamadı" }, { status: 500 });
+    }
+
+    const currentIds = new Set((currentPhotos ?? []).map((p) => p.id));
+    const incomingWithId = photos.filter((p: any) => p.id);
+    const incomingIds = new Set(incomingWithId.map((p: any) => p.id));
+
+    // silinecekler
+    const toDelete = [...currentIds].filter((id) => !incomingIds.has(id));
+    if (toDelete.length > 0) {
+      const { error: delErr } = await supabase.from("villa_photos").delete().in("id", toDelete);
+      if (delErr) console.error("Photo delete error:", delErr);
+    }
+
+    // güncellenecekler
+    for (const p of incomingWithId) {
+      const { id, url, is_primary, order_index } = p;
+      const { error: updErr } = await supabase
         .from("villa_photos")
-        .update({ is_primary: true })
-        .eq("villa_id", id)
-        .eq("url", primary.url);
-      if (setErr) console.warn("Primary set warning:", setErr);
-    } else {
-      console.warn("Primary reset warning:", resetErr);
+        .update({
+          url: String(url),
+          is_primary: !!is_primary,
+          order_index: Number(order_index || 0),
+        })
+        .eq("id", id);
+      if (updErr) console.error("Photo update error:", updErr);
+    }
+
+    // eklenecekler
+    const toInsert = photos
+      .filter((p: any) => !p.id)
+      .map((p: any) => ({
+        villa_id: villaId,
+        url: String(p.url),
+        is_primary: !!p.is_primary,
+        order_index: Number(p.order_index || 0),
+      }));
+    if (toInsert.length > 0) {
+      const { error: insPErr } = await supabase.from("villa_photos").insert(toInsert);
+      if (insPErr) console.error("Photo insert error:", insPErr);
+    }
+
+    // kapak fotoğrafı tutarlılığı: en küçük order_index = kapak
+    const { data: allAfter } = await supabase
+      .from("villa_photos")
+      .select("id, order_index")
+      .eq("villa_id", villaId);
+
+    if (allAfter && allAfter.length > 0) {
+      const primaryId = allAfter.sort(
+        (a, b) => Number(a.order_index || 0) - Number(b.order_index || 0),
+      )[0].id;
+
+      await supabase.from("villa_photos").update({ is_primary: false }).eq("villa_id", villaId);
+      await supabase.from("villa_photos").update({ is_primary: true }).eq("id", primaryId);
     }
   }
 
-  return NextResponse.json({ ok: true });
+  // 3) Kategori bağlantıları (diff)
+  if (Array.isArray(categoryIds)) {
+    const { data: currentLinks } = await supabase
+      .from("villa_categories")
+      .select("category_id")
+      .eq("villa_id", villaId);
+
+    const current = new Set((currentLinks ?? []).map((r) => r.category_id));
+    const next = new Set(categoryIds as string[]);
+
+    const toAdd = [...next].filter((x) => !current.has(x));
+    const toRemove = [...current].filter((x) => !next.has(x));
+
+    if (toRemove.length > 0) {
+      const { error: delLinkErr } = await supabase
+        .from("villa_categories")
+        .delete()
+        .eq("villa_id", villaId)
+        .in("category_id", toRemove);
+      if (delLinkErr) console.error("Category unlink error:", delLinkErr);
+    }
+
+    if (toAdd.length > 0) {
+      const rows = toAdd.map((cid) => ({ villa_id: villaId, category_id: cid }));
+      const { error: addLinkErr } = await supabase.from("villa_categories").insert(rows);
+      if (addLinkErr) console.error("Category link insert error:", addLinkErr);
+    }
+  }
+
+  return NextResponse.json({ ok: true, id: villaId });
 }

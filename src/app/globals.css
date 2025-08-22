@@ -76,8 +76,14 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --brand: #56dfcf;
+  --brand-foreground: #0b1f1d; /* Açık zemin üstünde koyu metin */
 }
-
+/* Seçim rengi (güzellik için) */
+::selection {
+  background: var(--brand);
+  color: var(--brand-foreground);
+}
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
