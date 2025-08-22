@@ -54,7 +54,7 @@ export default async function VillaPage({ params }: VillaPageProps) {
   const unavailableRanges: Array<{
     start: string;
     end: string;
-    type: "reserved" | "blocked";
+    type: "reserved";
   }> = [];
 
   const RANGE_RE = /^\[([0-9]{4}-[0-9]{2}-[0-9]{2}),([0-9]{4}-[0-9]{2}-[0-9]{2})[\)\]]$/;
@@ -78,13 +78,8 @@ export default async function VillaPage({ params }: VillaPageProps) {
     blockedDates.forEach((block: any) => {
       const match = String(block.date_range ?? "").match(RANGE_RE);
       if (match) {
-        const type: "reserved" | "blocked" =
-          block.reason === "Rezervasyon" ? "reserved" : "blocked";
-        unavailableRanges.push({
-          start: match[1],
-          end: match[2],
-          type,
-        });
+        // Kullanıcı tarafında temizlik de rezervasyon gibi davranır
+        unavailableRanges.push({ start: match[1], end: match[2], type: "reserved" });
       }
     });
   }

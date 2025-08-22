@@ -12,6 +12,7 @@ import { format, startOfDay, addDays, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
 import "react-day-picker/dist/style.css";
 import Image from "next/image";
+const RANGE_RE = /^\[([0-9]{4}-[0-9]{2}-[0-9]{2}),([0-9]{4}-[0-9]{2}-[0-9]{2})[\)\]]$/;
 
 interface Villa {
   id: string;
@@ -125,42 +126,50 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
   const checkInDays = useMemo(() => {
     const days: Date[] = [];
 
-    reservations.forEach((res) => {
-      if (res.status !== "cancelled") {
-        const dates = parseDateRange(res.date_range);
-        days.push(startOfDay(parseISO(dates.start)));
-      }
+    // confirmed rezervasyon başlangıçları
+    reservations
+      .filter((r) => r.status === "confirmed")
+      .forEach((r) => {
+        const m = RANGE_RE.exec(r.date_range ?? "");
+        if (!m) return;
+        days.push(startOfDay(parseISO(m[1])));
+      });
+
+    // TÜM blokelerin başlangıçları (temizlik dahil)
+    blockedDates.forEach((b) => {
+      const m = RANGE_RE.exec(b.date_range ?? "");
+      if (!m) return;
+      days.push(startOfDay(parseISO(m[1])));
     });
 
-    blockedDates.forEach((block) => {
-      if (block.reason === "Rezervasyon") {
-        const dates = parseDateRange(block.date_range);
-        days.push(startOfDay(parseISO(dates.start)));
-      }
-    });
-
-    return days;
+    return Array.from(new Map(days.map((d) => [d.toISOString(), d])).values()).sort((a, b) =>
+      a < b ? -1 : a > b ? 1 : 0,
+    );
   }, [reservations, blockedDates]);
 
   // Check-out günleri - useMemo'yu her zaman çağır
   const checkOutDays = useMemo(() => {
     const days: Date[] = [];
 
-    reservations.forEach((res) => {
-      if (res.status !== "cancelled") {
-        const dates = parseDateRange(res.date_range);
-        days.push(startOfDay(parseISO(dates.end)));
-      }
+    // confirmed rezervasyon bitişleri
+    reservations
+      .filter((r) => r.status === "confirmed")
+      .forEach((r) => {
+        const m = RANGE_RE.exec(r.date_range ?? "");
+        if (!m) return;
+        days.push(startOfDay(parseISO(m[2])));
+      });
+
+    // TÜM blokelerin bitişleri (temizlik dahil)
+    blockedDates.forEach((b) => {
+      const m = RANGE_RE.exec(b.date_range ?? "");
+      if (!m) return;
+      days.push(startOfDay(parseISO(m[2])));
     });
 
-    blockedDates.forEach((block) => {
-      if (block.reason === "Rezervasyon") {
-        const dates = parseDateRange(block.date_range);
-        days.push(startOfDay(parseISO(dates.end)));
-      }
-    });
-
-    return days;
+    return Array.from(new Map(days.map((d) => [d.toISOString(), d])).values()).sort((a, b) =>
+      a < b ? -1 : a > b ? 1 : 0,
+    );
   }, [reservations, blockedDates]);
 
   const turnoverDays = useMemo(() => {
@@ -177,42 +186,37 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
   const fullyBookedDays = useMemo(() => {
     const days: Date[] = [];
 
-    reservations.forEach((res) => {
-      if (res.status !== "cancelled") {
-        const dates = parseDateRange(res.date_range);
-        const start = startOfDay(parseISO(dates.start));
-        const end = startOfDay(parseISO(dates.end));
-
-        let current = addDays(start, 1);
-        while (current < end) {
-          days.push(new Date(current));
-          current = addDays(current, 1);
+    // Rezervasyonların iç günleri
+    reservations
+      .filter((r) => r.status === "confirmed")
+      .forEach((r) => {
+        const m = RANGE_RE.exec(r.date_range ?? "");
+        if (!m) return;
+        const start = startOfDay(parseISO(m[1]));
+        const end = startOfDay(parseISO(m[2]));
+        let cur = addDays(start, 1);
+        while (cur < end) {
+          days.push(cur);
+          cur = addDays(cur, 1);
         }
+      });
+
+    // Blokelerin iç günleri (TEMİZLİK dahil) — KENARLAR HARİÇ
+    blockedDates.forEach((b) => {
+      const m = RANGE_RE.exec(b.date_range ?? "");
+      if (!m) return;
+      const start = startOfDay(parseISO(m[1]));
+      const end = startOfDay(parseISO(m[2]));
+      let cur = addDays(start, 1);
+      while (cur < end) {
+        days.push(cur);
+        cur = addDays(cur, 1);
       }
     });
 
-    blockedDates.forEach((block) => {
-      const dates = parseDateRange(block.date_range);
-      const start = startOfDay(parseISO(dates.start));
-      const end = startOfDay(parseISO(dates.end));
-
-      if (block.reason === "Rezervasyon") {
-        let current = addDays(start, 1);
-        while (current < end) {
-          days.push(new Date(current));
-          current = addDays(current, 1);
-        }
-      } else {
-        // Temizlik vb. tamamen bloke
-        let current = new Date(start);
-        while (current <= end) {
-          days.push(new Date(current));
-          current = addDays(current, 1);
-        }
-      }
-    });
-
-    return days;
+    return Array.from(new Map(days.map((d) => [d.toISOString(), d])).values()).sort((a, b) =>
+      a < b ? -1 : a > b ? 1 : 0,
+    );
   }, [reservations, blockedDates]);
 
   // Disabled dates - useMemo'yu her zaman çağır
