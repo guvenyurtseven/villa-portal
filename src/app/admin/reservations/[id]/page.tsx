@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { redirect } from "next/navigation";
+import CancelReservationButton from "@/components/admin/CancelReservationButton";
 
 export const dynamic = "force-dynamic"; // cache'e yapışmasın
 export const revalidate = 0;
@@ -55,10 +56,30 @@ export default async function ReservationDetailPage(props: {
 
   const rangeText = displayPgDateRange(data.date_range);
 
+  async function cancelReservation(id: string) {
+    "use server";
+    // server action ile API'yi çağırmak istersen:
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/api/admin/reservations/${id}/cancel`,
+      {
+        method: "POST",
+        cache: "no-store",
+      },
+    );
+    if (!res.ok) {
+      throw new Error("İptal sırasında hata oluştu");
+    }
+  }
+
+  // Sayfa bileşenin içinde, reservation yüklendikten sonra:
+  const isCancelled = data.status === "cancelled";
+
   return (
     <main className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Rezervasyon Detayı</h1>
+        {!isCancelled && <CancelReservationButton id={data.id} />}
+
         <div className="flex gap-2">
           <Button asChild variant="outline">
             <Link href="/admin/reservations">Listeye Dön</Link>
