@@ -167,6 +167,14 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
   return (
     <div>
       <h1 className="text-3xl font-bold mb-4">Tüm Rezervasyonlar</h1>
+      <div className="flex items-center justify-end  px-8 py-8">
+        <Link
+          href="/api/admin/past-reservations/export"
+          className="rounded-lg bg-emerald-600 text-white px-3 py-3 hover:bg-emerald-700 transition"
+        >
+          Geçmiş rezervasyonları indir
+        </Link>
+      </div>
       <SearchBar />
       {error ? (
         <p className="text-red-600 mt-6">Veriler yüklenirken hata oluştu</p>

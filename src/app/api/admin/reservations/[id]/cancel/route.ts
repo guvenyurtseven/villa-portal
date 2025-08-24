@@ -2,40 +2,25 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
+// params artık Promise. Next.js 15'te await edilmesi zorunlu.
+type Ctx = { params: Promise<{ id: string }> };
+
 const ParamsSchema = z.object({ id: z.string().uuid() });
 
-export async function POST(_req: Request, ctx: { params: { id: string } }) {
+export async function POST(_req: Request, ctx: Ctx) {
   const supabase = createServiceRoleClient();
-  const { id } = ParamsSchema.parse(ctx.params);
 
-  // 1) Kaydı çek (var mı/yetki)
-  const { data: existing, error: getErr } = await supabase
-    .from("reservations")
-    .select("id, status")
-    .eq("id", id)
-    .single();
+  // ⬇️ HATA SEBEBİ BUYDU: ctx.params Promise => await et
+  const { id } = ParamsSchema.parse(await ctx.params);
 
-  if (getErr || !existing) {
-    return NextResponse.json({ error: "Rezervasyon bulunamadı" }, { status: 404 });
-  }
-  if (existing.status === "cancelled") {
-    return NextResponse.json({ ok: true, alreadyCancelled: true });
-  }
+  // (İsteğe bağlı) arşive yanlışlıkla düşmüşse oradan da temizle
+  await supabase.from("past_reservations").delete().eq("id", id).throwOnError();
 
-  // 2) İptale çek
-  const patch: Record<string, any> = { status: "cancelled" };
-  // Eğer şemanızda varsa:
-  // patch.cancelled_at = new Date().toISOString();
-
-  const { data, error } = await supabase
-    .from("reservations")
-    .update(patch)
-    .eq("id", id)
-    .select("id, status")
-    .single();
+  // İptal politikası: iptal edilen rezervasyonu tamamen sil
+  const { error } = await supabase.from("reservations").delete().eq("id", id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
-  return NextResponse.json({ ok: true, reservation: data });
+  return NextResponse.json({ ok: true });
 }
