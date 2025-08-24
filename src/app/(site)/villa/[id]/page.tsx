@@ -118,7 +118,7 @@ export default async function VillaPage({ params }: VillaPageProps) {
     <main className="max-w-5xl mx-auto p-6">
       <h1 className="text-3xl font-bold">{villa.name}</h1>
       <p className="text-gray-500 mt-1">
-        {villa.location} · ₺{Number(villa.weekly_price ?? 0).toLocaleString("tr-TR")} / hafta
+        ₺{Number(villa.weekly_price ?? 0).toLocaleString("tr-TR")} / hafta
       </p>
 
       {/* Açıklama */}
@@ -144,7 +144,6 @@ export default async function VillaPage({ params }: VillaPageProps) {
       {villa.lat != null && villa.lng != null && (
         <MapModal
           villaName={villa.name}
-          location={villa.location}
           coordinates={{
             lat: Number(villa.lat),
             lng: Number(villa.lng),

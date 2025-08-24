@@ -11,7 +11,6 @@ type PhotoRow = {
 type VillaRow = {
   id: string;
   name: string;
-  location: string | null;
   weekly_price: number | null;
   priority: number | null;
   is_hidden: boolean | null;
@@ -26,7 +25,7 @@ export default async function FeaturedVillas() {
   const { data: villas } = await supabase
     .from("villas")
     .select(
-      "id, name, location, weekly_price, priority, is_hidden, villa_photos(villa_id, url, is_primary, order_index)",
+      "id, name, weekly_price, priority, is_hidden, villa_photos(villa_id, url, is_primary, order_index)",
     )
     .eq("is_hidden", false)
     .order("priority", { ascending: false })
@@ -48,7 +47,6 @@ export default async function FeaturedVillas() {
     return {
       id: v.id,
       name: v.name,
-      location: v.location,
       weeklyPrice: v.weekly_price,
       images,
     };
@@ -65,7 +63,6 @@ export default async function FeaturedVillas() {
             key={v.id}
             id={v.id}
             name={v.name}
-            location={v.location}
             weeklyPrice={v.weeklyPrice}
             images={v.images}
           />

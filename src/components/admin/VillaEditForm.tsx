@@ -12,7 +12,6 @@ import PhotoManager from "@/components/admin/PhotoManager";
 type Villa = {
   id: string;
   name: string;
-  location: string;
   weekly_price: number;
   description: string | null;
   bedrooms: number | null;
@@ -104,7 +103,6 @@ export default function VillaEditForm({
 
   const [form, setForm] = useState({
     name: initialVilla.name ?? "",
-    location: initialVilla.location ?? "",
     weekly_price: Number(initialVilla.weekly_price ?? 0),
     description: initialVilla.description ?? "",
     bedrooms: Number(initialVilla.bedrooms ?? 1),
@@ -157,7 +155,6 @@ export default function VillaEditForm({
       const payload = {
         villa: {
           name: form.name.trim(),
-          location: form.location.trim(),
           weekly_price: Number(form.weekly_price),
           description: form.description?.trim() || null,
           bedrooms: Number(form.bedrooms),
@@ -216,14 +213,6 @@ export default function VillaEditForm({
           <div>
             <label className="text-sm font-medium">Villa Adı</label>
             <Input value={form.name} onChange={(e) => onChange("name", e.target.value)} required />
-          </div>
-          <div>
-            <label className="text-sm font-medium">Konum</label>
-            <Input
-              value={form.location}
-              onChange={(e) => onChange("location", e.target.value)}
-              required
-            />
           </div>
 
           <div>

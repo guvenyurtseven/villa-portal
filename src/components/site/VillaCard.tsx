@@ -4,13 +4,11 @@ import CardGallery from "./CardGallery";
 export default function VillaCard({
   id,
   name,
-  location,
   weeklyPrice,
   images,
 }: {
   id: string;
   name: string;
-  location?: string | null;
   weeklyPrice?: number | null;
   images?: string[];
 }) {
@@ -22,7 +20,7 @@ export default function VillaCard({
       <CardGallery images={images} alt={name} />
       <div className="p-4">
         <h3 className="font-semibold truncate">{name}</h3>
-        {location ? <p className="text-sm text-muted-foreground truncate">{location}</p> : null}
+
         {typeof weeklyPrice === "number" ? (
           <p className="mt-2 text-sm">
             Haftalık&nbsp;

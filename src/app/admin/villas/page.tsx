@@ -71,7 +71,6 @@ export default async function AdminVillasPage() {
                             </span>
                           )}
                         </div>
-                        <p className="text-gray-500">{villa.location}</p>
                         <div className="flex items-center gap-4 mt-1">
                           <span className="text-sm font-medium">
                             ₺{villa.weekly_price?.toLocaleString("tr-TR")} / hafta

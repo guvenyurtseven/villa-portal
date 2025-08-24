@@ -6,14 +6,13 @@ import { MapPin, X } from "lucide-react";
 
 interface MapModalProps {
   villaName: string;
-  location: string;
   coordinates: {
     lat: number;
     lng: number;
   };
 }
 
-export default function MapModal({ villaName, location, coordinates }: MapModalProps) {
+export default function MapModal({ villaName, coordinates }: MapModalProps) {
   const [isOpen, setIsOpen] = useState(true); // Default true olarak değişti
 
   const googleMapsUrl = `https://www.google.com/maps?q=${coordinates.lat},${coordinates.lng}`;

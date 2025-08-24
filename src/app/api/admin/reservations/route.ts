@@ -1,3 +1,4 @@
+//villa-portal\src\app\api\admin\reservations\route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -11,10 +12,9 @@ export async function GET(request: Request) {
     let query = supabase
       .from("reservations")
       .select(
-        `
-        *,
-        villa:villas(id, name, location)
-      `,
+        `id, villa_id, status, customer_name, guest_name, guest_email, guest_phone,
+        total_price, notes, created_at, date_range,
+        villa:villa_id (id, name)`,
       )
       .order("created_at", { ascending: false });
 

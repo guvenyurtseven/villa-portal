@@ -13,11 +13,17 @@ import { tr } from "date-fns/locale";
 import "react-day-picker/dist/style.css";
 import Image from "next/image";
 const RANGE_RE = /^\[([0-9]{4}-[0-9]{2}-[0-9]{2}),([0-9]{4}-[0-9]{2}-[0-9]{2})[\)\]]$/;
+// Her ihtimale karşı JSON'u diziye çevirir
+function toArray<T = any>(x: any): T[] {
+  if (Array.isArray(x)) return x as T[];
+  if (x && Array.isArray(x.data)) return x.data as T[];
+  if (x && Array.isArray(x.items)) return x.items as T[];
+  return [];
+}
 
 interface Villa {
   id: string;
   name: string;
-  location: string;
   weekly_price: number;
   photos?: any[];
 }
@@ -93,19 +99,17 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
       }
 
       // Rezervasyonları al
+      // Rezervasyonları al
       const resRes = await fetch(`/api/reservations?villa_id=${id}`);
-      const resData = await resRes.json();
-      setReservations(resData || []);
+      setReservations(toArray<Reservation>(await resRes.json()));
 
       // Bloke tarihleri al
       const blockRes = await fetch(`/api/admin/blocked-dates?villa_id=${id}`);
-      const blockData = await blockRes.json();
-      setBlockedDates(blockData || []);
+      setBlockedDates(toArray<BlockedDate>(await blockRes.json()));
 
       // Fiyat dönemlerini al
       const pricingRes = await fetch(`/api/admin/pricing-periods?villa_id=${id}`);
-      const pricingData = await pricingRes.json();
-      setPricingPeriods(pricingData || []);
+      setPricingPeriods(toArray<PricingPeriod>(await pricingRes.json()));
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -115,11 +119,8 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
 
   // Tarih aralığını parse et
   function parseDateRange(dateRange: string): { start: string; end: string } {
-    const match = dateRange.match(/\[(\d{4}-\d{2}-\d{2}),(\d{4}-\d{2}-\d{2})\)/);
-    if (match) {
-      return { start: match[1], end: match[2] };
-    }
-    return { start: "", end: "" };
+    const m = RANGE_RE.exec(String(dateRange ?? ""));
+    return m ? { start: m[1], end: m[2] } : { start: "", end: "" };
   }
 
   // Check-in günleri - useMemo'yu her zaman çağır
@@ -454,7 +455,6 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
 
             <div className="flex-1">
               <h1 className="text-2xl font-bold">{villa?.name}</h1>
-              <p className="text-gray-500 mt-1">{villa?.location}</p>
               <p className="text-lg font-semibold mt-2">
                 ₺{villa?.weekly_price?.toLocaleString("tr-TR")} / hafta
               </p>

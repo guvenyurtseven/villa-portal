@@ -26,7 +26,7 @@ export default async function AdminDashboard() {
         .select(
           `
         *,
-        villa:villas(name, location)
+        villa:villas(name)
       `,
         )
         .order("created_at", { ascending: false })

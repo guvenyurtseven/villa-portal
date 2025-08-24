@@ -48,7 +48,6 @@ export async function POST(req: NextRequest) {
   // villa alanlarını derle
   const data: any = {
     name: String(villa.name).trim(),
-    location: villa.location ?? null,
     weekly_price:
       typeof villa.weekly_price === "number" ? villa.weekly_price : Number(villa.weekly_price || 0),
     description: villa.description ?? null,

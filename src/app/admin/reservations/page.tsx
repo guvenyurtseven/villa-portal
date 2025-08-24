@@ -14,7 +14,6 @@ export default async function AdminReservationsPage() {
       `
       id,
       name,
-      location,
       reservations(
         id,
         date_range,
@@ -84,10 +83,6 @@ export default async function AdminReservationsPage() {
                         <Home className="h-5 w-5" />
                         {villa.name}
                       </CardTitle>
-                      <p className="text-sm text-gray-600 mt-1 flex items-center gap-1">
-                        <MapPin className="h-4 w-4" />
-                        {villa.location}
-                      </p>
                     </div>
                     <Button variant="outline" size="sm" asChild>
                       <Link href={`/admin/villas/${villa.id}/calendar`}>Takvimi Yönet</Link>

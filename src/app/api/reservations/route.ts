@@ -13,7 +13,7 @@ export async function GET(request: Request) {
       .select(
         `
         *,
-        villa:villas(id, name, location)
+        villa:villas(id, name)
       `,
       )
       .order("created_at", { ascending: false });
