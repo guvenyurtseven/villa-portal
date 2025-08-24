@@ -1,79 +1,78 @@
+// src/app/api/admin/manual-reservation/route.ts
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { z } from "zod";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
-export async function POST(request: Request) {
-  const session = await auth();
+const bodySchema = z.object({
+  villa_id: z.string().uuid(),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), // YYYY-MM-DD
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), // YYYY-MM-DD (UI'de dahil)
+  guest_name: z.string().min(1),
+  guest_phone: z.string().min(1),
+  guest_email: z.string().optional().default(""),
+  status: z.enum(["pending", "confirmed", "cancelled"]).default("confirmed"),
+  notes: z.string().optional().nullable(),
+});
 
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+function toPgDateRangeInclusive(start: string, endInclusive: string) {
+  // [start, endExclusive)
+  const end = new Date(endInclusive);
+  end.setDate(end.getDate() + 1);
+  const endExclusive = end.toISOString().slice(0, 10);
+  return `[${start},${endExclusive})`;
+}
 
+export async function POST(req: Request) {
   try {
-    const body = await request.json();
-    const { villa_id, start_date, end_date, guest_name, guest_phone, guest_email, status, notes } =
-      body;
-
-    if (!villa_id || !start_date || !end_date || !guest_name || !guest_phone) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-    }
-
     const supabase = createServiceRoleClient();
+    const json = await req.json();
+    const input = bodySchema.parse(json);
 
-    // Villa bilgilerini al
-    const { data: villa, error: villaError } = await supabase
-      .from("villas")
-      .select("weekly_price")
-      .eq("id", villa_id)
-      .single();
+    // villa_total_price: check-in dahil, check-out hariç çalışır.
+    // UI'den gelen end_date dahil olduğu için +1 gün ekleyip check-out yapıyoruz.
+    const checkin = input.start_date;
+    const checkoutDate = new Date(input.end_date);
+    checkoutDate.setDate(checkoutDate.getDate() + 1);
+    const checkout = checkoutDate.toISOString().slice(0, 10);
 
-    if (villaError || !villa) {
-      return NextResponse.json({ error: "Villa not found" }, { status: 404 });
+    // Toplam ücreti RPC ile hesapla (fiyat dönemlerini dikkate alır)
+    const { data: totalPrice, error: rpcError } = await supabase.rpc("villa_total_price", {
+      p_villa_id: input.villa_id,
+      p_checkin: checkin,
+      p_checkout: checkout,
+    });
+
+    if (rpcError) {
+      console.error("[manual-reservation] villa_total_price error:", rpcError);
+      return NextResponse.json(
+        { error: "Fiyat hesaplanamadı", details: rpcError.message },
+        { status: 500 },
+      );
     }
 
-    // Tarih hesaplama
-    const startDateObj = new Date(start_date);
-    const endDateObj = new Date(end_date);
-    const days = Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24));
-    const weeks = Math.ceil(days / 7);
-    const totalPrice = villa.weekly_price * weeks;
+    const date_range = toPgDateRangeInclusive(input.start_date, input.end_date);
 
-    // PostgreSQL daterange formatı
-    const dateRange = `[${start_date},${end_date})`;
-
-    // Rezervasyon oluştur
-    const { data: reservation, error: reservationError } = await supabase
+    const { data, error } = await supabase
       .from("reservations")
       .insert({
-        villa_id,
-        date_range: dateRange,
-        guest_name,
-        guest_email: guest_email || null,
-        guest_phone,
-        total_price: totalPrice,
-        status: status || "confirmed",
-        notes: notes || "Admin tarafından oluşturuldu",
+        villa_id: input.villa_id,
+        date_range,
+        guest_name: input.guest_name,
+        guest_phone: input.guest_phone,
+        guest_email: input.guest_email || null,
+        total_price: totalPrice, // RPC sonucu
+        status: input.status,
+        notes: input.notes ?? null,
       })
       .select()
       .single();
 
-    if (reservationError) {
-      console.error("Reservation creation error:", reservationError);
-      if (reservationError.code === "23P01") {
-        return NextResponse.json(
-          { error: "Bu tarihler zaten rezerve edilmiş veya bloke edilmiş" },
-          { status: 409 },
-        );
-      }
-      return NextResponse.json({ error: reservationError.message }, { status: 500 });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    return NextResponse.json({
-      success: true,
-      reservation,
-    });
-  } catch (error) {
-    console.error("Manual reservation error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(data);
+  } catch (err: any) {
+    return NextResponse.json({ error: "Beklenmeyen hata", details: err?.message }, { status: 500 });
   }
 }
