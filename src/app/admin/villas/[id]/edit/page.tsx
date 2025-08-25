@@ -1,13 +1,14 @@
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import VillaEditForm from "@/components/admin/VillaEditForm";
 import { notFound } from "next/navigation";
+import DeleteVillaButton from "@/components/admin/DeleteVillaButton";
 
 interface Props {
   params: { id: string } | Promise<{ id: string }>;
 }
 
-export default async function EditVillaPage({ params }: Props) {
-  const { id } = await Promise.resolve(params);
+export default async function EditVillaPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const supabase = createServiceRoleClient();
 
   const { data: villa, error: villaErr } = await supabase
@@ -49,6 +50,7 @@ export default async function EditVillaPage({ params }: Props) {
         categories={(categories ?? []) as any}
         initialCategoryIds={selectedCategoryIds}
       />
+      <DeleteVillaButton villaId={id} villaName={villa?.name} />
     </main>
   );
 }
