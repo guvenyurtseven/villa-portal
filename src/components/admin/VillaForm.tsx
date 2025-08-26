@@ -56,6 +56,7 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
     lng: "",
     is_hidden: false,
     priority: "1",
+    cleaning_fee: 0,
   });
 
   // Özellikler state (hepsi false)
@@ -107,6 +108,7 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
           order_index: i,
         })),
         categoryIds,
+        cleaning_fee: Math.max(0, Number(form.cleaning_fee || 0)),
       };
 
       const res = await fetch("/api/admin/villas", {
@@ -289,6 +291,21 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
               </label>
             ))}
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="cleaning_fee" className="text-sm font-medium">
+            Temizlik Ücreti (₺)
+          </label>
+          <input
+            id="cleaning_fee"
+            type="number"
+            min={0}
+            value={form.cleaning_fee}
+            onChange={(e) => onChange("cleaning_fee", Number(e.target.value))}
+            className="w-full rounded-md border px-3 py-2"
+            placeholder="0"
+          />
         </div>
       </Card>
 

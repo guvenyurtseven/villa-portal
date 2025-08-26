@@ -3,7 +3,6 @@ import Image from "next/image";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import CategoryNav from "@/components/site/CategoryNav";
 import VillaCard from "@/components/site/VillaCard";
-
 type PhotoRow = {
   villa_id: string;
   url: string;

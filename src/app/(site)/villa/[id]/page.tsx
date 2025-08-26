@@ -5,6 +5,7 @@ import AvailabilityCalendar from "@/components/site/AvailabilityCalendar";
 import MapModal from "@/components/site/MapModal";
 import { notFound } from "next/navigation";
 import VillaFeatures from "@/components/site/VillaFeatures";
+import OpportunityPeriods from "@/components/site/OpportunityPeriods";
 
 interface VillaPageProps {
   params: Promise<{ id: string }>;
@@ -114,19 +115,141 @@ export default async function VillaPage({ params }: VillaPageProps) {
 
   const coverUrl = safePhotos[0]?.url || "/placeholder.jpg";
 
+  // --- FIRSAT ARALIKLARI HESAPLAMA ---
+  const today = new Date();
+  const endDate = new Date();
+  endDate.setDate(today.getDate() + 30);
+
+  const unavailableDays = new Set<string>();
+
+  // Tüm dolu günleri topla
+  unavailableRanges.forEach((range) => {
+    const start = new Date(range.start);
+    const end = new Date(range.end);
+    const current = new Date(start);
+    while (current < end) {
+      unavailableDays.add(current.toISOString().slice(0, 10));
+      current.setDate(current.getDate() + 1);
+    }
+  });
+
+  // Dolu günleri sırala
+  const sortedUnavailable = Array.from(unavailableDays).sort();
+  const opportunities: any[] = [];
+
+  // Ardışık dolu günler arasındaki boşlukları bul
+  for (let i = 0; i < sortedUnavailable.length - 1; i++) {
+    const currentEnd = new Date(sortedUnavailable[i]);
+    const nextStart = new Date(sortedUnavailable[i + 1]);
+
+    // İki dolu dönem arasındaki boşluk başlangıcı
+    const gapStart = new Date(currentEnd);
+    gapStart.setDate(gapStart.getDate() + 1);
+
+    // Boşluk günlerini hesapla
+    const diffTime = Math.abs(nextStart.getTime() - gapStart.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    // 2-7 gün arasındaki boşlukları fırsat olarak değerlendir
+    if (diffDays >= 2 && diffDays <= 7) {
+      let hasPrice = true;
+      let totalPrice = 0;
+      const checkDate = new Date(gapStart);
+
+      // Her gün için fiyat kontrolü
+      for (let j = 0; j < diffDays; j++) {
+        const dateStr = checkDate.toISOString().slice(0, 10);
+
+        // Bu gün için tanımlı fiyat var mı?
+        const period = pricingPeriods?.find((p: any) => {
+          const start = new Date(p.start_date);
+          const end = new Date(p.end_date);
+          return checkDate >= start && checkDate <= end;
+        });
+
+        if (!period) {
+          hasPrice = false;
+          break;
+        }
+
+        totalPrice += Number(period.nightly_price);
+        checkDate.setDate(checkDate.getDate() + 1);
+      }
+
+      // Tüm günlerde fiyat tanımlıysa fırsata ekle
+      if (hasPrice && totalPrice > 0) {
+        const opportunityEnd = new Date(gapStart);
+        opportunityEnd.setDate(opportunityEnd.getDate() + diffDays - 1);
+
+        opportunities.push({
+          startDate: gapStart.toISOString().slice(0, 10),
+          endDate: opportunityEnd.toISOString().slice(0, 10),
+          nights: diffDays,
+          originalPrice: totalPrice,
+          discountedPrice: Math.round(totalPrice * 0.8), // %20 indirim
+          discountPercentage: 20,
+        });
+      }
+    }
+  }
+
+  // Bugün müsaitse ve yakın rezervasyon varsa kontrol et
+  const todayStr = today.toISOString().slice(0, 10);
+  if (!unavailableDays.has(todayStr) && sortedUnavailable.length > 0) {
+    const firstBookedDate = new Date(sortedUnavailable[0]);
+    const diffTime = Math.abs(firstBookedDate.getTime() - today.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays >= 2 && diffDays <= 7) {
+      let hasPrice = true;
+      let totalPrice = 0;
+      const checkDate = new Date(today);
+
+      for (let j = 0; j < diffDays; j++) {
+        const period = pricingPeriods?.find((p: any) => {
+          const start = new Date(p.start_date);
+          const end = new Date(p.end_date);
+          return checkDate >= start && checkDate <= end;
+        });
+
+        if (!period) {
+          hasPrice = false;
+          break;
+        }
+
+        totalPrice += Number(period.nightly_price);
+        checkDate.setDate(checkDate.getDate() + 1);
+      }
+
+      if (hasPrice && totalPrice > 0) {
+        const opportunityEnd = new Date(today);
+        opportunityEnd.setDate(opportunityEnd.getDate() + diffDays - 1);
+
+        opportunities.unshift({
+          startDate: todayStr,
+          endDate: opportunityEnd.toISOString().slice(0, 10),
+          nights: diffDays,
+          originalPrice: totalPrice,
+          discountedPrice: Math.round(totalPrice * 0.8),
+          discountPercentage: 20,
+        });
+      }
+    }
+  }
+
   return (
     <main className="max-w-5xl mx-auto p-6">
       <h1 className="text-3xl font-bold">{villa.name}</h1>
       {/* Fiyat gösterimi kaldırıldı */}
       <p className="text-gray-500 mt-1">Fiyat için tarih seçiniz</p>
 
-      {/* Açıklama */}
-      {villa.description && <p className="mt-4 text-gray-700">{villa.description}</p>}
-
       {/* Foto galeri */}
       <div className="mt-6">
         <PhotoGallery photos={safePhotos} />
       </div>
+
+      {/* Açıklama */}
+      {villa.description && <p className="mt-4 text-gray-700">{villa.description}</p>}
 
       {/* Özet özellikler (oda/banyo/havuz/mesafe) */}
       <FeaturesList
@@ -150,6 +273,11 @@ export default async function VillaPage({ params }: VillaPageProps) {
         />
       )}
 
+      {/* Fırsat Aralıkları */}
+      {opportunities && opportunities.length > 0 && (
+        <OpportunityPeriods opportunities={opportunities} />
+      )}
+
       {/* Takvim + fiyat + form */}
       <AvailabilityCalendar
         unavailable={unavailableRanges}
@@ -157,6 +285,7 @@ export default async function VillaPage({ params }: VillaPageProps) {
         villaImage={coverUrl}
         villaId={villa.id}
         pricingPeriods={pricingPeriods || []}
+        opportunities={opportunities}
       />
     </main>
   );

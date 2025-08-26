@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { DayPicker, DateRange } from "react-day-picker";
 import { tr } from "date-fns/locale";
 import {
@@ -37,19 +37,28 @@ type PricingPeriod = {
 };
 
 interface AvailabilityCalendarProps {
+  weeklyPrice?: number;
   unavailable: Unavailable[];
   villaName: string;
   villaImage: string;
   villaId?: string;
   pricingPeriods?: PricingPeriod[];
+  opportunities?: Array<{
+    startDate: string;
+    endDate: string;
+    nights: number;
+    originalPrice: number;
+    discountedPrice: number;
+    discountPercentage: number;
+  }>;
 }
-
 export default function AvailabilityCalendar({
   unavailable,
   villaName,
   villaImage,
   villaId,
   pricingPeriods = [],
+  opportunities = [], // Yeni prop
 }: AvailabilityCalendarProps) {
   const [range, setRange] = useState<Range>();
   const [error, setError] = useState<string | null>(null);
@@ -284,6 +293,21 @@ export default function AvailabilityCalendar({
     return modifiers;
   }, [pricingPeriods, daysWithoutPrice]);
 
+  // Fırsat günleri için modifier ekle
+  const opportunityDays = useMemo(() => {
+    const days: Date[] = [];
+    opportunities.forEach((opp) => {
+      const start = parseISO(opp.startDate);
+      const end = parseISO(opp.endDate);
+      let current = new Date(start);
+      while (current <= end) {
+        days.push(new Date(current));
+        current = addDays(current, 1);
+      }
+    });
+    return days;
+  }, [opportunities]);
+
   function onSelect(next: DateRange | undefined) {
     // her seçmede range'ı göster (ilk tıklama görsel olarak kalmalı)
     setRange(next);
@@ -311,12 +335,6 @@ export default function AvailabilityCalendar({
       return;
     }
 
-    // 2) Minimum gecelik kontrolu
-    if (nights < 7) {
-      setError("Üzgünüz, bu tarih aralığı için minimum rezervasyon 7 gecedir!");
-      setRange(undefined);
-      return;
-    }
     // 3) FİYAT KONTROLÜ - YENİ
     const { subtotal, priceBreakdown, averagePerNight, hasUndefinedPrice, undefinedDates } =
       calculateTotalPrice(selFrom, selTo);
@@ -414,6 +432,7 @@ export default function AvailabilityCalendar({
             checkOut: checkOutDays,
             turnover: turnoverDays,
             fullyBooked: fullyBookedDays,
+            opportunity: opportunityDays, // Yeni
             ...pricingModifiers,
           }}
           modifiersStyles={{
@@ -437,6 +456,10 @@ export default function AvailabilityCalendar({
             fullyBooked: {
               backgroundColor: "#fb923c",
               color: "white",
+            },
+            opportunity: {
+              position: "relative",
+              boxShadow: "inset 0 -4px #ef4444", // Kırmızı alt çizgi
             },
             ...pricingStyles,
           }}
@@ -470,6 +493,15 @@ export default function AvailabilityCalendar({
             />
             <span>Devir günü</span>
           </div>
+          {opportunities.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span
+                className="h-3 w-5 rounded border bg-white"
+                style={{ boxShadow: "inset 0 -4px #ef4444" }}
+              />
+              <span>Fırsat Dönemi (%20 İndirim)</span>
+            </div>
+          )}
           <Legend colorClass="bg-orange-500" label="Rezerve" />
           <div className="flex items-center gap-2">
             <span

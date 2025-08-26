@@ -56,6 +56,8 @@ export async function PATCH(
   }
 
   const { villa, photos = [], categoryIds } = payload || {};
+  const cleaning_fee =
+    villa.cleaning_fee !== undefined ? Math.max(0, Number(villa.cleaning_fee)) : undefined;
 
   // 1) villa update (weekly_price KALDIRILDI)
   if (villa && typeof villa === "object") {
@@ -71,6 +73,7 @@ export async function PATCH(
     if ("is_hidden" in villa) upd.is_hidden = !!villa.is_hidden;
     if ("priority" in villa) upd.priority = Math.min(5, Math.max(1, Number(villa.priority || 1)));
 
+    if (cleaning_fee !== undefined) upd.cleaning_fee = cleaning_fee;
     // boolean özellikler:
     for (const k of FEATURE_KEYS) if (k in villa) upd[k] = !!villa[k];
 

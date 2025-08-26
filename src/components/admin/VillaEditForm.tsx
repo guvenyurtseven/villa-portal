@@ -111,6 +111,7 @@ export default function VillaEditForm({
     lng: initialVilla.lng ?? 0,
     is_hidden: Boolean(initialVilla.is_hidden ?? false),
     priority: Number(initialVilla.priority ?? 1),
+    cleaning_fee: 0,
   });
 
   const [photos, setPhotos] = useState<Photo[]>(
@@ -172,6 +173,7 @@ export default function VillaEditForm({
           order_index: i,
         })),
         categoryIds,
+        cleaning_fee: Math.max(0, Number(form.cleaning_fee || 0)),
       };
 
       const res = await fetch(`/api/admin/villas/${initialVilla.id}`, {
@@ -356,6 +358,20 @@ export default function VillaEditForm({
               </label>
             ))}
           </div>
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="cleaning_fee" className="text-sm font-medium">
+            Temizlik Ücreti (₺)
+          </label>
+          <input
+            id="cleaning_fee"
+            type="number"
+            min={0}
+            value={form.cleaning_fee}
+            onChange={(e) => onChange("cleaning_fee", Number(e.target.value))}
+            className="w-full rounded-md border px-3 py-2"
+            placeholder="0"
+          />
         </div>
       </Card>
 

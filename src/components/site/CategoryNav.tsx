@@ -4,7 +4,7 @@ import { CATEGORY_DEFS } from "@/lib/categories";
 export default function CategoryNav() {
   return (
     <nav className="w-full mx-auto mb-6">
-      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
         {CATEGORY_DEFS.map((c) => (
           <li key={c.slug}>
             <Link
