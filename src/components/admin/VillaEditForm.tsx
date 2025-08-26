@@ -111,7 +111,7 @@ export default function VillaEditForm({
     lng: initialVilla.lng ?? 0,
     is_hidden: Boolean(initialVilla.is_hidden ?? false),
     priority: Number(initialVilla.priority ?? 1),
-    cleaning_fee: 0,
+    cleaning_fee: Number(initialVilla.cleaning_fee ?? 0),
   });
 
   const [photos, setPhotos] = useState<Photo[]>(
@@ -163,6 +163,7 @@ export default function VillaEditForm({
           lng: form.lng === null ? null : Number(form.lng),
           is_hidden: !!form.is_hidden,
           priority,
+          cleaning_fee: Number(form.cleaning_fee),
           // boolean özellikler:
           ...features,
         },
@@ -225,6 +226,17 @@ export default function VillaEditForm({
             <label htmlFor="has_pool" className="text-sm">
               Havuz var
             </label>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Temizlik Ücreti (₺)</label>
+            <Input
+              type="number"
+              min={0}
+              value={form.cleaning_fee}
+              onChange={(e) => onChange("cleaning_fee", e.target.value)}
+              placeholder="7 günden az konaklamalarda uygulanır"
+            />
           </div>
 
           <div>
@@ -358,20 +370,6 @@ export default function VillaEditForm({
               </label>
             ))}
           </div>
-        </div>
-        <div className="space-y-2">
-          <label htmlFor="cleaning_fee" className="text-sm font-medium">
-            Temizlik Ücreti (₺)
-          </label>
-          <input
-            id="cleaning_fee"
-            type="number"
-            min={0}
-            value={form.cleaning_fee}
-            onChange={(e) => onChange("cleaning_fee", Number(e.target.value))}
-            className="w-full rounded-md border px-3 py-2"
-            placeholder="0"
-          />
         </div>
       </Card>
 

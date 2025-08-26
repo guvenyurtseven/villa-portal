@@ -28,6 +28,8 @@ function BookingContent() {
   const nights = parseInt(searchParams?.get("nights") || "0");
   const total = parseInt(searchParams?.get("total") || "0");
   const deposit = parseInt(searchParams?.get("deposit") || "0");
+  const cleaningFee = parseInt(searchParams?.get("cleaningFee") || "0");
+  const hasCleaningFee = searchParams?.get("hasCleaningFee") === "true";
 
   // Fiyatı yeniden hesapla (güvenlik için)
   useEffect(() => {
@@ -105,6 +107,21 @@ function BookingContent() {
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h3 className="text-lg font-semibold mb-4">Fiyat Özeti</h3>
           <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Ara Toplam</span>
+              <span className="font-semibold">{tl.format(total - cleaningFee)}</span>
+            </div>
+            {hasCleaningFee && (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Temizlik Ücreti</span>
+                  <span className="font-semibold">{tl.format(cleaningFee)}</span>
+                </div>
+                <div className="text-xs text-orange-600 bg-orange-50 p-2 rounded mt-2">
+                  ⚠️ 7 günden az konaklamalarda uygulanır
+                </div>
+              </>
+            )}
             <div className="flex justify-between">
               <span className="text-gray-600">Toplam Tutar</span>
               <span className="font-semibold">

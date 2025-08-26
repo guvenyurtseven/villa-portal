@@ -286,6 +286,7 @@ export default async function VillaPage({ params }: VillaPageProps) {
         villaId={villa.id}
         pricingPeriods={pricingPeriods || []}
         opportunities={opportunities}
+        cleaningFee={villa.cleaning_fee || 0}
       />
     </main>
   );

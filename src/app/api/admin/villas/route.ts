@@ -44,7 +44,6 @@ export async function POST(req: NextRequest) {
   if (!villa?.name) {
     return NextResponse.json({ error: "İsim zorunlu" }, { status: 400 });
   }
-  const cleaning_fee = Math.max(0, Number(villa.cleaning_fee ?? 0));
 
   // villa alanlarını derle (weekly_price KALDIRILDI)
   const data: any = {
@@ -58,7 +57,8 @@ export async function POST(req: NextRequest) {
     lng: villa.lng === null || villa.lng === "" ? null : Number(villa.lng),
     is_hidden: !!villa.is_hidden,
     priority: Math.min(5, Math.max(1, Number(villa.priority || 1))),
-    cleaning_fee,
+    cleaning_fee:
+      typeof villa.cleaning_fee === "number" ? villa.cleaning_fee : Number(villa.cleaning_fee || 0),
   };
 
   // boolean özellikleri ekle

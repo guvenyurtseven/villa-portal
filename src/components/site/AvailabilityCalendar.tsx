@@ -51,6 +51,7 @@ interface AvailabilityCalendarProps {
     discountedPrice: number;
     discountPercentage: number;
   }>;
+  cleaningFee?: number; // Yeni prop
 }
 export default function AvailabilityCalendar({
   unavailable,
@@ -59,6 +60,7 @@ export default function AvailabilityCalendar({
   villaId,
   pricingPeriods = [],
   opportunities = [], // Yeni prop
+  cleaningFee = 0, // Yeni prop
 }: AvailabilityCalendarProps) {
   const [range, setRange] = useState<Range>();
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +74,8 @@ export default function AvailabilityCalendar({
     perNight: number;
     subtotal: number;
     discount: number;
+    cleaningFee: number;
+    hasCleaningFee: boolean;
     total: number;
     deposit: number;
     priceBreakdown?: Array<{ date: string; price: number }>;
@@ -336,18 +340,16 @@ export default function AvailabilityCalendar({
     }
 
     // 3) FİYAT KONTROLÜ - YENİ
-    const { subtotal, priceBreakdown, averagePerNight, hasUndefinedPrice, undefinedDates } =
-      calculateTotalPrice(selFrom, selTo);
+    // DÖNEMSEL FİYATLANDIRMA İLE HESAPLAMA
+    const { subtotal, priceBreakdown, averagePerNight } = calculateTotalPrice(selFrom, selTo);
 
-    if (hasUndefinedPrice) {
-      setError("Üzgünüz, seçilen tarih için fiyatlar belirlenmemiştir!");
-      setRange(undefined);
-      return;
-    }
+    // Temizlik ücreti hesapla (7 günden az ise)
+    const cleaningFeeAmount = nights < 7 ? cleaningFee : 0;
+    const hasCleaningFee = cleaningFeeAmount > 0;
 
-    // Fiyat tanımlı, devam et
     const discount = nights >= 14 ? Math.round(subtotal * 0.05) : 0;
-    const total = subtotal - discount;
+    const subtotalAfterDiscount = subtotal - discount;
+    const total = subtotalAfterDiscount + cleaningFeeAmount;
     const deposit = Math.round(total * 0.35);
 
     setQuote({
@@ -357,6 +359,8 @@ export default function AvailabilityCalendar({
       perNight: Math.round(averagePerNight),
       subtotal,
       discount,
+      cleaningFee: cleaningFeeAmount,
+      hasCleaningFee,
       total,
       deposit,
       priceBreakdown,
@@ -549,6 +553,15 @@ export default function AvailabilityCalendar({
               {quote.discount > 0 && (
                 <Row label="Kiralama İndirimi" value={`- ${tl.format(quote.discount)}`} />
               )}
+              {quote.hasCleaningFee && (
+                <>
+                  <Row label="Temizlik Ücreti" value={tl.format(quote.cleaningFee)} />
+                  <div className="text-xs text-orange-600 bg-orange-50 p-2 rounded">
+                    📢 7 günden az rezervasyonlarda toplam ücrete bir defaya mahsus temizlik ücreti
+                    eklenmektedir.
+                  </div>
+                </>
+              )}
               <div className="mt-3 border-t pt-3">
                 <Row strong label="Toplam" value={tl.format(quote.total)} />
                 <Row label="Ön Ödeme" value={tl.format(quote.deposit)} />
@@ -566,6 +579,8 @@ export default function AvailabilityCalendar({
                       nights: String(quote.nights),
                       total: String(quote.total),
                       deposit: String(quote.deposit),
+                      cleaningFee: String(quote.cleaningFee || 0), // Yeni
+                      hasCleaningFee: String(quote.hasCleaningFee || false), // Yeni
                     });
 
                     router.push(`/booking?${params.toString()}`, { scroll: true });
