@@ -14,7 +14,6 @@ type PhotoRow = {
 type VillaRow = {
   id: string;
   name: string;
-  weekly_price: number | null;
   priority: number | null;
   is_hidden: boolean | null;
   villa_photos: PhotoRow[];
@@ -54,7 +53,7 @@ export default async function CategoryPage(props: Props) {
   const { data: villas, count } = await supabase
     .from("villas")
     .select(
-      "id, name, weekly_price, priority, is_hidden, villa_categories!inner(category_id), villa_photos(villa_id, url, is_primary, order_index)",
+      "id, name,  priority, is_hidden, villa_categories!inner(category_id), villa_photos(villa_id, url, is_primary, order_index)",
       { count: "exact" },
     )
     .eq("is_hidden", false)
@@ -79,7 +78,6 @@ export default async function CategoryPage(props: Props) {
     return {
       id: v.id,
       name: v.name,
-      weeklyPrice: v.weekly_price,
       images,
     };
   });
@@ -114,13 +112,7 @@ export default async function CategoryPage(props: Props) {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {list.map((v) => (
-            <VillaCard
-              key={v.id}
-              id={v.id}
-              name={v.name}
-              weeklyPrice={v.weeklyPrice}
-              images={v.images}
-            />
+            <VillaCard key={v.id} id={v.id} name={v.name} images={v.images} />
           ))}
         </div>
       )}

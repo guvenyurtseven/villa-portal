@@ -21,7 +21,6 @@ const FEATURE_KEYS = [
   "jacuzzi",
   "fireplace",
   "children_pool",
-
   "in_site",
   "private_pool",
   "playground",
@@ -58,11 +57,10 @@ export async function PATCH(
 
   const { villa, photos = [], categoryIds } = payload || {};
 
-  // 1) villa update
+  // 1) villa update (weekly_price KALDIRILDI)
   if (villa && typeof villa === "object") {
     const upd: any = {};
     if ("name" in villa) upd.name = String(villa.name).trim();
-    if ("weekly_price" in villa) upd.weekly_price = Number(villa.weekly_price || 0);
     if ("description" in villa) upd.description = villa.description ?? null;
     if ("bedrooms" in villa) upd.bedrooms = Number(villa.bedrooms || 0);
     if ("bathrooms" in villa) upd.bathrooms = Number(villa.bathrooms || 0);

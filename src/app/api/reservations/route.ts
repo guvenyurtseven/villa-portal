@@ -47,26 +47,34 @@ export async function POST(request: Request) {
 
     const supabase = await createClient();
 
-    // Villa bilgilerini al
-    const { data: villa, error: villaError } = await supabase
-      .from("villas")
-      .select("weekly_price")
-      .eq("id", villa_id)
-      .single();
+    // RPC fonksiyonu ile fiyat hesapla (check-out günü hariç)
+    const checkoutDate = new Date(end_date);
+    checkoutDate.setDate(checkoutDate.getDate() + 1);
+    const checkout = checkoutDate.toISOString().slice(0, 10);
 
-    if (villaError || !villa) {
-      return NextResponse.json({ error: "Villa not found" }, { status: 404 });
+    const { data: totalPrice, error: priceError } = await supabase.rpc("villa_total_price", {
+      p_villa_id: villa_id,
+      p_checkin: start_date,
+      p_checkout: checkout,
+    });
+
+    if (priceError) {
+      console.error("Price calculation error:", priceError);
+      return NextResponse.json({ error: "Fiyat hesaplanamadı" }, { status: 500 });
     }
 
-    // Tarih hesaplama
-    const startDateObj = new Date(start_date);
-    const endDateObj = new Date(end_date);
-    const days = Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24));
-    const weeks = Math.ceil(days / 7);
-    const totalPrice = villa.weekly_price * weeks;
+    // Fiyat tanımlı değilse
+    if (!totalPrice || totalPrice === 0) {
+      return NextResponse.json(
+        {
+          error: "Bu tarihler için fiyat tanımlanmamıştır",
+        },
+        { status: 400 },
+      );
+    }
 
     // PostgreSQL daterange formatı
-    const dateRange = `[${start_date},${end_date})`;
+    const dateRange = `[${start_date},${checkout})`;
 
     // Rezervasyon oluştur
     const { data: reservation, error: reservationError } = await supabase
@@ -97,12 +105,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      reservation: {
-        ...reservation,
-        total_price: totalPrice,
-        days,
-        weeks,
-      },
+      reservation,
     });
   } catch (error) {
     console.error("Reservation error:", error);

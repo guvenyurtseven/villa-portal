@@ -50,6 +50,13 @@ export async function POST(req: Request) {
       );
     }
 
+    if (!totalPrice || totalPrice === 0) {
+      return NextResponse.json(
+        { error: "Bu tarihler için fiyat tanımlanmamıştır. Önce fiyat dönemi ekleyin." },
+        { status: 400 },
+      );
+    }
+
     const date_range = toPgDateRangeInclusive(input.start_date, input.end_date);
 
     const { data, error } = await supabase

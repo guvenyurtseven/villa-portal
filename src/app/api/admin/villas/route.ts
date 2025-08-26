@@ -45,11 +45,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "İsim zorunlu" }, { status: 400 });
   }
 
-  // villa alanlarını derle
+  // villa alanlarını derle (weekly_price KALDIRILDI)
   const data: any = {
     name: String(villa.name).trim(),
-    weekly_price:
-      typeof villa.weekly_price === "number" ? villa.weekly_price : Number(villa.weekly_price || 0),
     description: villa.description ?? null,
     bedrooms: typeof villa.bedrooms === "number" ? villa.bedrooms : Number(villa.bedrooms || 0),
     bathrooms: typeof villa.bathrooms === "number" ? villa.bathrooms : Number(villa.bathrooms || 0),

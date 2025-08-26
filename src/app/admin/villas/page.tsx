@@ -47,10 +47,12 @@ export default async function AdminVillasPage() {
                     <div className="flex items-center gap-4">
                       {/* Villa Fotoğrafı */}
                       <div className="relative w-24 h-24 flex-shrink-0">
-                        <img
+                        <Image
                           src={primaryPhoto}
                           alt={villa.name}
                           className="w-full h-full object-cover rounded-lg"
+                          width={96}
+                          height={96}
                         />
                       </div>
 
@@ -72,9 +74,7 @@ export default async function AdminVillasPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-4 mt-1">
-                          <span className="text-sm font-medium">
-                            ₺{villa.weekly_price?.toLocaleString("tr-TR")} / hafta
-                          </span>
+                          {/* WEEKLY PRICE KALDIRILDI */}
                           <span className="text-sm text-gray-500">
                             {villa.bedrooms} Yatak • {villa.bathrooms} Banyo
                             {villa.has_pool && " • Havuz"}

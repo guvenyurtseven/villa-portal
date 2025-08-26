@@ -4,12 +4,11 @@ import CardGallery from "./CardGallery";
 export default function VillaCard({
   id,
   name,
-  weeklyPrice,
   images,
 }: {
   id: string;
   name: string;
-  weeklyPrice?: number | null;
+  weeklyPrice?: number | null; // Artık kullanılmayacak ama prop olarak gelmeye devam edebilir
   images?: string[];
 }) {
   return (
@@ -21,14 +20,9 @@ export default function VillaCard({
       <div className="p-4">
         <h3 className="font-semibold truncate">{name}</h3>
 
-        {typeof weeklyPrice === "number" ? (
-          <p className="mt-2 text-sm">
-            Haftalık&nbsp;
-            <span className="font-semibold">
-              ₺{Number(weeklyPrice || 0).toLocaleString("tr-TR")}
-            </span>
-          </p>
-        ) : null}
+        {/* FİYAT GÖSTERIMINI KALDIRDIK */}
+        {/* Alternatif olarak şunu ekleyebilirsiniz: */}
+        <p className="mt-2 text-sm text-gray-600">Fiyat için tarih seçiniz</p>
       </div>
     </Link>
   );

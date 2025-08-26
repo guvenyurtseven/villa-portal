@@ -47,7 +47,6 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
 
   const [form, setForm] = useState({
     name: "",
-    weekly_price: "",
     description: "",
     bedrooms: "1",
     bathrooms: "1",
@@ -90,7 +89,6 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
       const payload = {
         villa: {
           name: form.name.trim(),
-          weekly_price: parseFloat(form.weekly_price || "0"),
           description: form.description?.trim() || null,
           bedrooms: parseInt(form.bedrooms || "0", 10),
           bathrooms: parseInt(form.bathrooms || "0", 10),
@@ -148,16 +146,7 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
             <Input value={form.name} onChange={(e) => onChange("name", e.target.value)} required />
           </div>
 
-          <div>
-            <label className="text-sm font-medium">Haftalık Fiyat (₺)</label>
-            <Input
-              type="number"
-              min={0}
-              value={form.weekly_price}
-              onChange={(e) => onChange("weekly_price", e.target.value)}
-              required
-            />
-          </div>
+          {/* WEEKLY_PRICE INPUT KALDIRILDI */}
 
           <div className="flex items-center gap-2">
             <Checkbox

@@ -117,9 +117,8 @@ export default async function VillaPage({ params }: VillaPageProps) {
   return (
     <main className="max-w-5xl mx-auto p-6">
       <h1 className="text-3xl font-bold">{villa.name}</h1>
-      <p className="text-gray-500 mt-1">
-        ₺{Number(villa.weekly_price ?? 0).toLocaleString("tr-TR")} / hafta
-      </p>
+      {/* Fiyat gösterimi kaldırıldı */}
+      <p className="text-gray-500 mt-1">Fiyat için tarih seçiniz</p>
 
       {/* Açıklama */}
       {villa.description && <p className="mt-4 text-gray-700">{villa.description}</p>}
@@ -153,7 +152,6 @@ export default async function VillaPage({ params }: VillaPageProps) {
 
       {/* Takvim + fiyat + form */}
       <AvailabilityCalendar
-        weeklyPrice={villa.weekly_price}
         unavailable={unavailableRanges}
         villaName={villa.name}
         villaImage={coverUrl}

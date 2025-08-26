@@ -13,17 +13,6 @@ export async function POST(request: Request) {
 
     const supabase = await createClient();
 
-    // Villa bilgilerini al
-    const { data: villa, error: villaError } = await supabase
-      .from("villas")
-      .select("weekly_price")
-      .eq("id", villa_id)
-      .single();
-
-    if (villaError || !villa) {
-      return NextResponse.json({ error: "Villa not found" }, { status: 404 });
-    }
-
     // Özel fiyat dönemlerini al
     const { data: pricingPeriods, error: pricingError } = await supabase
       .from("villa_pricing_periods")
@@ -33,15 +22,13 @@ export async function POST(request: Request) {
 
     if (pricingError) {
       console.error("Pricing periods fetch error:", pricingError);
+      return NextResponse.json({ error: "Fiyat bilgileri alınamadı" }, { status: 500 });
     }
 
-    // Default gecelik fiyat
-    const defaultNightlyPrice = villa.weekly_price / 7;
-
     // Belirli bir tarih için fiyatı hesapla
-    function getPriceForDate(date: Date): number {
+    function getPriceForDate(date: Date): number | null {
       if (!pricingPeriods || pricingPeriods.length === 0) {
-        return defaultNightlyPrice;
+        return null; // Hiç fiyat tanımlanmamış
       }
 
       // Özel fiyat dönemlerini kontrol et
@@ -54,8 +41,8 @@ export async function POST(request: Request) {
         }
       }
 
-      // Özel dönem yoksa default fiyat
-      return defaultNightlyPrice;
+      // Bu tarih için fiyat tanımlı değil
+      return null;
     }
 
     // Toplam fiyatı hesapla
@@ -65,23 +52,48 @@ export async function POST(request: Request) {
     let subtotal = 0;
     let nights = 0;
     const priceBreakdown = [];
+    const undefinedPriceDates = [];
 
     // Her gece için fiyatı hesapla
     while (current < endDateObj) {
       const nightlyPrice = getPriceForDate(current);
-      subtotal += nightlyPrice;
-      priceBreakdown.push({
-        date: format(current, "yyyy-MM-dd"),
-        price: nightlyPrice,
-      });
+
+      if (nightlyPrice === null) {
+        // Bu tarih için fiyat tanımlı değil
+        undefinedPriceDates.push(format(current, "dd/MM/yyyy"));
+      } else {
+        subtotal += nightlyPrice;
+        priceBreakdown.push({
+          date: format(current, "yyyy-MM-dd"),
+          price: nightlyPrice,
+        });
+      }
+
       current = addDays(current, 1);
       nights++;
     }
+
+    // Eğer fiyat tanımlı olmayan günler varsa hata dön
+    if (undefinedPriceDates.length > 0) {
+      return NextResponse.json(
+        {
+          error: "NO_PRICE_DEFINED",
+          message: "Seçilen tarih aralığında fiyat tanımlanmamış günler bulunmaktadır",
+          undefinedDates: undefinedPriceDates,
+          nights: nights,
+          definedPriceCount: priceBreakdown.length,
+        },
+        { status: 400 },
+      );
+    }
+
+    // Tüm günler için fiyat tanımlıysa hesaplamaya devam et
 
     // İndirim hesapla (14 gece ve üzeri %5)
     const discount = nights >= 14 ? Math.round(subtotal * 0.05) : 0;
     const total = subtotal - discount;
     const deposit = Math.round(total * 0.35);
+    const averagePerNight = nights > 0 ? Math.round(subtotal / nights) : 0;
 
     return NextResponse.json({
       nights,
@@ -89,7 +101,7 @@ export async function POST(request: Request) {
       discount,
       total,
       deposit,
-      averagePerNight: nights > 0 ? Math.round(subtotal / nights) : 0,
+      averagePerNight,
       priceBreakdown,
     });
   } catch (error) {

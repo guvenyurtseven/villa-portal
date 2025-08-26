@@ -12,7 +12,9 @@ import { format, startOfDay, addDays, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
 import "react-day-picker/dist/style.css";
 import Image from "next/image";
+
 const RANGE_RE = /^\[([0-9]{4}-[0-9]{2}-[0-9]{2}),([0-9]{4}-[0-9]{2}-[0-9]{2})[\)\]]$/;
+
 // Her ihtimale karşı JSON'u diziye çevirir
 function toArray<T = any>(x: any): T[] {
   if (Array.isArray(x)) return x as T[];
@@ -24,7 +26,6 @@ function toArray<T = any>(x: any): T[] {
 interface Villa {
   id: string;
   name: string;
-  weekly_price: number;
   photos?: any[];
 }
 
@@ -98,7 +99,6 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
         setVilla(villaData);
       }
 
-      // Rezervasyonları al
       // Rezervasyonları al
       const resRes = await fetch(`/api/reservations?villa_id=${id}`);
       setReservations(toArray<Reservation>(await resRes.json()));
@@ -437,7 +437,7 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
     villa?.photos?.[0]?.url ||
     "/placeholder.jpg";
 
-  const defaultNightlyPrice = villa ? Math.round(villa.weekly_price / 7) : 0;
+  // WEEKLY_PRICE KALDIRILDI - defaultNightlyPrice hesaplanmıyor
 
   return (
     <div className="space-y-6">
@@ -455,12 +455,7 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
 
             <div className="flex-1">
               <h1 className="text-2xl font-bold">{villa?.name}</h1>
-              <p className="text-lg font-semibold mt-2">
-                ₺{villa?.weekly_price?.toLocaleString("tr-TR")} / hafta
-              </p>
-              <p className="text-sm text-gray-600">
-                (Varsayılan: ₺{defaultNightlyPrice.toLocaleString("tr-TR")} / gece)
-              </p>
+              <p className="text-sm text-gray-600 mt-1">Fiyat dönemleri aşağıdan tanımlanabilir</p>
             </div>
             <Button variant="outline" onClick={() => router.push("/admin/villas")}>
               <Home className="mr-2 h-4 w-4" />
@@ -561,14 +556,18 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
               ))}
             </div>
           ) : (
-            <p className="text-gray-500">
-              Özel fiyat dönemi bulunmuyor. Varsayılan fiyat uygulanacak.
-            </p>
+            <div className="text-center py-8 text-gray-500">
+              <DollarSign className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+              <p className="font-medium">Henüz fiyat dönemi tanımlanmamış</p>
+              <p className="text-sm mt-1">
+                Rezervasyon alabilmek için en az bir fiyat dönemi tanımlamalısınız
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Takvim ve Bloke Etme */}
+      {/* Takvim ve Bloke Etme - geri kalan kod aynı kalacak */}
       <Card>
         <CardHeader>
           <CardTitle>Tarih Bloke Et</CardTitle>
@@ -660,25 +659,19 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
                     "linear-gradient(135deg, transparent 44%, white 44%, white 56%, transparent 56%), #fb923c",
                 }}
               />
-              <span>Devir günü (Check-in + Check-out)</span>
+              <span>Devir günü</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="h-3 w-5 rounded bg-orange-500" />
               <span>Dolu</span>
             </div>
-            {pricingPeriods.some((p) => p.nightly_price < defaultNightlyPrice) && (
-              <div className="flex items-center gap-2">
-                <span className="h-3 w-5 rounded bg-green-300" />
-                <span>İndirimli</span>
-              </div>
-            )}
-            {pricingPeriods.some((p) => p.nightly_price > defaultNightlyPrice) && (
+            {pricingPeriods.length > 0 && (
               <div className="flex items-center gap-2">
                 <span
                   className="h-3 w-5 rounded border bg-white"
-                  style={{ boxShadow: "inset 0 -4px #f9a8d4" }} // takvimdeki pembe alt çizgi ile aynı
+                  style={{ boxShadow: "inset 0 -4px #f9a8d4" }}
                 />
-                <span>Özel Fiyat</span>
+                <span>Fiyat Tanımlı</span>
               </div>
             )}
           </div>
