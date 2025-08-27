@@ -23,7 +23,9 @@ export default async function FeaturedVillas() {
 
   const { data: villas } = await supabase
     .from("villas")
-    .select("id, name,  priority, is_hidden, villa_photos(villa_id, url, is_primary, order_index)")
+    .select(
+      "id, name, capacity,  priority, is_hidden, villa_photos(villa_id, url, is_primary, order_index)",
+    )
     .eq("is_hidden", false)
     .order("priority", { ascending: false })
     .order("id", { ascending: false })
@@ -45,7 +47,7 @@ export default async function FeaturedVillas() {
       id: v.id,
       name: v.name,
       images,
-      // weeklyPrice kaldırıldı
+      capacity: v.capacity,
     };
   });
 
@@ -56,7 +58,7 @@ export default async function FeaturedVillas() {
       <h2 className="text-xl font-semibold">Öne Çıkan Villalar</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {list.map((v) => (
-          <VillaCard key={v.id} id={v.id} name={v.name} images={v.images} />
+          <VillaCard key={v.id} id={v.id} name={v.name} capacity={v.capacity} images={v.images} />
         ))}
       </div>
     </section>

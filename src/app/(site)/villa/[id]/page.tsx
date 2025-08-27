@@ -6,7 +6,7 @@ import MapModal from "@/components/site/MapModal";
 import { notFound } from "next/navigation";
 import VillaFeatures from "@/components/site/VillaFeatures";
 import OpportunityPeriods from "@/components/site/OpportunityPeriods";
-
+import { Users } from "lucide-react";
 interface VillaPageProps {
   params: Promise<{ id: string }>;
 }
@@ -33,6 +33,11 @@ export default async function VillaPage({ params }: VillaPageProps) {
   if (error || !villa || villa.is_hidden) {
     notFound();
   }
+  const { data: discountPeriods } = await supabase
+    .from("villa_discount_periods")
+    .select("*")
+    .eq("villa_id", id)
+    .order("start_date", { ascending: true });
 
   // Onaylı rezervasyonlar
   const { data: reservations } = await supabase
@@ -238,8 +243,15 @@ export default async function VillaPage({ params }: VillaPageProps) {
   return (
     <main className="max-w-5xl mx-auto p-6">
       <h1 className="text-3xl font-bold">{villa.name}</h1>
-      {/* Fiyat gösterimi kaldırıldı */}
-      <p className="text-gray-500 mt-1">Fiyat için tarih seçiniz</p>
+
+      <div className="flex items-center gap-4 text-gray-500 mt-2">
+        {villa.capacity && (
+          <div className="flex items-center gap-1">
+            <Users className="h-4 w-4" />
+            <span>{villa.capacity} Kişi</span>
+          </div>
+        )}
+      </div>
 
       {/* Foto galeri */}
       <div className="mt-6">
@@ -285,6 +297,7 @@ export default async function VillaPage({ params }: VillaPageProps) {
         pricingPeriods={pricingPeriods || []}
         opportunities={opportunities}
         cleaningFee={villa.cleaning_fee || 0}
+        discountPeriods={discountPeriods || []}
       />
     </main>
   );

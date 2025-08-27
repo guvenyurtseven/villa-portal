@@ -70,7 +70,7 @@ export async function PATCH(
     if ("lng" in villa) upd.lng = villa.lng === null || villa.lng === "" ? null : Number(villa.lng);
     if ("is_hidden" in villa) upd.is_hidden = !!villa.is_hidden;
     if ("priority" in villa) upd.priority = Math.min(5, Math.max(1, Number(villa.priority || 1)));
-
+    if ("capacity" in villa) upd.capacity = Number(villa.capacity || 4);
     if ("cleaning_fee" in villa) upd.cleaning_fee = Number(villa.cleaning_fee || 0);
     // boolean özellikler:
     for (const k of FEATURE_KEYS) if (k in villa) upd[k] = !!villa[k];

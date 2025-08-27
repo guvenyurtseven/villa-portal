@@ -51,6 +51,15 @@ interface AvailabilityCalendarProps {
     discountedPrice: number;
     discountPercentage: number;
   }>;
+  discountPeriods?: Array<{
+    id: string;
+    villa_id: string;
+    start_date: string;
+    end_date: string;
+    nightly_price: number;
+    priority: number;
+  }>;
+
   cleaningFee?: number; // Yeni prop
 }
 export default function AvailabilityCalendar({
@@ -61,6 +70,7 @@ export default function AvailabilityCalendar({
   pricingPeriods = [],
   opportunities = [], // Yeni prop
   cleaningFee = 0, // Yeni prop
+  discountPeriods = [],
 }: AvailabilityCalendarProps) {
   const [range, setRange] = useState<Range>();
   const [error, setError] = useState<string | null>(null);
@@ -297,6 +307,33 @@ export default function AvailabilityCalendar({
     return modifiers;
   }, [pricingPeriods, daysWithoutPrice]);
 
+  const discountModifiers = useMemo(() => {
+    const modifiers: { [key: string]: Date[] } = {};
+    discountPeriods.forEach((period, index) => {
+      const days: Date[] = [];
+      const start = parseISO(period.start_date);
+      const end = parseISO(period.end_date);
+      let current = new Date(start);
+      while (current <= end) {
+        days.push(new Date(current));
+        current = addDays(current, 1);
+      }
+      modifiers[`discount_${index}`] = days;
+    });
+    return modifiers;
+  }, [discountPeriods]);
+
+  const discountStyles = useMemo(() => {
+    const styles: { [key: string]: React.CSSProperties } = {};
+    discountPeriods.forEach((_, index) => {
+      styles[`discount_${index}`] = {
+        position: "relative",
+        boxShadow: "inset 0 -4px #ef4444", // kırmızı alt çizgi
+      };
+    });
+    return styles;
+  }, [discountPeriods]);
+
   // Fırsat günleri için modifier ekle
   const opportunityDays = useMemo(() => {
     const days: Date[] = [];
@@ -400,6 +437,23 @@ export default function AvailabilityCalendar({
           {error}
         </div>
       )}
+      {discountPeriods.length > 0 && (
+        <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+          <h3 className="font-semibold text-sm mb-2">İndirimli Dönemler:</h3>
+          <div className="space-y-1 text-sm">
+            {discountPeriods.map((period) => (
+              <div key={period.id} className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded bg-red-300" />
+                <span>
+                  {format(parseISO(period.start_date), "d MMM", { locale: tr })} –
+                  {format(parseISO(period.end_date), "d MMM", { locale: tr })}:
+                  <strong className="ml-1">₺{period.nightly_price}/gece</strong>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Fiyat Dönemleri Bilgisi */}
       {pricingPeriods.length > 0 && (
@@ -438,6 +492,7 @@ export default function AvailabilityCalendar({
             fullyBooked: fullyBookedDays,
             opportunity: opportunityDays, // Yeni
             ...pricingModifiers,
+            ...discountModifiers,
           }}
           modifiersStyles={{
             turnover: {
@@ -463,9 +518,10 @@ export default function AvailabilityCalendar({
             },
             opportunity: {
               position: "relative",
-              boxShadow: "inset 0 -4px #ef4444", // Kırmızı alt çizgi
+              boxShadow: "inset 0 -4px #1f15ecff", // Kırmızı alt çizgi
             },
             ...pricingStyles,
+            ...discountStyles,
           }}
           className="!text-sm"
         />
@@ -501,9 +557,9 @@ export default function AvailabilityCalendar({
             <div className="flex items-center gap-2">
               <span
                 className="h-3 w-5 rounded border bg-white"
-                style={{ boxShadow: "inset 0 -4px #ef4444" }}
+                style={{ boxShadow: "inset 0 -4px #1f15ecff" }}
               />
-              <span>Fırsat Dönemi (%20 İndirim)</span>
+              <span>Fırsat Dönemi</span>
             </div>
           )}
           <Legend colorClass="bg-orange-500" label="Rezerve" />
@@ -514,6 +570,14 @@ export default function AvailabilityCalendar({
             />
             <span>Fiyat Tanımlı</span>
           </div>
+          <div className="flex items-center gap-2">
+            <span
+              className="h-3 w-5 rounded border bg-white"
+              style={{ boxShadow: "inset 0 -4px #ef4444" }}
+            />
+            <span>İndirimli Dönem</span>
+          </div>
+
           <Legend colorClass="bg-gray-300 line-through" label="Fiyatsız" />
         </div>
       </div>

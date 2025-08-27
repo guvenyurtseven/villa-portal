@@ -78,6 +78,7 @@ export default async function AdminVillasPage() {
                           <span className="text-sm text-gray-500">
                             {villa.bedrooms} Yatak • {villa.bathrooms} Banyo
                             {villa.has_pool && " • Havuz"}
+                            {villa.capacity && ` • ${villa.capacity} Kişi`}
                           </span>
                         </div>
                       </div>

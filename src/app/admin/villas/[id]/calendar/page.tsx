@@ -12,6 +12,7 @@ import { format, startOfDay, addDays, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
 import "react-day-picker/dist/style.css";
 import Image from "next/image";
+import { useParams } from "next/navigation";
 
 const RANGE_RE = /^\[([0-9]{4}-[0-9]{2}-[0-9]{2}),([0-9]{4}-[0-9]{2}-[0-9]{2})[\)\]]$/;
 
@@ -52,12 +53,25 @@ interface PricingPeriod {
   nightly_price: number;
 }
 
-export default function VillaCalendarPage({ params }: { params: Promise<{ id: string }> }) {
+type DiscountPeriod = {
+  id: string;
+  villa_id: string;
+  start_date: string;
+  end_date: string;
+  nightly_price: number;
+  priority: number;
+};
+
+export default function VillaCalendarPage() {
+  const routeParams = useParams<{ id: string }>();
+  const villaIdFromRoute = String(routeParams?.id || "");
+
   const [villaId, setVillaId] = useState<string>("");
   const [villa, setVilla] = useState<Villa | null>(null);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
   const [pricingPeriods, setPricingPeriods] = useState<PricingPeriod[]>([]);
+  const [discountPeriods, setDiscountPeriods] = useState<DiscountPeriod[]>([]);
   const [loading, setLoading] = useState(true);
   const [blocking, setBlocking] = useState(false);
   const router = useRouter();
@@ -77,14 +91,18 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
   const [nightlyPrice, setNightlyPrice] = useState("");
   const [savingPrice, setSavingPrice] = useState(false);
 
+  // İndirim dönemi state'leri
+  const [newDiscountRange, setNewDiscountRange] = useState<DateRange | undefined>();
+  const [newDiscountPrice, setNewDiscountPrice] = useState<string>("");
+  const [newDiscountPriority, setNewDiscountPriority] = useState<number>(5);
+  const [savingDiscount, setSavingDiscount] = useState(false);
+
+  // İlk yükleme: route paramından villaId al ve verileri çek
   useEffect(() => {
-    async function init() {
-      const { id } = await params;
-      setVillaId(id);
-      fetchData(id);
-    }
-    init();
-  }, [params]);
+    if (!villaIdFromRoute) return;
+    setVillaId(villaIdFromRoute);
+    fetchData(villaIdFromRoute);
+  }, [villaIdFromRoute]);
 
   async function fetchData(id: string) {
     try {
@@ -110,6 +128,21 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
       // Fiyat dönemlerini al
       const pricingRes = await fetch(`/api/admin/pricing-periods?villa_id=${id}`);
       setPricingPeriods(toArray<PricingPeriod>(await pricingRes.json()));
+
+      // İndirim dönemlerini al
+      const discountRes = await fetch(`/api/admin/discount-periods?villa_id=${id}`, {
+        cache: "no-store",
+      });
+      if (discountRes.ok) {
+        const json = await discountRes.json();
+        setDiscountPeriods(
+          (json.periods || []).sort((a: DiscountPeriod, b: DiscountPeriod) =>
+            a.start_date.localeCompare(b.start_date),
+          ),
+        );
+      } else {
+        console.error("discount-periods GET failed:", discountRes.status);
+      }
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -259,6 +292,34 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
     return styles;
   }, [pricingPeriods]);
 
+  // İndirim dönemleri modifiers / styles
+  const discountModifiers = useMemo(() => {
+    const modifiers: { [key: string]: Date[] } = {};
+    discountPeriods.forEach((period, index) => {
+      const days: Date[] = [];
+      const start = parseISO(period.start_date);
+      const end = parseISO(period.end_date);
+      let current = new Date(start);
+      while (current <= end) {
+        days.push(new Date(current));
+        current = addDays(current, 1);
+      }
+      modifiers[`discount_${index}`] = days;
+    });
+    return modifiers;
+  }, [discountPeriods]);
+
+  const discountStyles = useMemo(() => {
+    const styles: { [key: string]: React.CSSProperties } = {};
+    discountPeriods.forEach((_, index) => {
+      styles[`discount_${index}`] = {
+        position: "relative",
+        boxShadow: "inset 0 -4px #ef4444", // kırmızı alt çizgi
+      };
+    });
+    return styles;
+  }, [discountPeriods]);
+
   // Fiyat dönemi kaydet
   async function savePricingPeriod() {
     if (!pricingRange?.from || !pricingRange?.to || !nightlyPrice) {
@@ -312,6 +373,60 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
       }
     } catch (error) {
       alert("Hata oluştu");
+    }
+  }
+
+  // İndirim dönemi ekle
+  async function addDiscountPeriod(villaId: string) {
+    if (!newDiscountRange?.from || !newDiscountRange?.to) return;
+    if (!newDiscountPrice) return;
+    if (!villaId) {
+      alert("Villa ID okunamadı.");
+      return;
+    }
+
+    setSavingDiscount(true);
+    try {
+      const body = {
+        villa_id: villaId,
+        start_date: newDiscountRange.from.toISOString().slice(0, 10),
+        end_date: newDiscountRange.to.toISOString().slice(0, 10),
+        nightly_price: Number(newDiscountPrice),
+        priority: Number(newDiscountPriority) || 5,
+      };
+      const res = await fetch("/api/admin/discount-periods", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        const { period } = await res.json();
+        setDiscountPeriods((prev) =>
+          [...prev, period].sort((a, b) => a.start_date.localeCompare(b.start_date)),
+        );
+        // formu sıfırla
+        setNewDiscountRange(undefined);
+        setNewDiscountPrice("");
+        setNewDiscountPriority(5);
+      } else if (res.status === 409) {
+        alert("Seçilen tarih, mevcut bir indirim dönemiyle çakışıyor.");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err?.error || "Kayıt başarısız");
+      }
+    } finally {
+      setSavingDiscount(false);
+    }
+  }
+
+  async function removeDiscountPeriod(id: string) {
+    const res = await fetch(`/api/admin/discount-periods?id=${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setDiscountPeriods((prev) => prev.filter((p) => p.id !== id));
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err?.error || "Silme başarısız");
     }
   }
 
@@ -436,8 +551,6 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
     villa?.photos?.find((p: any) => p.is_primary)?.url ||
     villa?.photos?.[0]?.url ||
     "/placeholder.jpg";
-
-  // WEEKLY_PRICE KALDIRILDI - defaultNightlyPrice hesaplanmıyor
 
   return (
     <div className="space-y-6">
@@ -567,7 +680,75 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
         </CardContent>
       </Card>
 
-      {/* Takvim ve Bloke Etme - geri kalan kod aynı kalacak */}
+      {/* İndirim Dönemleri */}
+      <div className="mt-6 rounded-xl border p-4">
+        <h3 className="text-sm font-semibold mb-3">İndirim Dönemleri</h3>
+
+        {/* Liste */}
+        <div className="space-y-2 mb-4">
+          {discountPeriods.length === 0 && (
+            <div className="text-sm text-gray-500">Kayıtlı indirim dönemi yok.</div>
+          )}
+          {discountPeriods.map((p) => (
+            <div key={p.id} className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <div className="font-medium text-sm">
+                  {p.start_date} – {p.end_date}
+                </div>
+                <div className="text-xs text-gray-600">
+                  ₺{p.nightly_price.toLocaleString("tr-TR")}/gece · Öncelik: {p.priority}
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => removeDiscountPeriod(p.id)}>
+                Sil
+              </Button>
+            </div>
+          ))}
+        </div>
+
+        {/* Ekleme formu */}
+        <div className="grid md:grid-cols-3 gap-3">
+          <div className="md:col-span-2">
+            <Label className="text-xs">Tarih Aralığı</Label>
+            <div className="rounded-md border p-2">
+              <DayPicker
+                mode="range"
+                numberOfMonths={2}
+                selected={newDiscountRange as DateRange}
+                onSelect={setNewDiscountRange}
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div>
+              <Label className="text-xs">İndirimli Fiyat (₺/gece)</Label>
+              <Input
+                type="number"
+                min={1}
+                value={newDiscountPrice}
+                onChange={(e) => setNewDiscountPrice(e.target.value)}
+                placeholder="1000"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Öncelik (1–10)</Label>
+              <Input
+                type="number"
+                min={1}
+                max={10}
+                value={newDiscountPriority}
+                onChange={(e) => setNewDiscountPriority(Number(e.target.value))}
+                placeholder="5"
+              />
+            </div>
+            <Button onClick={() => addDiscountPeriod(villaId)} disabled={!villaId}>
+              İndirim Dönemi Ekle
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Takvim ve Bloke Etme */}
       <Card>
         <CardHeader>
           <CardTitle>Tarih Bloke Et</CardTitle>
@@ -600,6 +781,7 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
                 turnover: turnoverDays,
                 fullyBooked: fullyBookedDays,
                 ...pricingModifiers,
+                ...discountModifiers,
               }}
               modifiersStyles={{
                 turnover: {
@@ -625,6 +807,7 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
                   textDecoration: "line-through",
                 },
                 ...pricingStyles,
+                ...discountStyles,
               }}
               className="!text-sm"
             />
@@ -672,6 +855,15 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
                   style={{ boxShadow: "inset 0 -4px #f9a8d4" }}
                 />
                 <span>Fiyat Tanımlı</span>
+              </div>
+            )}
+            {discountPeriods.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span
+                  className="h-3 w-5 rounded border bg-white"
+                  style={{ boxShadow: "inset 0 -4px #ef4444" }}
+                />
+                <span>İndirimli Dönem</span>
               </div>
             )}
           </div>
@@ -792,7 +984,7 @@ export default function VillaCalendarPage({ params }: { params: Promise<{ id: st
         </CardContent>
       </Card>
 
-      {/* Rezervasyonlar - Mevcut kod aynı kalacak */}
+      {/* Rezervasyonlar */}
       <Card>
         <CardHeader>
           <CardTitle>Rezervasyonlar</CardTitle>

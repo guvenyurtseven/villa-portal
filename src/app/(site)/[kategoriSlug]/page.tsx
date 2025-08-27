@@ -52,7 +52,7 @@ export default async function CategoryPage(props: Props) {
   const { data: villas, count } = await supabase
     .from("villas")
     .select(
-      "id, name,  priority, is_hidden, villa_categories!inner(category_id), villa_photos(villa_id, url, is_primary, order_index)",
+      "id, name, capacity, priority, is_hidden, villa_categories!inner(category_id), villa_photos(villa_id, url, is_primary, order_index)",
       { count: "exact" },
     )
     .eq("is_hidden", false)
@@ -77,6 +77,7 @@ export default async function CategoryPage(props: Props) {
     return {
       id: v.id,
       name: v.name,
+      capacity: v.capacity,
       images,
     };
   });
@@ -111,7 +112,7 @@ export default async function CategoryPage(props: Props) {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {list.map((v) => (
-            <VillaCard key={v.id} id={v.id} name={v.name} images={v.images} />
+            <VillaCard key={v.id} id={v.id} name={v.name} capacity={v.capacity} images={v.images} />
           ))}
         </div>
       )}

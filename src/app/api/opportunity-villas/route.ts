@@ -18,6 +18,7 @@ export async function GET() {
         `
         id,
         name,
+        capacity,
         villa_photos(url, is_primary, order_index),
         villa_pricing_periods(start_date, end_date, nightly_price)
       `,
@@ -172,6 +173,7 @@ export async function GET() {
         opportunityVillas.push({
           id: villa.id,
           name: villa.name,
+          capacity: villa.capacity || 4,
           photo: primaryPhoto,
           opportunities: gaps,
         });

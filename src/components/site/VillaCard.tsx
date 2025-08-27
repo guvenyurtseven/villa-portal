@@ -1,14 +1,15 @@
 import Link from "next/link";
 import CardGallery from "./CardGallery";
-
+import { Users } from "lucide-react";
 export default function VillaCard({
   id,
   name,
+  capacity,
   images,
 }: {
   id: string;
   name: string;
-  weeklyPrice?: number | null; // Artık kullanılmayacak ama prop olarak gelmeye devam edebilir
+  capacity?: number;
   images?: string[];
 }) {
   return (
@@ -20,9 +21,14 @@ export default function VillaCard({
       <div className="p-4">
         <h3 className="font-semibold truncate">{name}</h3>
 
-        {/* FİYAT GÖSTERIMINI KALDIRDIK */}
-        {/* Alternatif olarak şunu ekleyebilirsiniz: */}
-        <p className="mt-2 text-sm text-gray-600">Fiyat için tarih seçiniz</p>
+        <div className="flex items-center justify-between mt-2">
+          {capacity && (
+            <div className="flex items-center gap-1 text-sm text-gray-600">
+              <Users className="h-4 w-4" />
+              <span>{capacity}</span>
+            </div>
+          )}
+        </div>
       </div>
     </Link>
   );

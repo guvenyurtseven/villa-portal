@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
     priority: Math.min(5, Math.max(1, Number(villa.priority || 1))),
     cleaning_fee:
       typeof villa.cleaning_fee === "number" ? villa.cleaning_fee : Number(villa.cleaning_fee || 0),
+    capacity: typeof villa.capacity === "number" ? villa.capacity : Number(villa.capacity || 4),
   };
 
   // boolean özellikleri ekle

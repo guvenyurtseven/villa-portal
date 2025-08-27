@@ -57,6 +57,7 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
     is_hidden: false,
     priority: "1",
     cleaning_fee: "",
+    capacity: "4",
   });
 
   // Özellikler state (hepsi false)
@@ -100,6 +101,7 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
           is_hidden: !!form.is_hidden,
           priority,
           cleaning_fee: parseFloat(form.cleaning_fee || "0"),
+          capacity: parseInt(form.capacity || "4", 10),
           // boolean özellikleri ekle
           ...features,
         },
@@ -191,6 +193,18 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
               value={form.bathrooms}
               onChange={(e) => onChange("bathrooms", e.target.value)}
               required
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Kapasite (Kişi)</label>
+            <Input
+              type="number"
+              min={1}
+              max={50}
+              value={form.capacity}
+              onChange={(e) => onChange("capacity", e.target.value)}
+              required
+              placeholder="Maksimum kişi sayısı"
             />
           </div>
 

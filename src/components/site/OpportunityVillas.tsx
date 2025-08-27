@@ -8,6 +8,7 @@ interface OpportunityVilla {
   id: string;
   name: string;
   photo?: string;
+  capacity?: number;
   opportunities: Array<{
     startDate: string;
     endDate: string;
@@ -80,6 +81,7 @@ export default function OpportunityVillas() {
               key={`${villa.id}-${idx}`}
               villaId={villa.id}
               villaName={villa.name}
+              capacity={villa.capacity}
               photo={villa.photo}
               opportunity={opportunity}
             />

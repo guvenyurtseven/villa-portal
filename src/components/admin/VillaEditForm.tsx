@@ -15,13 +15,14 @@ type Villa = {
   description: string | null;
   bedrooms: number | null;
   bathrooms: number | null;
+  capacity?: number | null;
   has_pool: boolean | null;
   sea_distance: string | null;
   lat: number | null;
   lng: number | null;
   is_hidden: boolean | null;
   priority?: number | null;
-
+  cleaning_fee: number | null;
   // boolean özellik kolonları (opsiyonel)
   heated_pool?: boolean | null;
   sheltered_pool?: boolean | null;
@@ -112,6 +113,7 @@ export default function VillaEditForm({
     is_hidden: Boolean(initialVilla.is_hidden ?? false),
     priority: Number(initialVilla.priority ?? 1),
     cleaning_fee: Number(initialVilla.cleaning_fee ?? 0),
+    capacity: Number(initialVilla.capacity ?? 4),
   });
 
   const [photos, setPhotos] = useState<Photo[]>(
@@ -164,6 +166,7 @@ export default function VillaEditForm({
           is_hidden: !!form.is_hidden,
           priority,
           cleaning_fee: Number(form.cleaning_fee),
+          capacity: Number(form.capacity),
           // boolean özellikler:
           ...features,
         },
@@ -257,6 +260,18 @@ export default function VillaEditForm({
               value={form.bathrooms}
               onChange={(e) => onChange("bathrooms", e.target.value)}
               required
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Kapasite (Kişi)</label>
+            <Input
+              type="number"
+              min={1}
+              max={50}
+              value={form.capacity}
+              onChange={(e) => onChange("capacity", e.target.value)}
+              required
+              placeholder="Maksimum kişi sayısı"
             />
           </div>
 

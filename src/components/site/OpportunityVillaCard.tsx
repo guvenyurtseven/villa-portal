@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Calendar } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
+import { Calendar, Users } from "lucide-react";
 
 interface Opportunity {
   startDate: string;
@@ -18,12 +18,14 @@ interface OpportunityVillaCardProps {
   villaId: string;
   villaName: string;
   photo?: string;
+  capacity?: number;
   opportunity: Opportunity;
 }
 
 export default function OpportunityVillaCard({
   villaId,
   villaName,
+  capacity,
   photo,
   opportunity,
 }: OpportunityVillaCardProps) {
@@ -61,6 +63,13 @@ export default function OpportunityVillaCard({
             </span>
             <span className="text-orange-600 font-semibold">({opportunity.nights} gece)</span>
           </div>
+          {/* Kapasite */}
+          {capacity && (
+            <div className="flex items-center gap-1 text-xs text-gray-600">
+              <Users className="h-3 w-3" />
+              <span>{capacity} kişi</span>
+            </div>
+          )}
 
           {/* Fiyat */}
           <div className="space-y-1">
