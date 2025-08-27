@@ -12,9 +12,8 @@ interface OpportunityVilla {
     startDate: string;
     endDate: string;
     nights: number;
-    originalPrice: number;
-    discountedPrice: number;
-    discountPercentage: number;
+    totalPrice: number;
+    nightlyPrice: number;
   }>;
 }
 
@@ -26,8 +25,10 @@ export default function OpportunityVillas() {
     async function fetchOpportunityVillas() {
       try {
         const response = await fetch("/api/opportunity-villas");
-        const data = await response.json();
-        setVillas(data);
+        if (response.ok) {
+          const data = await response.json();
+          setVillas(data);
+        }
       } catch (error) {
         console.error("Error fetching opportunity villas:", error);
       } finally {
@@ -51,8 +52,18 @@ export default function OpportunityVillas() {
     );
   }
 
-  if (villas.length === 0) {
-    return null;
+  if (!villas || villas.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-orange-500" />
+          <h2 className="text-xl font-semibold">Fırsat Villalar</h2>
+        </div>
+        <div className="text-sm text-gray-500 text-center py-8">
+          Şu anda fırsat dönemi bulunmuyor
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -75,10 +86,6 @@ export default function OpportunityVillas() {
           )),
         )}
       </div>
-
-      <p className="text-xs text-gray-500 text-center">
-        * Kısa süreli konaklamalar için özel indirimli fiyatlar
-      </p>
     </div>
   );
 }

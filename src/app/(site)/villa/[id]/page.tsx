@@ -185,9 +185,8 @@ export default async function VillaPage({ params }: VillaPageProps) {
           startDate: gapStart.toISOString().slice(0, 10),
           endDate: opportunityEnd.toISOString().slice(0, 10),
           nights: diffDays,
-          originalPrice: totalPrice,
-          discountedPrice: Math.round(totalPrice * 0.8), // %20 indirim
-          discountPercentage: 20,
+          totalPrice: totalPrice, // İndirim yok
+          nightlyPrice: Math.round(totalPrice / diffDays), // Gecelik ortalama
         });
       }
     }
@@ -229,9 +228,8 @@ export default async function VillaPage({ params }: VillaPageProps) {
           startDate: todayStr,
           endDate: opportunityEnd.toISOString().slice(0, 10),
           nights: diffDays,
-          originalPrice: totalPrice,
-          discountedPrice: Math.round(totalPrice * 0.8),
-          discountPercentage: 20,
+          totalPrice: totalPrice, // İndirim yok
+          nightlyPrice: Math.round(totalPrice / diffDays), // Gecelik ortalama
         });
       }
     }
