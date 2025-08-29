@@ -1,3 +1,4 @@
+// src/components/site/Header.tsx
 "use client";
 
 import Link from "next/link";
@@ -13,8 +14,7 @@ export default function Header() {
         <div className="h-16 flex items-center justify-between gap-4">
           {/* Sol: Logo */}
           <Link href="/" className="flex items-center gap-2 shrink-0" aria-label="Anasayfa">
-            {/* Buraya kendi logonu koy: src, width/height değerlerini değiştir */}
-            {/* Örnek: /logo.svg dosyan varsa: */}
+            {/* Kendi logonu buraya koy */}
             {/* <Image src="/logo.svg" alt="Site Logosu" width={120} height={32} priority /> */}
             <div className="w-28 h-10 rounded-md bg-gray-200 flex items-center justify-center text-xs text-gray-500">
               LOGO
@@ -37,7 +37,7 @@ export default function Header() {
             </Link>
           </nav>
 
-          {/* Sağ: CTA + mobil menü */}
+          {/* Sağ: CTA + Mobil menü */}
           <div className="flex items-center gap-2">
             <div className="hidden md:block">
               <Link href="/contact">
@@ -45,7 +45,7 @@ export default function Header() {
               </Link>
             </div>
 
-            {/* Mobil menü (md<) */}
+            {/* Mobil menü */}
             <Sheet>
               <SheetTrigger className="md:hidden inline-flex h-9 w-9 items-center justify-center rounded-md border">
                 <Menu className="h-5 w-5" />

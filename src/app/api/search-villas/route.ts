@@ -28,6 +28,16 @@ export async function GET(req: Request) {
     const nights = Math.max(1, Math.min(60, Number(searchParams.get("nights") || 7)));
     const guests = Math.max(1, Math.min(21, Number(searchParams.get("guests") || 2)));
 
+    // 🆕 Bütçe filtresi (ortalama gecelik)
+    const minPrice = Math.max(0, Number(searchParams.get("minPrice") ?? 0));
+    const maxPrice = Math.max(
+      minPrice,
+      Number(searchParams.get("maxPrice") ?? Number.MAX_SAFE_INTEGER),
+    );
+
+    // 🆕 Özellik (boolean kolon) filtreleri
+    const features = searchParams.getAll("feature").filter(Boolean); // örn: feature=heated_pool&feature=sauna
+
     // checkout = checkin + nights
     const endDate = format(addDays(parseISO(checkin), nights), "yyyy-MM-dd");
     const rangeStr = mkRange(checkin, endDate);
@@ -61,6 +71,11 @@ export async function GET(req: Request) {
       // OR: province/district/neighborhood seçeneklerinden herhangi biri tutarsa dahil
       // @ts-ignore supabase-js .or signature string alır
       q = q.or(orFilter);
+    }
+
+    // 🆕 Seçilen her feature için true şartı (beyaz liste istersen ekleyebiliriz)
+    for (const key of features) {
+      q = q.eq(key as any, true);
     }
 
     const { data: baseVillas, error: baseErr } = await q;
@@ -119,23 +134,39 @@ export async function GET(req: Request) {
       byVilla.set(row.villa_id, arr);
     }
 
-    function hasFullCoverage(villaId: string) {
+    // 🆕 Kapsama + toplam fiyat hesapla (ortalama gecelik için)
+    function coverageTotal(villaId: string): number | null {
       const ps = byVilla.get(villaId) || [];
-      if (ps.length === 0) return false;
+      if (ps.length === 0) return null;
       let cur = parseISO(checkin);
+      let total = 0;
       for (let i = 0; i < nights; i++) {
-        const covered = ps.some((p) => {
+        // Bu gün için bir fiyat dönemi var mı?
+        let price: number | null = null;
+        for (const p of ps) {
           const s = parseISO(p.start_date);
           const e = parseISO(p.end_date);
-          return cur >= s && cur <= e;
-        });
-        if (!covered) return false;
+          if (cur >= s && cur <= e) {
+            price = Number(p.nightly_price);
+            break;
+          }
+        }
+        if (price == null) return null; // kapsama yok
+        total += price;
         cur = addDays(cur, 1);
       }
-      return true;
+      return total;
     }
 
-    const priced = available.filter((v) => hasFullCoverage(v.id));
+    // Kapsaması olan ve bütçe aralığına uyan villaları bırak
+    const priced = available.filter((v) => {
+      const total = coverageTotal(v.id);
+      if (total == null) return false; // kapsam yok
+      const avg = total / nights;
+      if (avg < minPrice || avg > maxPrice) return false;
+      return true;
+    });
+
     if (priced.length === 0) {
       return NextResponse.json({ items: [] });
     }

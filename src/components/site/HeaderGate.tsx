@@ -1,16 +1,11 @@
-"use client";
+import * as React from "react";
+import HeaderGateClient from "./HeaderGate.client";
 
-import { usePathname } from "next/navigation";
-import Header from "./Header";
-
+/**
+ * Server Component sarmalayıcı.
+ * Burada dynamic({ ssr:false }) KULLANMIYORUZ.
+ * Server -> Client sınırı: HeaderGateClient içinde.
+ */
 export default function HeaderGate({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const isAdmin = pathname?.startsWith("/admin");
-
-  return (
-    <>
-      {!isAdmin && <Header />}
-      {children}
-    </>
-  );
+  return <HeaderGateClient>{children}</HeaderGateClient>;
 }

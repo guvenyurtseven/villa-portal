@@ -189,3 +189,84 @@
   background: #e5e7eb !important;
   color: #111827 !important;
 }
+
+/* === Dual range slider infrastructure === */
+.range-wrap {
+  position: relative;
+  height: 38px; /* başlıkların rahat oturması için */
+}
+
+.range-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 6px;
+  border-radius: 9999px;
+  background: rgb(226 232 240); /* slate-200 */
+}
+
+/* Seçili aralığı boyayan bar */
+.range-progress {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 6px;
+  border-radius: 9999px;
+  background: rgb(251 146 60); /* orange-400 */
+}
+
+/* İki range input’u “görünmez” taşıyıcı olarak kullanıyoruz */
+.range-input {
+  -webkit-appearance: none;
+  appearance: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 0; /* track yüksekliğini biz çiziyoruz */
+  background: transparent;
+  pointer-events: none; /* input tıklanmaz, sadece başlıklar tıklanır */
+  margin: 0;
+}
+
+/* WebKit/Chromium başlık */
+.range-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: rgb(251 146 60); /* orange-400 */
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+  pointer-events: auto; /* SADECE başlık tıklanabilir! */
+  position: relative;
+}
+
+/* Firefox başlık */
+.range-input::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #fff;
+  border-radius: 9999px;
+  background: rgb(251 146 60);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+  pointer-events: auto;
+}
+
+/* Track yükseklik uyumu (FF) */
+.range-input::-moz-range-track {
+  height: 6px;
+  background: transparent;
+}
+
+/* Başlık odak halkası */
+.range-input:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.35);
+}
+.range-input:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.35);
+}
