@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
-import { Calendar, Users } from "lucide-react";
+import { Calendar, Users, BedDouble, Bath } from "lucide-react";
 
 interface Opportunity {
   startDate: string;
@@ -23,6 +23,8 @@ interface OpportunityVillaCardProps {
   province?: string;
   district?: string;
   neighborhood?: string;
+  bedroom?: number | null;
+  bathroom?: number | null;
 }
 
 export default function OpportunityVillaCard({
@@ -34,10 +36,10 @@ export default function OpportunityVillaCard({
   province,
   district,
   neighborhood,
+  bedroom,
+  bathroom,
 }: OpportunityVillaCardProps) {
-  const formatDate = (dateStr: string) => {
-    return format(parseISO(dateStr), "d MMM", { locale: tr });
-  };
+  const formatDate = (dateStr: string) => format(parseISO(dateStr), "d MMM", { locale: tr });
 
   return (
     <Link
@@ -58,7 +60,6 @@ export default function OpportunityVillaCard({
 
         {/* İçerik */}
         <div className="p-3 space-y-2">
-          {/* Villa Adı */}
           <h3 className="font-semibold text-sm truncate">{villaName}</h3>
           {(province || district || neighborhood) && (
             <p className="text-xs text-gray-500 truncate">
@@ -74,13 +75,28 @@ export default function OpportunityVillaCard({
             </span>
             <span className="text-orange-600 font-semibold">({opportunity.nights} gece)</span>
           </div>
-          {/* Kapasite */}
-          {capacity && (
-            <div className="flex items-center gap-1 text-xs text-gray-600">
-              <Users className="h-3 w-3" />
-              <span>{capacity} kişi</span>
-            </div>
-          )}
+
+          {/* Kapasite + Yatak + Banyo */}
+          <div className="flex items-center gap-3 text-sm text-gray-600">
+            {typeof capacity === "number" && (
+              <span className="flex items-center gap-1" title="Kişi">
+                <Users className="h-4 w-4" />
+                <span>{capacity}</span>
+              </span>
+            )}
+            {typeof bedroom === "number" && (
+              <span className="flex items-center gap-1" title="Yatak odası">
+                <BedDouble className="h-4 w-4" />
+                <span>{bedroom}</span>
+              </span>
+            )}
+            {typeof bathroom === "number" && (
+              <span className="flex items-center gap-1" title="Banyo">
+                <Bath className="h-4 w-4" />
+                <span>{bathroom}</span>
+              </span>
+            )}
+          </div>
 
           {/* Fiyat */}
           <div className="space-y-1">

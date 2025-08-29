@@ -1,16 +1,6 @@
 import Link from "next/link";
 import CardGallery from "./CardGallery";
-import { Users } from "lucide-react";
-
-type VillaCardProps = {
-  id: string;
-  name: string;
-  capacity?: number;
-  images?: string[];
-  province?: string | null;
-  district?: string | null;
-  neighborhood?: string | null;
-};
+import { Users, BedDouble, Bath } from "lucide-react";
 
 export default function VillaCard({
   id,
@@ -20,9 +10,19 @@ export default function VillaCard({
   province,
   district,
   neighborhood,
-}: VillaCardProps) {
-  const location = [province, district, neighborhood].filter(Boolean).join(" / ");
-
+  bedrooms,
+  bathrooms,
+}: {
+  id: string;
+  name: string;
+  capacity?: number;
+  images?: string[];
+  province?: string | null;
+  district?: string | null;
+  neighborhood?: string | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+}) {
   return (
     <Link
       href={`/villa/${id}`}
@@ -32,15 +32,28 @@ export default function VillaCard({
       <div className="p-4">
         <h3 className="font-semibold truncate">{name}</h3>
 
-        {/* Konum: sadece değer varsa göster */}
-        {location && <p className="text-sm text-gray-600 mt-1 truncate">{location}</p>}
+        <p className="text-sm text-gray-600 mt-1">
+          {[province, district, neighborhood].filter(Boolean).join(" / ")}
+        </p>
 
-        <div className="flex items-center justify-between mt-2">
-          {typeof capacity === "number" && (
-            <div className="flex items-center gap-1 text-sm text-gray-600">
+        <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+          {capacity != null && (
+            <span className="flex items-center gap-1">
               <Users className="h-4 w-4" />
-              <span>{capacity}</span>
-            </div>
+              {capacity}
+            </span>
+          )}
+          {bedrooms != null && (
+            <span className="flex items-center gap-1">
+              <BedDouble className="h-4 w-4" />
+              {bedrooms}
+            </span>
+          )}
+          {bathrooms != null && (
+            <span className="flex items-center gap-1">
+              <Bath className="h-4 w-4" />
+              {bathrooms}
+            </span>
           )}
         </div>
       </div>

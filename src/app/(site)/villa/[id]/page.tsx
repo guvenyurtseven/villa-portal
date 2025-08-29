@@ -243,7 +243,7 @@ export default async function VillaPage({ params }: VillaPageProps) {
   return (
     <main className="max-w-5xl mx-auto p-6">
       <h1 className="text-3xl font-bold">{villa.name}</h1>
-      <p className="mt-1 text-gray-500">
+      <p className="italic mt-1 text-gray-500">
         {[villa.province, villa.district, villa.neighborhood].filter(Boolean).join(" / ")}
       </p>
 
@@ -262,15 +262,22 @@ export default async function VillaPage({ params }: VillaPageProps) {
       </div>
 
       {/* Açıklama */}
-      {villa.description && <p className="mt-4 text-gray-700">{villa.description}</p>}
+      {/* Açıklama — kart görünümü */}
+      {villa.description && (
+        <div className="mt-6 rounded-lg border bg-white p-4">
+          <p className="text-gray-700 whitespace-pre-line">{villa.description}</p>
+        </div>
+      )}
 
       {/* Özet özellikler (oda/banyo/havuz/mesafe) */}
-      <FeaturesList
-        bedrooms={villa.bedrooms}
-        bathrooms={villa.bathrooms}
-        pool={villa.has_pool}
-        seaDistance={villa.sea_distance || "Belirtilmemiş"}
-      />
+      <div className="mt-6 rounded-lg border bg-white p-4 items-center">
+        <FeaturesList
+          bedrooms={villa.bedrooms}
+          bathrooms={villa.bathrooms}
+          pool={villa.has_pool}
+          seaDistance={villa.sea_distance || "Belirtilmemiş"}
+        />
+      </div>
 
       {/* Detaylı boolean özellikler */}
       <VillaFeatures villa={villa as any} className="mt-6" />

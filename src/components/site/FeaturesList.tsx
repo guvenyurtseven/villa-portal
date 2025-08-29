@@ -13,7 +13,7 @@ export default function FeaturesList({
   seaDistance: string;
 }) {
   return (
-    <ul className="mt-6 grid grid-cols-2 gap-3 text-sm">
+    <ul className="mt-6 grid grid-cols-2 gap-3 text-sm justify-items-center">
       <li className="flex items-center gap-2">
         <Bed className="h-4 w-4" /> {bedrooms} Yatak Odası
       </li>

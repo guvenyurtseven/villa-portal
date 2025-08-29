@@ -16,9 +16,7 @@ export async function GET(req: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!, // server-side
     );
 
-    // 1) Indirimli dönemleri (güncel) çek
-    // Not: Görünüm (vw_discount_villas) province/district/neighborhood
-    // alanlarını zaten içeriyorsa alacağız; içermiyorsa ikinci adımda villas'tan tamamlarız.
+    // 1) Güncel indirim dönemleri
     const { data, error } = await supa
       .from("vw_discount_villas")
       .select("*")
@@ -33,13 +31,16 @@ export async function GET(req: Request) {
 
     const items = data ?? [];
 
-    // 2) Görünüm konum alanlarını döndürmüyorsa villas tablosundan tamamla
-    // (villa_id alanı görünümde mevcut varsayımıyla)
-    const needsLocation = items.some(
-      (row: any) => row.province == null && row.district == null && row.neighborhood == null,
+    // 2) Eksik alanları villas'tan tamamla (konum + bedrooms/bathrooms/capacity)
+    const needsExtra = items.some(
+      (row: any) =>
+        (row.province == null && row.district == null && row.neighborhood == null) ||
+        row.bedrooms == null ||
+        row.bathrooms == null ||
+        row.capacity == null,
     );
 
-    if (needsLocation) {
+    if (needsExtra) {
       const villaIds = Array.from(
         new Set(
           items
@@ -49,32 +50,29 @@ export async function GET(req: Request) {
       );
 
       if (villaIds.length > 0) {
-        const { data: villaLocs, error: locErr } = await supa
+        const { data: extra, error: extraErr } = await supa
           .from("villas")
-          .select("id, province, district, neighborhood")
+          .select("id, province, district, neighborhood, bedrooms, bathrooms, capacity")
           .in("id", villaIds);
 
-        if (locErr) {
-          // Lokasyon verisi olmasa da endpoint çalışsın (yalnızca konum boş kalır)
-          console.warn("locations fetch error:", locErr.message);
+        if (extraErr) {
+          console.warn("villa extra fields fetch error:", extraErr.message);
         } else {
-          const locById = new Map((villaLocs || []).map((v) => [v.id, v]));
-
-          // Görünümde alan yoksa villas'tan doldur
+          const byId = new Map((extra || []).map((v) => [v.id, v]));
           for (const row of items as any[]) {
-            const loc = locById.get(row.villa_id);
-            if (loc) {
-              if (row.province == null) row.province = loc.province ?? null;
-              if (row.district == null) row.district = loc.district ?? null;
-              if (row.neighborhood == null) row.neighborhood = loc.neighborhood ?? null;
-            }
+            const base = byId.get(row.villa_id);
+            if (!base) continue;
+            if (row.province == null) row.province = base.province ?? null;
+            if (row.district == null) row.district = base.district ?? null;
+            if (row.neighborhood == null) row.neighborhood = base.neighborhood ?? null;
+            if (row.bedrooms == null) row.bedrooms = base.bedrooms ?? null;
+            if (row.bathrooms == null) row.bathrooms = base.bathrooms ?? null;
+            if (row.capacity == null) row.capacity = base.capacity ?? null;
           }
         }
       }
     }
 
-    // 3) İsteğe bağlı: İsimleri normalize etmek isterseniz burada map yapabilirsiniz.
-    // Şu an mevcut görünümdeki kolon isimlerini olduğu gibi dönüyoruz + konum alanları eklendi.
     return NextResponse.json({ items }, { status: 200 });
   } catch (e: any) {
     console.error("discount-villas error:", e?.message || e);

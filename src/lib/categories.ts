@@ -9,6 +9,6 @@ export const CATEGORY_DEFS: CategoryDef[] = [
   { name: "Balayı Villaları", slug: "balayi-villalari", icon: "❤️" },
   { name: "Muhafazakar Villalar", slug: "muhafazakar-villalar", icon: "🛡️" },
   { name: "Lüks Villalar", slug: "luks-villalar", icon: "💎" },
-  { name: "Ekonomik Kiralık Villalar", slug: "ekonomik-kiralik-villalar", icon: "💸" },
-  { name: "Denize Yakın Kiralık Villalar", slug: "denize-yakin-kiralik-villalar", icon: "🌊" },
+  { name: "Ekonomik Villalar", slug: "ekonomik-kiralik-villalar", icon: "💸" },
+  { name: "Denize Yakın Villalar", slug: "denize-yakin-kiralik-villalar", icon: "🌊" },
 ];

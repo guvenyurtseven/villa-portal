@@ -19,6 +19,8 @@ interface OpportunityVilla {
     totalPrice: number;
     nightlyPrice: number;
   }>;
+  bedrooms?: number | null; // API alanı
+  bathrooms?: number | null; // API alanı
 }
 
 export default function OpportunityVillas() {
@@ -90,6 +92,9 @@ export default function OpportunityVillas() {
               province={villa.province ?? undefined}
               district={villa.district ?? undefined}
               neighborhood={villa.neighborhood ?? undefined}
+              // çoğuldan tekile normalleştir
+              bedroom={villa.bedrooms ?? null}
+              bathroom={villa.bathrooms ?? null}
             />
           )),
         )}

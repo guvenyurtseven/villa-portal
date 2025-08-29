@@ -18,6 +18,8 @@ type VillaRow = {
   district: string | null;
   neighborhood: string | null;
   villa_photos: PhotoRow[] | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
 };
 
 export const dynamic = "force-dynamic";
@@ -32,6 +34,8 @@ export default async function FeaturedVillas() {
       id,
       name,
       capacity,
+      bedrooms,
+      bathrooms,
       priority,
       is_hidden,
       province,
@@ -69,6 +73,8 @@ export default async function FeaturedVillas() {
       province: v.province ?? undefined,
       district: v.district ?? undefined,
       neighborhood: v.neighborhood ?? undefined,
+      bedrooms: v.bedrooms ?? undefined,
+      bathrooms: v.bathrooms ?? undefined,
     };
   });
 
@@ -88,6 +94,8 @@ export default async function FeaturedVillas() {
             province={v.province}
             district={v.district}
             neighborhood={v.neighborhood}
+            bedrooms={v.bedrooms ?? null}
+            bathrooms={v.bathrooms ?? null}
           />
         ))}
       </div>

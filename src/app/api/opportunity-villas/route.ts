@@ -26,6 +26,8 @@ type VillaRow = {
   neighborhood: string | null;
   villa_photos: Photo[] | null;
   villa_pricing_periods: PricingPeriod[] | null;
+  bedrooms?: number | null; // ← Supabase kolonları (çoğul)
+  bathrooms?: number | null;
 };
 
 export async function GET() {
@@ -42,6 +44,8 @@ export async function GET() {
         id,
         name,
         capacity,
+        bedrooms,
+        bathrooms,
         province,
         district,
         neighborhood,
@@ -66,7 +70,6 @@ export async function GET() {
       name: string;
       capacity: number;
       photo?: string | null;
-      // ↓ Yeni konum alanları JSON çıktısında mevcut
       province?: string | null;
       district?: string | null;
       neighborhood?: string | null;
@@ -77,6 +80,11 @@ export async function GET() {
         totalPrice: number;
         nightlyPrice: number;
       }>;
+      // Tekil + çoğul alanları birlikte döndürüyoruz (UI esnekliği için)
+      bedroom?: number | null;
+      bathroom?: number | null;
+      bedrooms?: number | null;
+      bathrooms?: number | null;
     }> = [];
 
     // Her villa için rezervasyonları ve blokajları çekip boşlukları hesapla
@@ -195,8 +203,13 @@ export async function GET() {
           id: v.id,
           name: v.name,
           capacity: v.capacity || 4,
+          // 🔧 Doğru alanlardan oku ve iki isimle de döndür
+          bedroom: v.bedrooms ?? null,
+          bathroom: v.bathrooms ?? null,
+          bedrooms: v.bedrooms ?? null,
+          bathrooms: v.bathrooms ?? null,
+
           photo: primaryPhoto,
-          // ↓ Konum alanlarını response’a ekliyoruz
           province: v.province ?? null,
           district: v.district ?? null,
           neighborhood: v.neighborhood ?? null,

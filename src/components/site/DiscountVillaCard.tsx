@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Calendar } from "lucide-react";
+import { Calendar, Users, BedDouble, Bath } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
-import { Users } from "lucide-react";
+
 const tl = new Intl.NumberFormat("tr-TR", {
   style: "currency",
   currency: "TRY",
@@ -26,22 +26,38 @@ type Props = {
   province?: string;
   district?: string;
   neighborhood?: string;
+
+  // Tekil & çoğul destek
+  bedroom?: number | null;
+  bathroom?: number | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
 };
 
-export default function DiscountVillaCard({
-  villaId,
-  villaName,
-  photo,
-  startDate,
-  endDate,
-  discountedNightly,
-  originalAvgNightly,
-  discountPercent,
-  capacity,
-  province,
-  district,
-  neighborhood,
-}: Props) {
+export default function DiscountVillaCard(props: Props) {
+  const {
+    villaId,
+    villaName,
+    photo,
+    startDate,
+    endDate,
+    discountedNightly,
+    originalAvgNightly,
+    discountPercent,
+    capacity,
+    province,
+    district,
+    neighborhood,
+    bedroom,
+    bathroom,
+    bedrooms,
+    bathrooms,
+  } = props;
+
+  // Gelen hangi isim olursa olsun normalize et
+  const br = bedroom ?? bedrooms ?? null;
+  const ba = bathroom ?? bathrooms ?? null;
+
   const fmt = (d: string) => format(parseISO(d), "d MMM", { locale: tr });
 
   return (
@@ -63,7 +79,7 @@ export default function DiscountVillaCard({
 
         {/* İçerik */}
         <div className="p-3 space-y-2">
-          {/* Başlık + yüzde rozeti */}
+          {/* Başlık + yüzde */}
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-sm truncate">{villaName}</h3>
             {typeof discountPercent === "number" && discountPercent > 0 && (
@@ -72,6 +88,7 @@ export default function DiscountVillaCard({
               </span>
             )}
           </div>
+
           {(province || district || neighborhood) && (
             <p className="text-xs text-gray-500 truncate">
               {[province, district, neighborhood].filter(Boolean).join(" / ")}
@@ -85,13 +102,30 @@ export default function DiscountVillaCard({
               {fmt(startDate)} - {fmt(endDate)}
             </span>
           </div>
-          {capacity && (
-            <div className="flex items-center gap-1 text-sm text-gray-600">
-              <Users className="h-4 w-4" />
-              <span>{capacity} kişi</span>
-            </div>
-          )}
-          {/* Fiyat çizgisi: orijinal (üstü çizili) → indirimli */}
+
+          {/* Kapasite + Yatak + Banyo (tek satır) */}
+          <div className="flex items-center gap-3 text-sm text-gray-600">
+            {typeof capacity === "number" && (
+              <span className="flex items-center gap-1" title="Kişi">
+                <Users className="h-4 w-4" />
+                <span>{capacity}</span>
+              </span>
+            )}
+            {typeof br === "number" && (
+              <span className="flex items-center gap-1" title="Yatak odası">
+                <BedDouble className="h-4 w-4" />
+                <span>{br}</span>
+              </span>
+            )}
+            {typeof ba === "number" && (
+              <span className="flex items-center gap-1" title="Banyo">
+                <Bath className="h-4 w-4" />
+                <span>{ba}</span>
+              </span>
+            )}
+          </div>
+
+          {/* Fiyat çizgisi */}
           <div className="mt-1 flex items-end gap-1">
             {originalAvgNightly && originalAvgNightly > 0 ? (
               <>

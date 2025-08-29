@@ -20,6 +20,12 @@ type DiscountItem = {
   province?: string | null;
   district?: string | null;
   neighborhood?: string | null;
+
+  // API hem tekil hem çoğul dönebilir
+  bedroom?: number | null;
+  bathroom?: number | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
 };
 
 export default function DiscountVillas() {
@@ -32,7 +38,6 @@ export default function DiscountVillas() {
         const res = await fetch("/api/discount-villas?limit=20", { cache: "no-store" });
         if (res.ok) {
           const json = await res.json();
-          // API zaten priority ASC döndürüyor; yine de tedbiren sırala:
           const sorted = (json.items || []).sort((a: DiscountItem, b: DiscountItem) =>
             a.priority === b.priority
               ? a.start_date.localeCompare(b.start_date)
@@ -97,6 +102,9 @@ export default function DiscountVillas() {
             province={it.province ?? undefined}
             district={it.district ?? undefined}
             neighborhood={it.neighborhood ?? undefined}
+            // normalize ederek aktar
+            bedroom={it.bedroom ?? it.bedrooms ?? null}
+            bathroom={it.bathroom ?? it.bathrooms ?? null}
           />
         ))}
       </div>
