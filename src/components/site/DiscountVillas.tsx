@@ -16,6 +16,10 @@ type DiscountItem = {
   discount_percent?: number | null;
   priority: number;
   capacity?: number;
+
+  province?: string | null;
+  district?: string | null;
+  neighborhood?: string | null;
 };
 
 export default function DiscountVillas() {
@@ -90,6 +94,9 @@ export default function DiscountVillas() {
             originalAvgNightly={it.original_avg_price ?? undefined}
             discountPercent={it.discount_percent ?? undefined}
             capacity={it.capacity}
+            province={it.province ?? undefined}
+            district={it.district ?? undefined}
+            neighborhood={it.neighborhood ?? undefined}
           />
         ))}
       </div>

@@ -1,25 +1,38 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   try {
     const supabase = await createClient();
     const { searchParams } = new URL(request.url);
     const showHidden = searchParams.get("showHidden") === "true";
+    // Not: İstek üzerine burada sunucu tarafında gizli filtre uygulanmıyor.
+    // Tüm villalar çekiliyor; gerekirse client tarafında filtrelenecek.
 
-    // Tüm villaları çek (gizli veya değil)
+    // Yalnızca ihtiyacımız olan alanları seçelim (performans/şeffaflık için * yerine alan listesi)
     const query = supabase
       .from("villas")
       .select(
         `
-        *,
-        photos:villa_photos(*)
+        id,
+        name,
+        capacity,
+        is_hidden,
+        created_at,
+        province,
+        district,
+        neighborhood,
+        photos:villa_photos (
+          url,
+          is_primary,
+          order_index
+        )
       `,
       )
       .order("created_at", { ascending: false });
-
-    // showHidden parametresine göre filtreleme YAPMA
-    // Tüm villaları çek, filtreleme client tarafında yapılacak
 
     const { data, error } = await query;
 
@@ -27,17 +40,32 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Veriyi formatla
-    const formattedVillas = data?.map((villa) => ({
-      ...villa,
-      primaryPhoto:
-        villa.photos?.find((p: any) => p.is_primary)?.url ||
-        villa.photos?.[0]?.url ||
-        "/placeholder.jpg",
-      photos: villa.photos?.sort((a: any, b: any) => a.order_index - b.order_index) || [],
-    }));
+    const formattedVillas =
+      (data || []).map((villa: any) => {
+        // Fotoğrafları güvenli şekilde sırala
+        const sortedPhotos = (villa.photos || []).slice().sort((a: any, b: any) => {
+          const ai = typeof a?.order_index === "number" ? a.order_index : 9999;
+          const bi = typeof b?.order_index === "number" ? b.order_index : 9999;
+          return ai - bi;
+        });
 
-    return NextResponse.json(formattedVillas || []);
+        const primaryPhoto =
+          sortedPhotos.find((p: any) => p?.is_primary)?.url ||
+          sortedPhotos[0]?.url ||
+          "/placeholder.jpg";
+
+        // Kart galerisi için kolay kullanım: sadece URL listesini çıkar
+        const images: string[] = sortedPhotos.map((p: any) => p?.url).filter(Boolean);
+
+        return {
+          ...villa, // id, name, capacity, is_hidden, created_at, province/district/neighborhood, photos
+          primaryPhoto,
+          photos: sortedPhotos,
+          images, // EK: CardGallery(images) için pratik dizi
+        };
+      }) || [];
+
+    return NextResponse.json(formattedVillas);
   } catch (error) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

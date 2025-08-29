@@ -243,6 +243,9 @@ export default async function VillaPage({ params }: VillaPageProps) {
   return (
     <main className="max-w-5xl mx-auto p-6">
       <h1 className="text-3xl font-bold">{villa.name}</h1>
+      <p className="mt-1 text-gray-500">
+        {[villa.province, villa.district, villa.neighborhood].filter(Boolean).join(" / ")}
+      </p>
 
       <div className="flex items-center gap-4 text-gray-500 mt-2">
         {villa.capacity && (

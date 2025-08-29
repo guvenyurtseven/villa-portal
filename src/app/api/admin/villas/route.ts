@@ -60,6 +60,9 @@ export async function POST(req: NextRequest) {
     cleaning_fee:
       typeof villa.cleaning_fee === "number" ? villa.cleaning_fee : Number(villa.cleaning_fee || 0),
     capacity: typeof villa.capacity === "number" ? villa.capacity : Number(villa.capacity || 4),
+    province: villa.villa?.province?.trim() || null,
+    district: villa.villa?.district?.trim() || null,
+    neighborhood: villa.villa?.neighborhood?.trim() || null,
   };
 
   // boolean özellikleri ekle

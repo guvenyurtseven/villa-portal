@@ -20,6 +20,9 @@ interface OpportunityVillaCardProps {
   photo?: string;
   capacity?: number;
   opportunity: Opportunity;
+  province?: string;
+  district?: string;
+  neighborhood?: string;
 }
 
 export default function OpportunityVillaCard({
@@ -28,6 +31,9 @@ export default function OpportunityVillaCard({
   capacity,
   photo,
   opportunity,
+  province,
+  district,
+  neighborhood,
 }: OpportunityVillaCardProps) {
   const formatDate = (dateStr: string) => {
     return format(parseISO(dateStr), "d MMM", { locale: tr });
@@ -54,6 +60,11 @@ export default function OpportunityVillaCard({
         <div className="p-3 space-y-2">
           {/* Villa Adı */}
           <h3 className="font-semibold text-sm truncate">{villaName}</h3>
+          {(province || district || neighborhood) && (
+            <p className="text-xs text-gray-500 truncate">
+              {[province, district, neighborhood].filter(Boolean).join(" / ")}
+            </p>
+          )}
 
           {/* Tarih Aralığı */}
           <div className="flex items-center gap-1 text-xs text-gray-600">

@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import PhotoManager from "@/components/admin/PhotoManager";
-
+import LocationSelect from "@/components/admin/LocationSelect";
 type Photo = { id?: string; url: string; is_primary: boolean; order_index: number };
 type CategoryOption = { id: string; name: string; slug: string };
 
@@ -58,6 +58,9 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
     priority: "1",
     cleaning_fee: "",
     capacity: "4",
+    province: "",
+    district: "",
+    neighborhood: "",
   });
 
   // Özellikler state (hepsi false)
@@ -104,6 +107,9 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
           capacity: parseInt(form.capacity || "4", 10),
           // boolean özellikleri ekle
           ...features,
+          province: form.province,
+          district: form.district,
+          neighborhood: form.neighborhood || null,
         },
         photos: photos.map((p, i) => ({
           url: p.url,
@@ -317,6 +323,17 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
               </label>
             ))}
           </div>
+        </div>
+        {/* Konum */}
+        <div className="mt-4">
+          <LocationSelect
+            value={{
+              province: form.province,
+              district: form.district,
+              neighborhood: form.neighborhood,
+            }}
+            onChange={(v) => setForm((s) => ({ ...s, ...v }))}
+          />
         </div>
       </Card>
 

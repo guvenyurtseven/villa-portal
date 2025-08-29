@@ -72,6 +72,11 @@ export async function PATCH(
     if ("priority" in villa) upd.priority = Math.min(5, Math.max(1, Number(villa.priority || 1)));
     if ("capacity" in villa) upd.capacity = Number(villa.capacity || 4);
     if ("cleaning_fee" in villa) upd.cleaning_fee = Number(villa.cleaning_fee || 0);
+
+    if ("province" in villa) upd.province = villa.province?.trim() || null;
+    if ("district" in villa) upd.district = villa.district?.trim() || null;
+    if ("neighborhood" in villa) upd.neighborhood = villa.neighborhood?.trim() || null;
+
     // boolean özellikler:
     for (const k of FEATURE_KEYS) if (k in villa) upd[k] = !!villa[k];
 

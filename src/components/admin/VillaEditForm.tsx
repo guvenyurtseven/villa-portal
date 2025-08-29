@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import PhotoManager from "@/components/admin/PhotoManager";
+import LocationSelect from "@/components/admin/LocationSelect";
 
 type Villa = {
   id: string;
@@ -114,6 +115,9 @@ export default function VillaEditForm({
     priority: Number(initialVilla.priority ?? 1),
     cleaning_fee: Number(initialVilla.cleaning_fee ?? 0),
     capacity: Number(initialVilla.capacity ?? 4),
+    province: initialVilla.province ?? "",
+    district: initialVilla.district ?? "",
+    neighborhood: initialVilla.neighborhood ?? "",
   });
 
   const [photos, setPhotos] = useState<Photo[]>(
@@ -169,6 +173,9 @@ export default function VillaEditForm({
           capacity: Number(form.capacity),
           // boolean özellikler:
           ...features,
+          province: form.province,
+          district: form.district,
+          neighborhood: form.neighborhood || null,
         },
         photos: photos.map((p, i) => ({
           id: p.id,
@@ -386,6 +393,14 @@ export default function VillaEditForm({
             ))}
           </div>
         </div>
+        <LocationSelect
+          value={{
+            province: form.province,
+            district: form.district,
+            neighborhood: form.neighborhood,
+          }}
+          onChange={(v) => setForm((s) => ({ ...s, ...v }))}
+        />
       </Card>
 
       {/* Alt: Fotoğraflar */}

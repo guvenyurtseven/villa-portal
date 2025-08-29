@@ -22,6 +22,10 @@ type Props = {
   originalAvgNightly?: number | null;
   discountPercent?: number | null; // 0..100
   capacity?: number;
+
+  province?: string;
+  district?: string;
+  neighborhood?: string;
 };
 
 export default function DiscountVillaCard({
@@ -34,6 +38,9 @@ export default function DiscountVillaCard({
   originalAvgNightly,
   discountPercent,
   capacity,
+  province,
+  district,
+  neighborhood,
 }: Props) {
   const fmt = (d: string) => format(parseISO(d), "d MMM", { locale: tr });
 
@@ -65,6 +72,11 @@ export default function DiscountVillaCard({
               </span>
             )}
           </div>
+          {(province || district || neighborhood) && (
+            <p className="text-xs text-gray-500 truncate">
+              {[province, district, neighborhood].filter(Boolean).join(" / ")}
+            </p>
+          )}
 
           {/* Tarih aralığı */}
           <div className="flex items-center gap-1 text-xs text-gray-600">
@@ -73,7 +85,12 @@ export default function DiscountVillaCard({
               {fmt(startDate)} - {fmt(endDate)}
             </span>
           </div>
-
+          {capacity && (
+            <div className="flex items-center gap-1 text-sm text-gray-600">
+              <Users className="h-4 w-4" />
+              <span>{capacity} kişi</span>
+            </div>
+          )}
           {/* Fiyat çizgisi: orijinal (üstü çizili) → indirimli */}
           <div className="mt-1 flex items-end gap-1">
             {originalAvgNightly && originalAvgNightly > 0 ? (
@@ -96,12 +113,6 @@ export default function DiscountVillaCard({
               </>
             )}
           </div>
-          {capacity && (
-            <div className="flex items-center gap-1 text-sm text-gray-600">
-              <Users className="h-4 w-4" />
-              <span>{capacity} kişi</span>
-            </div>
-          )}
         </div>
       </div>
     </Link>

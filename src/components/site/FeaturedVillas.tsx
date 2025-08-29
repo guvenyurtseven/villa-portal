@@ -11,9 +11,13 @@ type PhotoRow = {
 type VillaRow = {
   id: string;
   name: string;
+  capacity: number | null;
   priority: number | null;
   is_hidden: boolean | null;
-  villa_photos: PhotoRow[];
+  province: string | null;
+  district: string | null;
+  neighborhood: string | null;
+  villa_photos: PhotoRow[] | null;
 };
 
 export const dynamic = "force-dynamic";
@@ -24,7 +28,17 @@ export default async function FeaturedVillas() {
   const { data: villas } = await supabase
     .from("villas")
     .select(
-      "id, name, capacity,  priority, is_hidden, villa_photos(villa_id, url, is_primary, order_index)",
+      `
+      id,
+      name,
+      capacity,
+      priority,
+      is_hidden,
+      province,
+      district,
+      neighborhood,
+      villa_photos(villa_id, url, is_primary, order_index)
+    `,
     )
     .eq("is_hidden", false)
     .order("priority", { ascending: false })
@@ -32,22 +46,29 @@ export default async function FeaturedVillas() {
     .limit(10);
 
   const list = (villas ?? []).map((v: VillaRow) => {
-    const sorted = (v.villa_photos || [])
+    const sortedUrls = (v.villa_photos ?? [])
       .slice()
       .sort((a, b) => {
         const ap = a.is_primary ? 0 : 1;
         const bp = b.is_primary ? 0 : 1;
         if (ap !== bp) return ap - bp;
-        return (a.order_index ?? 999) - (b.order_index ?? 999);
+        const ao = a.order_index ?? 999;
+        const bo = b.order_index ?? 999;
+        return ao - bo;
       })
-      .map((p) => p.url);
-    const images = sorted.slice(0, 8);
+      .map((p) => p.url)
+      .filter(Boolean) as string[];
+
+    const images = sortedUrls.slice(0, 8);
 
     return {
       id: v.id,
       name: v.name,
       images,
-      capacity: v.capacity,
+      capacity: v.capacity ?? undefined,
+      province: v.province ?? undefined,
+      district: v.district ?? undefined,
+      neighborhood: v.neighborhood ?? undefined,
     };
   });
 
@@ -58,7 +79,16 @@ export default async function FeaturedVillas() {
       <h2 className="text-xl font-semibold">Öne Çıkan Villalar</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {list.map((v) => (
-          <VillaCard key={v.id} id={v.id} name={v.name} capacity={v.capacity} images={v.images} />
+          <VillaCard
+            key={v.id}
+            id={v.id}
+            name={v.name}
+            capacity={v.capacity}
+            images={v.images}
+            province={v.province}
+            district={v.district}
+            neighborhood={v.neighborhood}
+          />
         ))}
       </div>
     </section>

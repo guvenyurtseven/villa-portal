@@ -8,6 +8,9 @@ interface OpportunityVilla {
   id: string;
   name: string;
   photo?: string;
+  province?: string | null;
+  district?: string | null;
+  neighborhood?: string | null;
   capacity?: number;
   opportunities: Array<{
     startDate: string;
@@ -84,6 +87,9 @@ export default function OpportunityVillas() {
               capacity={villa.capacity}
               photo={villa.photo}
               opportunity={opportunity}
+              province={villa.province ?? undefined}
+              district={villa.district ?? undefined}
+              neighborhood={villa.neighborhood ?? undefined}
             />
           )),
         )}
