@@ -6,9 +6,8 @@ import { addDays, format, parseISO } from "date-fns";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Yardımcı: [YYYY-MM-DD, YYYY-MM-DD) biçiminde range string
+// daterange string helper: [start, end)
 function mkRange(start: string, end: string) {
-  // Postgres daterange ']' yerine ')' kullanır: başlangıç dahil, bitiş hariç.
   return `[${start},${end})`;
 }
 
@@ -19,31 +18,56 @@ export async function GET(req: Request) {
     const supa = createServiceRoleClient();
     const { searchParams } = new URL(req.url);
 
-    // --- Parametreleri al ---
+    // --- Parametreler ---
     const provinces = searchParams.getAll("province").filter(Boolean);
     const districts = searchParams.getAll("district").filter(Boolean);
     const neighborhoods = searchParams.getAll("neighborhood").filter(Boolean);
 
-    const checkin = searchParams.get("checkin") || new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    // KATEGORİ (slug)
+    const categorySlugs = searchParams.getAll("category").filter(Boolean);
+
+    const checkin = searchParams.get("checkin") || new Date().toISOString().slice(0, 10);
     const nights = Math.max(1, Math.min(60, Number(searchParams.get("nights") || 7)));
     const guests = Math.max(1, Math.min(21, Number(searchParams.get("guests") || 2)));
 
-    // 🆕 Bütçe filtresi (ortalama gecelik)
-    const minPrice = Math.max(0, Number(searchParams.get("minPrice") ?? 0));
-    const maxPrice = Math.max(
-      minPrice,
-      Number(searchParams.get("maxPrice") ?? Number.MAX_SAFE_INTEGER),
-    );
-
-    // 🆕 Özellik (boolean kolon) filtreleri
-    const features = searchParams.getAll("feature").filter(Boolean); // örn: feature=heated_pool&feature=sauna
-
-    // checkout = checkin + nights
     const endDate = format(addDays(parseISO(checkin), nights), "yyyy-MM-dd");
     const rangeStr = mkRange(checkin, endDate);
 
-    // --- 1) Aday villaları çek (konum + kapasite + hidden=false) ---
-    // Not: OR mantığı için PostgREST 'or' filtresini stringle kuruyoruz
+    // --- (0) Kategori slug'larını villa_id listesine çevir (varsa) ---
+    let categoryVillaIds: string[] | null = null;
+    if (categorySlugs.length > 0) {
+      // 0.a) slug -> category.id
+      const { data: cats, error: catErr } = await supa
+        .from("categories")
+        .select("id, slug")
+        .in("slug", categorySlugs);
+
+      if (catErr) {
+        return NextResponse.json({ error: catErr.message }, { status: 500 });
+      }
+      const catIds = (cats || []).map((c) => c.id);
+      if (catIds.length === 0) {
+        // Seçilen slug'lara karşılık kategori yoksa sonuç boş
+        return NextResponse.json({ items: [] });
+      }
+
+      // 0.b) villa_categories'ten eşleşen villalar
+      const { data: vc, error: vcErr } = await supa
+        .from("villa_categories")
+        .select("villa_id, category_id")
+        .in("category_id", catIds);
+
+      if (vcErr) {
+        return NextResponse.json({ error: vcErr.message }, { status: 500 });
+      }
+
+      categoryVillaIds = Array.from(new Set((vc || []).map((r) => r.villa_id)));
+      if (categoryVillaIds.length === 0) {
+        return NextResponse.json({ items: [] });
+      }
+    }
+
+    // --- (1) Aday villalar: konum OR + kapasite + gizli değil + (kategori varsa .in) ---
     let orFilter = "";
     const parts: string[] = [];
     if (provinces.length > 0)
@@ -52,9 +76,9 @@ export async function GET(req: Request) {
       parts.push(`district.in.(${districts.map((v) => `"${v}"`).join(",")})`);
     if (neighborhoods.length > 0)
       parts.push(`neighborhood.in.(${neighborhoods.map((v) => `"${v}"`).join(",")})`);
-    if (parts.length > 0) orFilter = parts.join(",");
+    if (parts.length > 0) orFilter = parts.join(","); // PostgREST OR; çoklu koşullar virgülle. :contentReference[oaicite:1]{index=1}
 
-    let q = supa
+    let base = supa
       .from("villas")
       .select(
         `
@@ -68,55 +92,48 @@ export async function GET(req: Request) {
       .gte("capacity", guests);
 
     if (orFilter) {
-      // OR: province/district/neighborhood seçeneklerinden herhangi biri tutarsa dahil
-      // @ts-ignore supabase-js .or signature string alır
-      q = q.or(orFilter);
+      // @ts-ignore: supabase-js .or string kabul eder
+      base = base.or(orFilter);
+    }
+    if (categoryVillaIds) {
+      base = base.in("id", categoryVillaIds);
     }
 
-    // 🆕 Seçilen her feature için true şartı (beyaz liste istersen ekleyebiliriz)
-    for (const key of features) {
-      q = q.eq(key as any, true);
-    }
-
-    const { data: baseVillas, error: baseErr } = await q;
+    const { data: baseVillas, error: baseErr } = await base;
     if (baseErr) {
       return NextResponse.json({ error: baseErr.message }, { status: 500 });
     }
-
     if (!baseVillas || baseVillas.length === 0) {
       return NextResponse.json({ items: [] });
     }
 
     const candidateIds = baseVillas.map((v) => v.id);
 
-    // --- 2) Müsaitlik kontrolü: rezervasyon veya blokaj ile çakışanları ele ---
+    // --- (2) Müsaitlik: confirmed rezervasyon / blokkaj çakışanı ele (daterange &&) ---
     const [{ data: resv }, { data: blks }] = await Promise.all([
       supa
         .from("reservations")
         .select("villa_id")
         .eq("status", "confirmed")
         .in("villa_id", candidateIds)
-        .overlaps("date_range", rangeStr),
+        .overlaps("date_range", rangeStr), // range overlap
       supa
         .from("blocked_dates")
         .select("villa_id")
         .in("villa_id", candidateIds)
         .overlaps("date_range", rangeStr),
     ]);
-
     const notAvailable = new Set<string>([
       ...(resv?.map((r: any) => r.villa_id) || []),
       ...(blks?.map((b: any) => b.villa_id) || []),
     ]);
-
     const available = baseVillas.filter((v) => !notAvailable.has(v.id));
     if (available.length === 0) {
       return NextResponse.json({ items: [] });
     }
 
+    // --- (3) Fiyat kapsama: aralıktaki her gün için pricing_periods olmalı ---
     const availIds = available.map((v) => v.id);
-
-    // --- 3) Fiyat kapsamı kontrolü: aralıktaki her gün için fiyat tanımı şart ---
     const { data: periods, error: pErr } = await supa
       .from("villa_pricing_periods")
       .select("villa_id, start_date, end_date, nightly_price")
@@ -126,7 +143,6 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: pErr.message }, { status: 500 });
     }
 
-    // villa_id -> dönem listesi
     const byVilla = new Map<string, any[]>();
     for (const row of periods || []) {
       const arr = byVilla.get(row.villa_id) || [];
@@ -134,47 +150,31 @@ export async function GET(req: Request) {
       byVilla.set(row.villa_id, arr);
     }
 
-    // 🆕 Kapsama + toplam fiyat hesapla (ortalama gecelik için)
-    function coverageTotal(villaId: string): number | null {
+    function hasFullCoverage(villaId: string) {
       const ps = byVilla.get(villaId) || [];
-      if (ps.length === 0) return null;
+      if (ps.length === 0) return false;
       let cur = parseISO(checkin);
-      let total = 0;
       for (let i = 0; i < nights; i++) {
-        // Bu gün için bir fiyat dönemi var mı?
-        let price: number | null = null;
-        for (const p of ps) {
+        const covered = ps.some((p) => {
           const s = parseISO(p.start_date);
           const e = parseISO(p.end_date);
-          if (cur >= s && cur <= e) {
-            price = Number(p.nightly_price);
-            break;
-          }
-        }
-        if (price == null) return null; // kapsama yok
-        total += price;
+          return cur >= s && cur <= e;
+        });
+        if (!covered) return false;
         cur = addDays(cur, 1);
       }
-      return total;
+      return true;
     }
 
-    // Kapsaması olan ve bütçe aralığına uyan villaları bırak
-    const priced = available.filter((v) => {
-      const total = coverageTotal(v.id);
-      if (total == null) return false; // kapsam yok
-      const avg = total / nights;
-      if (avg < minPrice || avg > maxPrice) return false;
-      return true;
-    });
-
+    const priced = available.filter((v) => hasFullCoverage(v.id));
     if (priced.length === 0) {
       return NextResponse.json({ items: [] });
     }
 
-    // --- 4) Çıkış: priority DESC ile sıralı; primaryPhoto hazırla ---
+    // --- (4) Çıkış: priority DESC ile sırala; foto alanlarını hazırla ---
     const items = priced
-      .map((v) => {
-        const photos: PhotoRow[] = (v as any).villa_photos || [];
+      .map((v: any) => {
+        const photos: PhotoRow[] = v.villa_photos || [];
         const sorted = photos
           .slice()
           .sort((a, b) => {
@@ -190,12 +190,12 @@ export async function GET(req: Request) {
           id: v.id,
           name: v.name,
           capacity: v.capacity,
-          priority: (v as any).priority ?? 0,
-          province: (v as any).province ?? null,
-          district: (v as any).district ?? null,
-          neighborhood: (v as any).neighborhood ?? null,
-          bedrooms: (v as any).bedrooms ?? null,
-          bathrooms: (v as any).bathrooms ?? null,
+          priority: v.priority ?? 0,
+          province: v.province ?? null,
+          district: v.district ?? null,
+          neighborhood: v.neighborhood ?? null,
+          bedrooms: v.bedrooms ?? null,
+          bathrooms: v.bathrooms ?? null,
           primaryPhoto: sorted[0] || null,
           images: sorted.slice(0, 8),
         };

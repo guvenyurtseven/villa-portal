@@ -6,6 +6,8 @@ import VillaCard from "@/components/site/VillaCard";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+type SearchParams = Record<string, string | string[] | undefined>;
+
 type SearchResultItem = {
   id: string;
   name: string;
@@ -19,28 +21,36 @@ type SearchResultItem = {
   priority?: number | null;
 };
 
-async function fetchResults(search: string) {
-  const url = `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/api/search-villas${search ? `?${search}` : ""}`;
+function buildQueryString(sp: SearchParams) {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) {
+    if (Array.isArray(v)) {
+      v.forEach((x) => x != null && qs.append(k, String(x)));
+    } else if (v != null) {
+      qs.append(k, String(v));
+    }
+  }
+  return qs.toString();
+}
+
+async function fetchResults(qs: string) {
+  const base =
+    (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "") || "http://localhost:3000";
+  const url = qs ? `${base}/api/search-villas?${qs}` : `${base}/api/search-villas`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) return { items: [] as SearchResultItem[] };
-  return res.json() as Promise<{ items: SearchResultItem[] }>;
+  return (await res.json()) as { items: SearchResultItem[] };
 }
 
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  // 🔴 ÖNEMLİ: Next 15'te Promise!
+  searchParams: Promise<SearchParams>;
 }) {
-  // query string’i aynen API’ye ileteceğiz
-  const qs =
-    typeof window === "undefined"
-      ? new URLSearchParams(
-          Object.entries(searchParams).flatMap(([k, v]) =>
-            Array.isArray(v) ? v.map((x) => [k, x]) : v != null ? [[k, v]] : [],
-          ),
-        ).toString()
-      : window.location.search.slice(1);
-
+  // ✅ Promise'ı çöz ve sonra kullan
+  const sp = await searchParams;
+  const qs = buildQueryString(sp);
   const { items } = await fetchResults(qs);
 
   return (

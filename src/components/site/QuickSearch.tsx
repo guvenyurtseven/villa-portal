@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import Portal from "@/components/util/Portal";
 
 type Option = { type: "province" | "district" | "neighborhood"; value: string; label: string };
-
+type Category = { id: string; name: string; slug: string };
 const NIGHTS_MIN = 1;
 const NIGHTS_MAX = 60;
 const GUESTS_MIN = 1;
@@ -93,6 +93,11 @@ export default function QuickSearch({
   const [nights, setNights] = useState<number>(initialNights);
   const [guests, setGuests] = useState<number>(initialGuests);
 
+  // Kategori (yeni)
+  const [openCats, setOpenCats] = useState(false);
+  const [cats, setCats] = useState<Category[]>([]);
+  const [selCats, setSelCats] = useState<string[]>([]); // slug dizisi
+
   // BUGÜN (yerel gün başlangıcı) – geçmişi kilitlemek için
   const today = useMemo(() => {
     const n = new Date();
@@ -115,19 +120,33 @@ export default function QuickSearch({
     [checkin, nights],
   );
 
+  // --- Autocomplete load ---
   useEffect(() => {
     const ctrl = new AbortController();
-    const run = async () => {
-      const res = await fetch(`/api/locations?q=${encodeURIComponent(query)}`, {
-        signal: ctrl.signal,
-        cache: "no-store",
-      });
-      if (!res.ok) return;
-      const json = await res.json();
-      setOptions(json.options || []);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/locations?q=${encodeURIComponent(query)}`, {
+          signal: ctrl.signal,
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled && !ctrl.signal.aborted) {
+          setOptions((json?.options ?? []) as Option[]);
+        }
+      } catch (err: any) {
+        // fetch iptal edildiğinde gelen hata: AbortError (Next/Node'da mesaj: "signal is aborted without reason")
+        if (err?.name === "AbortError") return;
+        console.error("locations load error:", err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      ctrl.abort();
     };
-    run();
-    return () => ctrl.abort();
   }, [query]);
 
   useEffect(() => {
@@ -155,11 +174,30 @@ export default function QuickSearch({
     else setArr([...arr, o.value]);
   }
 
+  // --- Kategorileri yükle ---
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      const r = await fetch("/api/categories", { cache: "no-store" });
+      if (!r.ok) return;
+      const j = await r.json();
+      if (!ignore) setCats(j.items || []);
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  function toggleCat(slug: string) {
+    setSelCats((prev) => (prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]));
+  }
+
   function makeQS() {
     const params = new URLSearchParams();
     selP.forEach((v) => params.append("province", v));
     selD.forEach((v) => params.append("district", v));
     selN.forEach((v) => params.append("neighborhood", v));
+    selCats.forEach((slug) => params.append("category", slug));
     if (checkin) params.set("checkin", format(checkin, "yyyy-MM-dd"));
     params.set("nights", String(Math.max(NIGHTS_MIN, Math.min(NIGHTS_MAX, nights))));
     params.set("guests", String(Math.max(GUESTS_MIN, Math.min(GUESTS_MAX, guests))));
@@ -236,6 +274,52 @@ export default function QuickSearch({
           >
             <span className="text-sm">{guests} kişi</span>
           </button>
+        </div>
+
+        {/* Kategori (yeni) */}
+        <div className="relative">
+          <Label className="text-xs">Kategori</Label>
+          <button
+            type="button"
+            onClick={() => setOpenCats((v) => !v)}
+            className="w-full border rounded-md px-3 py-2 text-left hover:bg-gray-50"
+          >
+            {selCats.length > 0 ? (
+              <span className="text-sm">
+                {selCats.slice(0, 2).join(", ")}
+                {selCats.length > 2 ? " +" : ""}
+              </span>
+            ) : (
+              <span className="text-sm text-gray-500">Kategori seçiniz…</span>
+            )}
+          </button>
+          {openCats && (
+            <div className="absolute z-[70] mt-1 w-64 max-h-[18rem] overflow-auto rounded-md border bg-white p-2 shadow-lg">
+              <ul className="space-y-1">
+                {cats.map((c) => {
+                  const checked = selCats.includes(c.slug);
+                  return (
+                    <li key={c.id}>
+                      <label className="flex items-center gap-2 text-sm cursor-pointer px-2 py-1 rounded hover:bg-gray-50">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleCat(c.slug)}
+                          className="h-4 w-4"
+                        />
+                        <span>{c.name}</span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="mt-2 flex justify-end">
+                <Button variant="outline" size="sm" onClick={() => setOpenCats(false)}>
+                  Kapat
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Ara */}

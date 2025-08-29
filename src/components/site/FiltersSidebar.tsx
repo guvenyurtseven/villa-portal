@@ -10,6 +10,7 @@ import { tr } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CATEGORY_DEFS } from "@/lib/categories"; // kategori isim & slug listesi
 
 // Özellik listesi: DB boolean kolon adları + etiket
 // (repo’da /src/lib/features.ts varsa ordan import edebilirsin; yoksa bu listeyi kullan)
@@ -45,6 +46,10 @@ const GUESTS_MAX = 21;
 const PRICE_MIN = 1000;
 const PRICE_MAX = 100000;
 const PRICE_STEP = 100;
+
+// --- Kategoriler ---
+type Category = { id: string; name: string; slug: string };
+
 export default function FiltersSidebar() {
   const router = useRouter();
   const pathname = usePathname();
@@ -60,6 +65,18 @@ export default function FiltersSidebar() {
   const initMinPrice = Number(sp.get("minPrice") ?? PRICE_MIN);
   const initMaxPrice = Number(sp.get("maxPrice") ?? PRICE_MAX);
   const initFeatures = sp.getAll("feature"); // &feature=heated_pool&feature=sauna ...
+
+  // URL -> başlangıç kategorileri (slug)
+  const initCats = sp.getAll("category"); // ?category=denize-yakin&category=...
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCats, setSelectedCats] = useState<string[]>(initCats);
+
+  // Kategoriler popover & seçim
+  const [openCats, setOpenCats] = useState(false);
+  const [selCats, setSelCats] = useState<string[]>(initCats);
+  function toggleCat(slug: string) {
+    setSelCats((prev) => (prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]));
+  }
 
   // Bölge popover state
   const [openRegion, setOpenRegion] = useState(false);
@@ -96,20 +113,50 @@ export default function FiltersSidebar() {
   const [maxPrice, setMaxPrice] = useState<number>(initMaxPrice);
 
   // Bölge autocomplete
+  // Bölge autocomplete
   useEffect(() => {
     const ctrl = new AbortController();
-    const run = async () => {
-      const res = await fetch(`/api/locations?q=${encodeURIComponent(query)}`, {
-        signal: ctrl.signal,
-        cache: "no-store",
-      });
-      if (!res.ok) return;
-      const json = await res.json();
-      setOptions((json?.options ?? []) as Option[]);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/locations?q=${encodeURIComponent(query)}`, {
+          signal: ctrl.signal,
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled && !ctrl.signal.aborted) {
+          setOptions((json?.options ?? []) as Option[]);
+        }
+      } catch (err: any) {
+        if (err?.name === "AbortError") return;
+        console.error("locations load error:", err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      ctrl.abort();
     };
-    run();
-    return () => ctrl.abort();
   }, [query]);
+
+  useEffect(() => {
+    let abort = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/categories", { cache: "no-store" });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!abort) setCategories(json?.items ?? json ?? []);
+      } catch (_) {
+        // yut
+      }
+    })();
+    return () => {
+      abort = true;
+    };
+  }, []);
 
   function toggleSel(o: Option) {
     const map = {
@@ -149,6 +196,8 @@ export default function FiltersSidebar() {
     selP.forEach((v) => params.append("province", v));
     selD.forEach((v) => params.append("district", v));
     selN.forEach((v) => params.append("neighborhood", v));
+    selCats.forEach((slug) => params.append("category", slug));
+    selectedCats.forEach((slug) => params.append("category", slug));
 
     if (checkin) params.set("checkin", format(checkin, "yyyy-MM-dd"));
     params.set("nights", String(nights));
@@ -337,6 +386,72 @@ export default function FiltersSidebar() {
             />
             <div className="mt-2 flex justify-end">
               <Button variant="outline" size="sm" onClick={() => setOpenCal(false)}>
+                Kapat
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Kategoriler */}
+      <div className="relative">
+        <Label className="text-xs">Kategori</Label>
+        <button
+          type="button"
+          onClick={() => setOpenCats((v) => !v)}
+          className="w-full border rounded-md px-3 py-2 text-left hover:bg-gray-50"
+        >
+          {selectedCats.length > 0 ? (
+            <span className="text-sm">
+              {selectedCats.slice(0, 3).join(", ")}
+              {selectedCats.length > 3 ? " +" : ""}
+            </span>
+          ) : (
+            <span className="text-sm text-gray-500">Kategori seçiniz…</span>
+          )}
+        </button>
+
+        {openCats && (
+          <div className="absolute z-[70] mt-1 w-[22rem] max-h-[18rem] overflow-auto rounded-md border bg-white p-3 shadow-xl">
+            <div className="grid grid-cols-1 gap-2">
+              {categories.map((c) => {
+                const checked = selectedCats.includes(c.slug);
+                return (
+                  <label
+                    key={c.id}
+                    className="flex items-center gap-2 text-sm cursor-pointer px-2 py-1 rounded hover:bg-gray-50"
+                  >
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4"
+                      checked={checked}
+                      onChange={() => {
+                        setSelectedCats((prev) =>
+                          checked ? prev.filter((s) => s !== c.slug) : [...prev, c.slug],
+                        );
+                      }}
+                    />
+                    <span>{c.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+
+            {selectedCats.length > 0 && (
+              <div className="pt-2 flex flex-wrap gap-2">
+                {selectedCats.map((s) => (
+                  <span
+                    key={s}
+                    className="text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded"
+                  >
+                    {s}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-2 flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => setOpenCats(false)}>
                 Kapat
               </Button>
             </div>
