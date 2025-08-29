@@ -2,8 +2,7 @@ import FeaturedVillas from "@/components/site/FeaturedVillas";
 import CategoryNav from "@/components/site/CategoryNav";
 import OpportunityVillas from "@/components/site/OpportunityVillas";
 import DiscountVillas from "@/components/site/DiscountVillas";
-import { Filter } from "lucide-react";
-import HeaderGate from "@/components/site/HeaderGate";
+import QuickSearch from "@/components/site/QuickSearch";
 
 export default function Home() {
   return (
@@ -20,11 +19,15 @@ export default function Home() {
         {/* Orta Sütun - Ana İçerik */}
         <div className="lg:col-span-8 space-y-6">
           <div>
-            <h1 className="text-4xl font-bold mb-2">Villa Kiralama</h1>
-            <p className="text-gray-600 mb-6">Tatiliniz için mükemmel villalar</p>
+            <h1 className="text-4xl font-semibold mb-2">Villa Kiralama</h1>
+            <p className="text-gray-600 italic mb-6">Tatiliniz İçin En Seçkin Villalar</p>
 
             {/* Kategoriler */}
             <CategoryNav />
+
+            <div className="max-w-6xl mx-auto px-4 mt-4">
+              <QuickSearch />
+            </div>
 
             {/* Öne Çıkan Villalar */}
             <div className="mt-6">
