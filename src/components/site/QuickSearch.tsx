@@ -13,6 +13,7 @@ import Portal from "@/components/util/Portal";
 
 type Option = { type: "province" | "district" | "neighborhood"; value: string; label: string };
 type Category = { id: string; name: string; slug: string };
+
 const NIGHTS_MIN = 1;
 const NIGHTS_MAX = 60;
 const GUESTS_MIN = 1;
@@ -68,59 +69,69 @@ export default function QuickSearch({
 }) {
   const router = useRouter();
 
+  // Button refs
   const regionBtnRef = useRef<HTMLButtonElement | null>(null);
   const dateBtnRef = useRef<HTMLButtonElement | null>(null);
   const guestsBtnRef = useRef<HTMLButtonElement | null>(null);
+  const catBtnRef = useRef<HTMLButtonElement | null>(null);
 
+  // Panel refs
   const regionPanelRef = useRef<HTMLDivElement | null>(null);
   const datePanelRef = useRef<HTMLDivElement | null>(null);
   const guestsPanelRef = useRef<HTMLDivElement | null>(null);
+  const catPanelRef = useRef<HTMLDivElement | null>(null);
 
+  // Open states
   const [regionOpen, setRegionOpen] = useState(false);
   const [dateOpen, setDateOpen] = useState(false);
   const [guestsOpen, setGuestsOpen] = useState(false);
+  const [openCats, setOpenCats] = useState(false);
 
+  // Anchor positions
   const regionPos = useAnchorPosition(regionOpen, regionBtnRef);
   const datePos = useAnchorPosition(dateOpen, dateBtnRef);
   const guestsPos = useAnchorPosition(guestsOpen, guestsBtnRef);
+  const catPos = useAnchorPosition(openCats, catBtnRef);
 
+  // Region autocomplete
   const [query, setQuery] = useState("");
   const [options, setOptions] = useState<Option[]>([]);
   const [selP, setSelP] = useState<string[]>(initialP);
   const [selD, setSelD] = useState<string[]>(initialD);
   const [selN, setSelN] = useState<string[]>(initialN);
 
+  // Nights & Guests
   const [nights, setNights] = useState<number>(initialNights);
   const [guests, setGuests] = useState<number>(initialGuests);
 
-  // Kategori (yeni)
-  const [openCats, setOpenCats] = useState(false);
+  // Categories
   const [cats, setCats] = useState<Category[]>([]);
-  const [selCats, setSelCats] = useState<string[]>([]); // slug dizisi
+  const [selCats, setSelCats] = useState<string[]>([]); // slug[]
 
-  // BUGÜN (yerel gün başlangıcı) – geçmişi kilitlemek için
+  // Today (local midnight) — disable past days
   const today = useMemo(() => {
     const n = new Date();
     return new Date(n.getFullYear(), n.getMonth(), n.getDate());
   }, []);
 
+  // Dates
   const [checkin, setCheckin] = useState<Date | undefined>(
     initialCheckin ? parseISO(initialCheckin) : undefined,
   );
 
-  // initialCheckin geçmişteyse bugüne çek
+  // Coerce past initialCheckin to today
   useEffect(() => {
     if (checkin && checkin < today) setCheckin(today);
   }, [checkin, today]);
 
-  // checkout = giriş + nights (çıkış günü DAHİL taralı)
+  // checkout = checkin + nights (inclusive viz highlight to checkout)
   const checkout = useMemo(
     () =>
       checkin ? addDays(checkin, Math.max(NIGHTS_MIN, Math.min(NIGHTS_MAX, nights))) : undefined,
     [checkin, nights],
   );
 
-  // --- Autocomplete load ---
+  // Load locations with abort safety
   useEffect(() => {
     const ctrl = new AbortController();
     let cancelled = false;
@@ -137,7 +148,6 @@ export default function QuickSearch({
           setOptions((json?.options ?? []) as Option[]);
         }
       } catch (err: any) {
-        // fetch iptal edildiğinde gelen hata: AbortError (Next/Node'da mesaj: "signal is aborted without reason")
         if (err?.name === "AbortError") return;
         console.error("locations load error:", err);
       }
@@ -149,7 +159,16 @@ export default function QuickSearch({
     };
   }, [query]);
 
+  // Outside click & ESC close for all popovers
   useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setRegionOpen(false);
+        setDateOpen(false);
+        setGuestsOpen(false);
+        setOpenCats(false);
+      }
+    }
     function onDown(e: MouseEvent) {
       const t = e.target as Node;
       if (regionOpen && !regionPanelRef.current?.contains(t) && !regionBtnRef.current?.contains(t))
@@ -158,10 +177,16 @@ export default function QuickSearch({
         setDateOpen(false);
       if (guestsOpen && !guestsPanelRef.current?.contains(t) && !guestsBtnRef.current?.contains(t))
         setGuestsOpen(false);
+      if (openCats && !catPanelRef.current?.contains(t) && !catBtnRef.current?.contains(t))
+        setOpenCats(false);
     }
+    document.addEventListener("keydown", onKey);
     document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [regionOpen, dateOpen, guestsOpen]);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+    };
+  }, [regionOpen, dateOpen, guestsOpen, openCats]);
 
   function toggleSel(o: Option) {
     const map = {
@@ -174,7 +199,7 @@ export default function QuickSearch({
     else setArr([...arr, o.value]);
   }
 
-  // --- Kategorileri yükle ---
+  // Load categories
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -209,8 +234,8 @@ export default function QuickSearch({
   }
 
   return (
-    <div className="w-full mx-auto rounded-xl border bg-white/80 backdrop-blur p-3 md:p-4 shadow-sm">
-      {/* 4 kolon: Bölge | Tarih | Kişi | Ara */}
+    <div className="relative isolate w-full mx-auto rounded-xl border bg-white/80 backdrop-blur p-3 md:p-4 shadow-sm">
+      {/* 4 kolon: Bölge | Tarih | Kişi | Kategori | (Ara ayrı satıra düşebilir) */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         {/* Bölge */}
         <div className="relative">
@@ -223,6 +248,7 @@ export default function QuickSearch({
               setRegionOpen((v) => !v);
               setDateOpen(false);
               setGuestsOpen(false);
+              setOpenCats(false);
             }}
           >
             {selP.length + selD.length + selN.length > 0 ? (
@@ -247,6 +273,7 @@ export default function QuickSearch({
               setDateOpen((v) => !v);
               setRegionOpen(false);
               setGuestsOpen(false);
+              setOpenCats(false);
             }}
           >
             <span className="text-sm">
@@ -270,18 +297,26 @@ export default function QuickSearch({
               setGuestsOpen((v) => !v);
               setRegionOpen(false);
               setDateOpen(false);
+              setOpenCats(false);
             }}
           >
             <span className="text-sm">{guests} kişi</span>
           </button>
         </div>
 
-        {/* Kategori (yeni) */}
+        {/* Kategori */}
         <div className="relative">
           <Label className="text-xs">Kategori</Label>
           <button
+            ref={catBtnRef}
             type="button"
-            onClick={() => setOpenCats((v) => !v)}
+            onClick={() => {
+              setOpenCats((v) => !v);
+              setRegionOpen(false);
+              setDateOpen(false);
+              setGuestsOpen(false);
+            }}
+            aria-expanded={openCats}
             className="w-full border rounded-md px-3 py-2 text-left hover:bg-gray-50"
           >
             {selCats.length > 0 ? (
@@ -293,33 +328,6 @@ export default function QuickSearch({
               <span className="text-sm text-gray-500">Kategori seçiniz…</span>
             )}
           </button>
-          {openCats && (
-            <div className="absolute z-[70] mt-1 w-64 max-h-[18rem] overflow-auto rounded-md border bg-white p-2 shadow-lg">
-              <ul className="space-y-1">
-                {cats.map((c) => {
-                  const checked = selCats.includes(c.slug);
-                  return (
-                    <li key={c.id}>
-                      <label className="flex items-center gap-2 text-sm cursor-pointer px-2 py-1 rounded hover:bg-gray-50">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleCat(c.slug)}
-                          className="h-4 w-4"
-                        />
-                        <span>{c.name}</span>
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
-              <div className="mt-2 flex justify-end">
-                <Button variant="outline" size="sm" onClick={() => setOpenCats(false)}>
-                  Kapat
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Ara */}
@@ -336,7 +344,7 @@ export default function QuickSearch({
         </div>
       </div>
 
-      {/* REGION PANEL */}
+      {/* REGION PANEL (Portal) */}
       {regionOpen && (
         <Portal>
           <div
@@ -418,7 +426,7 @@ export default function QuickSearch({
         </Portal>
       )}
 
-      {/* DATE PANEL – geçmiş günler DISABLED */}
+      {/* DATE PANEL (Portal) — geçmiş günler disabled, 2 ay yan yana */}
       {dateOpen && (
         <Portal>
           <div
@@ -457,8 +465,8 @@ export default function QuickSearch({
               numberOfMonths={2}
               showOutsideDays
               selected={checkin}
-              onDayClick={handleDayClick}
-              disabled={{ before: today }} //  ← geçmiş günler kapalı
+              onDayClick={(d) => d && handleDayClick(d)}
+              disabled={{ before: today }}
               modifiers={{
                 range: checkin && checkout ? { from: checkin, to: checkout } : undefined,
               }}
@@ -485,7 +493,6 @@ export default function QuickSearch({
               }
             />
 
-            {/* Hafta günlerini kalınlaştır */}
             <style jsx global>{`
               .rdp-weekday,
               [data-rdp] .rdp-weekday {
@@ -506,7 +513,7 @@ export default function QuickSearch({
         </Portal>
       )}
 
-      {/* GUESTS PANEL */}
+      {/* GUESTS PANEL (Portal) */}
       {guestsOpen && (
         <Portal>
           <div
@@ -536,6 +543,48 @@ export default function QuickSearch({
             </ul>
             <div className="mt-2 flex justify-end">
               <Button variant="outline" size="sm" onClick={() => setGuestsOpen(false)}>
+                Kapat
+              </Button>
+            </div>
+          </div>
+        </Portal>
+      )}
+
+      {/* CATEGORY PANEL (Portal) */}
+      {openCats && (
+        <Portal>
+          <div
+            ref={catPanelRef}
+            style={{
+              position: "fixed",
+              top: catPos.top,
+              left: catPos.left,
+              width: Math.max(320, Math.min(420, catPos.width)),
+              maxHeight: 320,
+              overflow: "auto",
+            }}
+            className="z-[9999] rounded-md border bg-white p-2 shadow-2xl"
+          >
+            <ul className="space-y-1">
+              {cats.map((c) => {
+                const checked = selCats.includes(c.slug);
+                return (
+                  <li key={c.id}>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer px-2 py-1 rounded hover:bg-gray-50">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleCat(c.slug)}
+                        className="h-4 w-4"
+                      />
+                      <span>{c.name}</span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="mt-2 flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => setOpenCats(false)}>
                 Kapat
               </Button>
             </div>

@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import BookingForm from "./BookingForm";
 import { useRouter } from "next/navigation";
 import { DialogDescription } from "@radix-ui/react-dialog";
+import "react-day-picker/dist/style.css";
 
 const LIGHT_ORANGE = "rgba(251, 146, 60, 0.28)"; // #fb923c ~%28 opaklık
 
