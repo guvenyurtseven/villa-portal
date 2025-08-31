@@ -1,7 +1,7 @@
 import Link from "next/link";
 import CardGallery from "./CardGallery";
 import { Users, BedDouble, Bath } from "lucide-react";
-
+import { MapPin, X } from "lucide-react";
 export default function VillaCard({
   id,
   name,
@@ -43,10 +43,13 @@ export default function VillaCard({
           </span>
         )}
 
-        <p className="mt-1 text-sm text-gray-600">
-          {[province, district, neighborhood].filter(Boolean).join(" / ")}
-        </p>
+        {(province || district || neighborhood) && (
+          <p className="mt-1 text-sm text-gray-600 truncate flex items-center py-2">
+            <MapPin className="h-5 w-4" />
 
+            {[province, district, neighborhood].filter(Boolean).join(" / ")}
+          </p>
+        )}
         <div className="mt-2 flex items-center gap-4 text-sm text-gray-600">
           {capacity != null && (
             <span className="flex items-center gap-1">

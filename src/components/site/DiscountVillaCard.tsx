@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Calendar, Users, BedDouble, Bath } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
-
+import { MapPin, X } from "lucide-react";
 const tl = new Intl.NumberFormat("tr-TR", {
   style: "currency",
   currency: "TRY",
@@ -114,7 +114,9 @@ export default function DiscountVillaCard(props: Props) {
           </div>
 
           {(province || district || neighborhood) && (
-            <p className="text-xs text-gray-500 truncate">
+            <p className="text-xs text-gray-500 truncate flex items-center py-2">
+              <MapPin className="h-5 w-3" />
+
               {[province, district, neighborhood].filter(Boolean).join(" / ")}
             </p>
           )}

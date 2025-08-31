@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { MapPin, X } from "lucide-react";
 
@@ -13,10 +13,29 @@ interface MapModalProps {
 }
 
 export default function MapModal({ villaName, coordinates }: MapModalProps) {
-  const [isOpen, setIsOpen] = useState(true); // Default true olarak değişti
+  // Varsayılan açık
+  const [isOpen, setIsOpen] = useState(true);
 
-  const googleMapsUrl = `https://www.google.com/maps?q=${coordinates.lat},${coordinates.lng}`;
-  const embedUrl = `https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3000!2d${coordinates.lng}!3d${coordinates.lat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zM!5e0!3m2!1str!2str!4v1234567890`;
+  // Koordinatları doğrula
+  const { lat, lng } = coordinates || {};
+  const hasValidCoords =
+    typeof lat === "number" &&
+    typeof lng === "number" &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng);
+
+  // Google Maps linkleri
+  const { embedUrl, mapsUrl } = useMemo(() => {
+    if (!hasValidCoords) {
+      return { embedUrl: "", mapsUrl: "" };
+    }
+    const zoom = 16; // İsteğe göre 5–18 arası
+    // Anahtarsız embed: q=lat,lng araması + output=embed → pin gösterir
+    // Ayrıca Türkçe arayüz için hl=tr ekledik
+    const embed = `https://www.google.com/maps?q=${lat},${lng}&z=${zoom}&hl=tr&output=embed`;
+    const open = `https://www.google.com/maps?q=${lat},${lng}`;
+    return { embedUrl: embed, mapsUrl: open };
+  }, [hasValidCoords, lat, lng]);
 
   return (
     <div className="mt-6">
@@ -25,32 +44,41 @@ export default function MapModal({ villaName, coordinates }: MapModalProps) {
           <MapPin className="h-5 w-5" />
           Konum
         </h3>
-        <Button onClick={() => setIsOpen(!isOpen)} variant="ghost" size="sm">
+        <Button onClick={() => setIsOpen((v) => !v)} variant="ghost" size="sm">
           {isOpen ? <X className="h-4 w-4" /> : "Haritayı Göster"}
         </Button>
       </div>
 
-      {isOpen && (
-        <div className="space-y-4">
-          <div className="h-96 w-full rounded-lg overflow-hidden border">
-            <iframe
-              src={embedUrl}
-              width="100%"
-              height="100%"
-              style={{ border: 0 }}
-              allowFullScreen
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-            />
-          </div>
-          <Button
-            onClick={() => window.open(googleMapsUrl, "_blank")}
-            variant="outline"
-            className="w-full"
-          >
-            Google Maps'te Aç
-          </Button>
+      {!hasValidCoords ? (
+        <div className="rounded-lg border bg-white p-4 text-sm text-gray-600">
+          Bu villa için konum bilgisi eksik veya geçersiz.
         </div>
+      ) : (
+        isOpen && (
+          <div className="space-y-4">
+            <div className="h-96 w-full rounded-lg overflow-hidden border">
+              <iframe
+                key={`${lat},${lng}`} // koordinatlar değişirse yeniden yükle
+                title={`${villaName} Harita`}
+                src={embedUrl}
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                loading="lazy"
+                allowFullScreen
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            </div>
+
+            <Button
+              onClick={() => window.open(mapsUrl, "_blank")}
+              variant="outline"
+              className="w-full"
+            >
+              Google Maps'te Aç
+            </Button>
+          </div>
+        )
       )}
     </div>
   );

@@ -19,7 +19,7 @@ export default function Home() {
         {/* Orta Sütun - Ana İçerik */}
         <div className="lg:col-span-8 space-y-6">
           <div>
-            <h1 className="text-4xl font-semibold mb-2">Villa Kiralama</h1>
+            <h1 className="text-4xl font-semibold mb-2">Villa Portal</h1>
             <p className="text-gray-600 italic mb-6">Tatiliniz İçin En Seçkin Villalar</p>
 
             {/* Kategoriler */}

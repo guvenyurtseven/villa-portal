@@ -5,7 +5,7 @@ import Image from "next/image";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
 import { Calendar, Users, BedDouble, Bath } from "lucide-react";
-
+import { MapPin, X } from "lucide-react";
 interface Opportunity {
   startDate: string;
   endDate: string;
@@ -64,7 +64,9 @@ export default function OpportunityVillaCard({
         </div>
         <div className="p-3 space-y-2">
           {(province || district || neighborhood) && (
-            <p className="text-xs text-gray-500 truncate">
+            <p className="text-xs text-gray-500 truncate flex items-center py-2">
+              <MapPin className="h-5 w-3" />
+
               {[province, district, neighborhood].filter(Boolean).join(" / ")}
             </p>
           )}

@@ -8,6 +8,7 @@ import VillaFeatures from "@/components/site/VillaFeatures";
 import OpportunityPeriods from "@/components/site/OpportunityPeriods";
 import { Users } from "lucide-react";
 import Image from "next/image";
+import { MapPin, X } from "lucide-react";
 
 interface VillaPageProps {
   params: Promise<{ id: string }>;
@@ -244,10 +245,34 @@ export default async function VillaPage({ params }: VillaPageProps) {
 
   return (
     <main className="max-w-5xl mx-auto p-6">
-      <h1 className="text-3xl font-bold">{villa.name}</h1>
-      <p className="italic mt-1 text-gray-500">
-        {[villa.province, villa.district, villa.neighborhood].filter(Boolean).join(" / ")}
-      </p>
+      <div className="gap-2 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">{villa.name}</h1>
+
+          <p className="text-sm font-semibold flex items-center gap-2 py-4">
+            <MapPin className="h-5 w-5" />
+            {[villa.province, villa.district, villa.neighborhood].filter(Boolean).join(" / ")}
+          </p>
+        </div>
+
+        {/* Belge Numarası Paneli */}
+        <div className="mt-4 flex items-center gap-4 rounded-lg bg-orange-500 p-2 ">
+          <Image
+            src="/guvenli-turizm.png"
+            alt="Güvenli Turizm Sertifika"
+            width={44}
+            height={44}
+            priority
+          />
+          <div className="leading-tight flex flex-col">
+            <div className="text-xs font-medium text-white">TC Kültür ve Turizm Bakanlığı</div>
+            <div className="text-xs font-medium text-white">Belge No:</div>
+            <div className="text-base font-semibold text-white">
+              {villa?.document_number || "-"} 123456
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="flex items-center gap-4 text-gray-500 mt-2">
         {villa.capacity && (
@@ -275,22 +300,6 @@ export default async function VillaPage({ params }: VillaPageProps) {
           <p className="text-gray-700 whitespace-pre-line">{villa.description}</p>
         </div>
       )}
-
-      {/* Belge Numarası Paneli */}
-      <div className="mt-4 flex items-center gap-4 rounded-lg bg-orange-500 p-4">
-        <Image
-          src="/guvenli-turizm.png"
-          alt="Güvenli Turizm Sertifika"
-          width={64}
-          height={64}
-          priority
-        />
-        <div className="leading-tight">
-          <div className="text-sm font-medium text-white">TC Kültür ve Turizm Bakanlığı</div>
-          <div className="text-sm font-medium text-white">Belge No:</div>
-          <div className="text-base font-semibold text-white">{villa?.document_number || "-"}</div>
-        </div>
-      </div>
 
       {/* Özet özellikler (oda/banyo/havuz/mesafe) */}
       <div className="grid grid-col-2 mt-6 rounded-lg border bg-white p-4 items-center">
