@@ -71,6 +71,8 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
 
+  const [documentNumber, setDocumentNumber] = useState("");
+
   const onChange = (key: keyof typeof form, val: any) =>
     setForm((prev) => ({ ...prev, [key]: val }));
 
@@ -84,6 +86,11 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
     e.preventDefault();
     if (!photos.length) {
       alert("En az bir fotoğraf ekleyin.");
+      return;
+    }
+
+    if (!documentNumber.trim()) {
+      alert("Belge numarası alanı zorunludur.");
       return;
     }
 
@@ -110,6 +117,8 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
           province: form.province,
           district: form.district,
           neighborhood: form.neighborhood || null,
+
+          document_number: documentNumber.trim(),
         },
         photos: photos.map((p, i) => ({
           url: p.url,
@@ -157,7 +166,18 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
             <Input value={form.name} onChange={(e) => onChange("name", e.target.value)} required />
           </div>
 
-          {/* WEEKLY_PRICE INPUT KALDIRILDI */}
+          <div>
+            <label className="text-sm font-medium">Belge Numarası</label>
+            <Input
+              value={documentNumber}
+              onChange={(e) => setDocumentNumber(e.target.value)}
+              required
+              placeholder="Örn: TR-2025-000123"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Sadece oluşturma esnasında alınır; düzenleme formunda görünmez.
+            </p>
+          </div>
 
           <div className="flex items-center gap-2">
             <Checkbox

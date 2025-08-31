@@ -20,6 +20,7 @@ type VillaRow = {
   villa_photos: PhotoRow[] | null;
   bedrooms: number | null;
   bathrooms: number | null;
+  reference_code: string | null; // referans kodu
 };
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export const dynamic = "force-dynamic";
 export default async function FeaturedVillas() {
   const supabase = createServiceRoleClient();
 
-  const { data: villas } = await supabase
+  const { data: villas, error } = await supabase
     .from("villas")
     .select(
       `
@@ -41,15 +42,22 @@ export default async function FeaturedVillas() {
       province,
       district,
       neighborhood,
+      reference_code,
       villa_photos(villa_id, url, is_primary, order_index)
     `,
     )
+    .returns<VillaRow[]>() // Tip güvence: ParserError tipini ez
     .eq("is_hidden", false)
     .order("priority", { ascending: false })
     .order("id", { ascending: false })
     .limit(10);
 
-  const list = (villas ?? []).map((v: VillaRow) => {
+  if (error) {
+    // İstersen logla ama UI'da sessiz kal
+    // console.warn("FeaturedVillas query error:", error);
+  }
+
+  const list = (villas ?? []).map((v) => {
     const sortedUrls = (v.villa_photos ?? [])
       .slice()
       .sort((a, b) => {
@@ -75,6 +83,7 @@ export default async function FeaturedVillas() {
       neighborhood: v.neighborhood ?? undefined,
       bedrooms: v.bedrooms ?? undefined,
       bathrooms: v.bathrooms ?? undefined,
+      reference_code: v.reference_code ?? undefined,
     };
   });
 
@@ -96,6 +105,7 @@ export default async function FeaturedVillas() {
             neighborhood={v.neighborhood}
             bedrooms={v.bedrooms ?? null}
             bathrooms={v.bathrooms ?? null}
+            reference_code={v.reference_code}
           />
         ))}
       </div>

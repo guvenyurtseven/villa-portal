@@ -139,7 +139,7 @@ export async function GET() {
       }> = [];
 
       let cursor = new Date(today);
-      while (cursor < endDate && gaps.length < 3) {
+      while (cursor < endDate && gaps.length < 1) {
         const cursorStr = format(cursor, "yyyy-MM-dd");
 
         if (!unavailableDays.has(cursorStr)) {

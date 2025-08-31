@@ -12,6 +12,7 @@ export default function VillaCard({
   neighborhood,
   bedrooms,
   bathrooms,
+  reference_code,
 }: {
   id: string;
   name: string;
@@ -22,21 +23,29 @@ export default function VillaCard({
   neighborhood?: string | null;
   bedrooms?: number | null;
   bathrooms?: number | null;
+  reference_code?: string | null; // EKLENDİ: referans kodu
 }) {
   return (
     <Link
       href={`/villa/${id}`}
-      className="group overflow-hidden rounded-xl border bg-white hover:shadow-md transition block"
+      className="group block overflow-hidden rounded-xl border bg-white transition hover:shadow-md"
     >
       <CardGallery images={images} alt={name} />
       <div className="p-4">
-        <h3 className="font-semibold truncate">{name}</h3>
+        <h3 className="truncate font-semibold">{name}</h3>
 
-        <p className="text-sm text-gray-600 mt-1">
+        {/* İSİM ALTINDA REFERANS KODU ROZETİ */}
+        {reference_code && (
+          <span className="mt-1 inline-block rounded bg-orange-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+            #{reference_code}
+          </span>
+        )}
+
+        <p className="mt-1 text-sm text-gray-600">
           {[province, district, neighborhood].filter(Boolean).join(" / ")}
         </p>
 
-        <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+        <div className="mt-2 flex items-center gap-4 text-sm text-gray-600">
           {capacity != null && (
             <span className="flex items-center gap-1">
               <Users className="h-4 w-4" />

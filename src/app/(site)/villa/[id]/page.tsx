@@ -7,6 +7,8 @@ import { notFound } from "next/navigation";
 import VillaFeatures from "@/components/site/VillaFeatures";
 import OpportunityPeriods from "@/components/site/OpportunityPeriods";
 import { Users } from "lucide-react";
+import Image from "next/image";
+
 interface VillaPageProps {
   params: Promise<{ id: string }>;
 }
@@ -255,6 +257,11 @@ export default async function VillaPage({ params }: VillaPageProps) {
           </div>
         )}
       </div>
+      {villa?.reference_code && (
+        <span className="mt-2 inline-block rounded bg-orange-500 px-2 py-1 text-xs font-semibold text-white">
+          #{villa.reference_code}
+        </span>
+      )}
 
       {/* Foto galeri */}
       <div className="mt-6">
@@ -269,8 +276,24 @@ export default async function VillaPage({ params }: VillaPageProps) {
         </div>
       )}
 
+      {/* Belge Numarası Paneli */}
+      <div className="mt-4 flex items-center gap-4 rounded-lg bg-orange-500 p-4">
+        <Image
+          src="/guvenli-turizm.png"
+          alt="Güvenli Turizm Sertifika"
+          width={64}
+          height={64}
+          priority
+        />
+        <div className="leading-tight">
+          <div className="text-sm font-medium text-white">TC Kültür ve Turizm Bakanlığı</div>
+          <div className="text-sm font-medium text-white">Belge No:</div>
+          <div className="text-base font-semibold text-white">{villa?.document_number || "-"}</div>
+        </div>
+      </div>
+
       {/* Özet özellikler (oda/banyo/havuz/mesafe) */}
-      <div className="mt-6 rounded-lg border bg-white p-4 items-center">
+      <div className="grid grid-col-2 mt-6 rounded-lg border bg-white p-4 items-center">
         <FeaturesList
           bedrooms={villa.bedrooms}
           bathrooms={villa.bathrooms}
