@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { createClient } from "@supabase/supabase-js";
+import { applyWatermark } from "@/lib/watermark";
 
 type Photo = {
   id?: string;
@@ -24,6 +25,17 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 );
 
+function extFromMime(m: string | undefined | null): "jpg" | "png" | "webp" {
+  switch (m) {
+    case "image/png":
+      return "png";
+    case "image/webp":
+      return "webp";
+    default:
+      return "jpg";
+  }
+}
+
 export default function PhotoManager({ villaId, initialPhotos, onChange }: Props) {
   // Normalize + ilk foto kapak
   const normalized = useMemo(() => {
@@ -40,7 +52,7 @@ export default function PhotoManager({ villaId, initialPhotos, onChange }: Props
   const [selected, setSelected] = useState<Record<number, boolean>>({});
   const dragIndex = useRef<number | null>(null);
 
-  // 🔧 FIX: deps her zaman aynı boyutta — [photos, onChange]
+  // Supabase'a gitmeden önce parent'a senkron tut
   useEffect(() => {
     const synced = photos.map((p, i) => ({
       ...p,
@@ -50,26 +62,40 @@ export default function PhotoManager({ villaId, initialPhotos, onChange }: Props
     onChange(synced);
   }, [photos, onChange]);
 
-  // Upload
+  // Upload + WATERMARK
   const handleUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     setUploading(true);
     try {
       const toAdd: Photo[] = [];
+
       for (const file of Array.from(files)) {
         if (!file.type.startsWith("image/")) continue;
-        if (file.size > 15 * 1024 * 1024) continue;
+        if (file.size > 15 * 1024 * 1024) continue; // 15MB üstünü atla (isteğe göre artırılabilir)
 
-        const safe = file.name
-          .toLowerCase()
-          .replace(/[^a-z0-9\-_.]/g, "-")
-          .replace(/-+/g, "-");
-        const ext = safe.split(".").pop() || "jpg";
+        // 1) Damgalamayı dene (Canvas) — başarısız olursa orijinale düş
+        let toUpload: File = file;
+        try {
+          toUpload = await applyWatermark(file, {
+            // dilediğin ayarları aç: tile:true => desen gibi döşer
+            // tile: true,
+            // scale: 0.26,
+            // opacity: 0.12,
+            // maxWidth: 2400,
+          });
+        } catch (err) {
+          console.warn("Watermark uygulanamadı, orijinal dosya yüklenecek.", err);
+        }
+
+        // 2) Anahtar + içerik türü
+        const ext = extFromMime(toUpload.type);
         const key = `${villaId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
-        const { error: upErr } = await supabase.storage
-          .from("villa-photos")
-          .upload(key, file, { upsert: false });
+        const { error: upErr } = await supabase.storage.from("villa-photos").upload(key, toUpload, {
+          upsert: false,
+          contentType: toUpload.type || (ext === "jpg" ? "image/jpeg" : `image/${ext}`),
+        });
+
         if (upErr) throw upErr;
 
         const { data } = supabase.storage.from("villa-photos").getPublicUrl(key);
@@ -79,6 +105,7 @@ export default function PhotoManager({ villaId, initialPhotos, onChange }: Props
           order_index: photos.length + toAdd.length,
         });
       }
+
       setPhotos((prev) => [...prev, ...toAdd].map((p, i) => ({ ...p, order_index: i })));
     } catch (e) {
       console.error(e);
@@ -170,7 +197,9 @@ export default function PhotoManager({ villaId, initialPhotos, onChange }: Props
             onDragStart={onDragStart(idx)}
             onDragOver={onDragOver()}
             onDrop={onDrop(idx)}
-            className={`relative rounded-lg border overflow-hidden bg-muted/20 ${selectMode && selected[idx] ? "ring-2 ring-primary" : ""}`}
+            className={`relative rounded-lg border overflow-hidden bg-muted/20 ${
+              selectMode && selected[idx] ? "ring-2 ring-primary" : ""
+            }`}
             title="Sırayı değiştirmek için sürükleyin"
           >
             {/* Kapak rozeti: ilk foto */}
@@ -207,8 +236,8 @@ export default function PhotoManager({ villaId, initialPhotos, onChange }: Props
 
       <p className="text-xs text-muted-foreground">
         İpucu: Fotoğrafları sürükleyerek sıralayın. <b>İlk fotoğraf kapak</b> olarak kullanılır.
-        Silmek için
-        <b> Seçim Modu</b>nu açıp görselleri işaretleyin ve <b>Seçilileri Sil</b> butonunu kullanın.
+        Silmek için <b>Seçim Modu</b>nu açıp görselleri işaretleyin ve <b>Seçilileri Sil</b>{" "}
+        butonunu kullanın.
       </p>
     </div>
   );

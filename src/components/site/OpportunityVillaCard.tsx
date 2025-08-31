@@ -59,8 +59,10 @@ export default function OpportunityVillaCard({
         </div>
 
         {/* İçerik */}
+        <div className="text-center bg-orange-500 text-white text-xs py-1">
+          <h3 className="truncate font-semibold font-mono">{villaName}</h3>
+        </div>
         <div className="p-3 space-y-2">
-          <h3 className="font-semibold text-sm truncate">{villaName}</h3>
           {(province || district || neighborhood) && (
             <p className="text-xs text-gray-500 truncate">
               {[province, district, neighborhood].filter(Boolean).join(" / ")}

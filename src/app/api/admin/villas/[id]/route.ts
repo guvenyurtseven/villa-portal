@@ -1,9 +1,10 @@
+// src/app/api/admin/villas/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-// Formların gönderdiği boolean özellik anahtarları
+// Formların gönderdiği boolean özellik anahtarları (villa kolonları)
 const FEATURE_KEYS = [
   "heated_pool",
   "sheltered_pool",
@@ -30,7 +31,38 @@ const FEATURE_KEYS = [
   "pet_friendly",
 ] as const;
 
-export async function POST(req: NextRequest) {
+type PhotoRow = {
+  id: string;
+  url: string;
+  is_primary: boolean | null;
+  order_index: number | null;
+};
+
+function hasOwn<T extends object>(obj: T, key: string) {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+// --- GET (sağlık kontrolü / basit test) ---
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
+  return NextResponse.json({ ok: true, id });
+}
+
+/**
+ * PATCH /api/admin/villas/:id
+ * Sadece gönderilen alanları günceller.
+ * Beklenen payload (örnek):
+ * {
+ *   villa?: Partial<...villa kolonları...>,
+ *   photos?: Array<{ id?: string; url: string; is_primary: boolean; order_index: number }>,
+ *   categoryIds?: string[]
+ * }
+ */
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
+
   const supabase = createServiceRoleClient();
 
   let payload: any = {};
@@ -40,103 +72,213 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Geçersiz JSON" }, { status: 400 });
   }
 
-  const { villa, photos = [], categoryIds } = payload || {};
-  if (!villa?.name) {
-    return NextResponse.json({ error: "İsim zorunlu" }, { status: 400 });
+  const { villa, photos, categoryIds } = payload || {};
+
+  // 1) VİLLA alanları (yalnızca gönderilen property'ler)
+  if (villa && typeof villa === "object") {
+    const v: Record<string, any> = {};
+
+    // Temel metin/sayı/boolean alanlar — alan gönderildiyse güncelle
+    const simpleKeys = [
+      "name",
+      "description",
+      "bedrooms",
+      "bathrooms",
+      "has_pool",
+      "sea_distance",
+      "lat",
+      "lng",
+      "is_hidden",
+      "priority",
+      "cleaning_fee",
+      "capacity",
+      "province",
+      "district",
+      "neighborhood",
+      // document_number: create'te set, edit'te YOK SAYIYORUZ
+    ];
+
+    for (const k of simpleKeys) {
+      if (hasOwn(villa, k)) {
+        v[k] = villa[k];
+      }
+    }
+
+    // Boolean feature alanları
+    for (const k of FEATURE_KEYS) {
+      if (hasOwn(villa, k)) v[k] = !!villa[k];
+    }
+
+    // document_number edit'te güncellenmez (bilerek ignore)
+    // if (hasOwn(villa, "document_number")) { /* ignore */ }
+
+    // Tip normalizasyonları
+    if (hasOwn(v, "name") && typeof v.name === "string") v.name = v.name.trim();
+    if (hasOwn(v, "priority") && v.priority != null) {
+      v.priority = Math.min(5, Math.max(1, Number(v.priority)));
+    }
+    if (hasOwn(v, "bedrooms") && v.bedrooms != null) v.bedrooms = Number(v.bedrooms);
+    if (hasOwn(v, "bathrooms") && v.bathrooms != null) v.bathrooms = Number(v.bathrooms);
+    if (hasOwn(v, "cleaning_fee") && v.cleaning_fee != null)
+      v.cleaning_fee = Math.max(0, Number(v.cleaning_fee));
+    if (hasOwn(v, "capacity") && v.capacity != null) v.capacity = Number(v.capacity);
+    if (hasOwn(v, "lat")) v.lat = v.lat === "" || v.lat == null ? null : Number(v.lat);
+    if (hasOwn(v, "lng")) v.lng = v.lng === "" || v.lng == null ? null : Number(v.lng);
+
+    // herhangi bir alan geldiyse updated_at'i güncelle
+    if (Object.keys(v).length > 0) {
+      v.updated_at = new Date().toISOString();
+      const { error: upErr } = await supabase.from("villas").update(v).eq("id", id);
+      if (upErr) {
+        return NextResponse.json(
+          { error: `Villa güncellenemedi: ${upErr.message}` },
+          { status: 500 },
+        );
+      }
+    }
   }
 
-  // --- YENİ: Belge numarası yalnızca oluşturma esnasında zorunlu ---
-  // Hem payload.document_number hem de villa.document_number üzerinden destek veriyoruz.
-  const documentNumberRaw =
-    typeof villa?.document_number === "string" && villa.document_number.trim()
-      ? villa.document_number.trim()
-      : typeof payload?.document_number === "string"
-        ? payload.document_number.trim()
-        : "";
+  // 2) FOTOĞRAFLAR (yalnızca değişiklik)
+  if (Array.isArray(photos)) {
+    // Mevcut fotoğrafları çek
+    const { data: existingPhotos, error: exPhErr } = await supabase
+      .from("villa_photos")
+      .select("id, url, is_primary, order_index")
+      .eq("villa_id", id)
+      .order("order_index", { ascending: true });
 
-  if (!documentNumberRaw) {
-    return NextResponse.json({ error: "Belge numarası zorunludur" }, { status: 400 });
+    if (exPhErr) {
+      return NextResponse.json(
+        { error: `Fotoğraflar alınamadı: ${exPhErr.message}` },
+        { status: 500 },
+      );
+    }
+
+    const existingById = new Map<string, PhotoRow>();
+    (existingPhotos || []).forEach((p) => existingById.set(p.id, p));
+
+    // Payload'dan gelenleri ayır: yeni / mevcut
+    const incomingWithId = photos.filter((p: any) => p.id);
+    const incomingIds = new Set(incomingWithId.map((p: any) => String(p.id)));
+
+    const toDelete = (existingPhotos || [])
+      .filter((p) => !incomingIds.has(p.id)) // payload'da artık yoksa sil
+      .map((p) => p.id);
+
+    // Silinecekler
+    if (toDelete.length > 0) {
+      const { error: delErr } = await supabase.from("villa_photos").delete().in("id", toDelete);
+      if (delErr) {
+        return NextResponse.json(
+          { error: `Foto silme hatası: ${delErr.message}` },
+          { status: 500 },
+        );
+      }
+    }
+
+    // Güncellenecek mevcutlar (sıra/kapak/url değişmiş mi?)
+    for (const p of incomingWithId) {
+      const prev = existingById.get(String(p.id));
+      if (!prev) continue;
+      const nextOrder = Number(p.order_index ?? 0);
+      const nextPrimary = !!p.is_primary;
+      const nextUrl = String(p.url);
+
+      const needUpdate =
+        (prev.order_index ?? 0) !== nextOrder ||
+        !!prev.is_primary !== nextPrimary ||
+        prev.url !== nextUrl;
+
+      if (needUpdate) {
+        const { error: updErr } = await supabase
+          .from("villa_photos")
+          .update({
+            url: nextUrl,
+            is_primary: nextPrimary,
+            order_index: nextOrder,
+          })
+          .eq("id", prev.id);
+        if (updErr) {
+          return NextResponse.json(
+            { error: `Foto güncellenemedi (${prev.id}): ${updErr.message}` },
+            { status: 500 },
+          );
+        }
+      }
+    }
+
+    // Yeni eklenecekler (id yok)
+    const newOnes = photos.filter((p: any) => !p.id);
+    if (newOnes.length > 0) {
+      const rows = newOnes.map((p: any, i: number) => ({
+        villa_id: id,
+        url: String(p.url),
+        is_primary: !!p.is_primary,
+        order_index: Number(p.order_index ?? i),
+      }));
+      const { error: insErr } = await supabase.from("villa_photos").insert(rows);
+      if (insErr) {
+        return NextResponse.json({ error: `Foto eklenemedi: ${insErr.message}` }, { status: 500 });
+      }
+    }
   }
-  // --- /YENİ ---
 
-  // villa alanlarını derle (weekly_price KALDIRILDI)
-  const data: any = {
-    name: String(villa.name).trim(),
-    description: villa.description ?? null,
-    bedrooms: typeof villa.bedrooms === "number" ? villa.bedrooms : Number(villa.bedrooms || 0),
-    bathrooms: typeof villa.bathrooms === "number" ? villa.bathrooms : Number(villa.bathrooms || 0),
-    has_pool: !!villa.has_pool,
-    sea_distance: villa.sea_distance ?? null,
-    lat: villa.lat === null || villa.lat === "" ? null : Number(villa.lat),
-    lng: villa.lng === null || villa.lng === "" ? null : Number(villa.lng),
-    is_hidden: !!villa.is_hidden,
-    priority: Math.min(5, Math.max(1, Number(villa.priority || 1))),
-    cleaning_fee:
-      typeof villa.cleaning_fee === "number" ? villa.cleaning_fee : Number(villa.cleaning_fee || 0),
-    capacity: typeof villa.capacity === "number" ? villa.capacity : Number(villa.capacity || 4),
-    province: villa.villa?.province?.trim() || null,
-    district: villa.villa?.district?.trim() || null,
-    neighborhood: villa.villa?.neighborhood?.trim() || null,
+  // 3) KATEGORİLER (yalnızca farkları uygula)
+  if (Array.isArray(categoryIds)) {
+    const { data: existingLinks, error: linkErr } = await supabase
+      .from("villa_categories")
+      .select("category_id")
+      .eq("villa_id", id);
 
-    // --- YENİ: document_number'ı yalnızca create akışında set ediyoruz
-    // reference_code'u ASLA burada göndermiyoruz; DB trigger üretiyor.
-    document_number: documentNumberRaw,
-  };
+    if (linkErr) {
+      return NextResponse.json(
+        { error: `Kategori bağlantıları alınamadı: ${linkErr.message}` },
+        { status: 500 },
+      );
+    }
 
-  // boolean özellikleri ekle
-  for (const k of FEATURE_KEYS) data[k] = !!villa[k];
+    const currentSet = new Set((existingLinks || []).map((r) => r.category_id));
+    const nextSet = new Set(categoryIds);
 
-  // 1) villa insert (reference_code gönderilmez; trigger otomatik üretir)
-  const { data: inserted, error: insErr } = await supabase
-    .from("villas")
-    .insert(data)
-    .select("id") // id'yi geri almak için select kullan
-    .single();
+    const toAdd: string[] = [];
+    const toRemove: string[] = [];
 
-  if (insErr || !inserted) {
-    console.error(insErr);
-    return NextResponse.json({ error: "Villa oluşturulamadı" }, { status: 500 });
+    // Eklenecekler
+    for (const cid of nextSet) if (!currentSet.has(cid)) toAdd.push(cid);
+    // Silinecekler
+    for (const cid of currentSet) if (!nextSet.has(cid)) toRemove.push(cid);
+
+    if (toAdd.length > 0) {
+      const rows = toAdd.map((cid) => ({ villa_id: id, category_id: cid }));
+      const { error: aErr } = await supabase.from("villa_categories").insert(rows);
+      if (aErr) {
+        return NextResponse.json(
+          { error: `Kategori eklenemedi: ${aErr.message}` },
+          { status: 500 },
+        );
+      }
+    }
+    if (toRemove.length > 0) {
+      const { error: rErr } = await supabase
+        .from("villa_categories")
+        .delete()
+        .eq("villa_id", id)
+        .in("category_id", toRemove);
+      if (rErr) {
+        return NextResponse.json(
+          { error: `Kategori silinemedi: ${rErr.message}` },
+          { status: 500 },
+        );
+      }
+    }
   }
 
-  const villaId = inserted.id;
-
-  // 2) foto ekleme (varsa)
-  if (Array.isArray(photos) && photos.length > 0) {
-    const rows = photos.map((p: any, i: number) => ({
-      villa_id: villaId,
-      url: String(p.url),
-      is_primary: !!p.is_primary,
-      order_index: p.order_index ?? i,
-    }));
-    const { error: phErr } = await supabase.from("villa_photos").insert(rows);
-    if (phErr) console.error("photo insert error", phErr);
-  }
-
-  // 3) kategori linkleri (opsiyonel)
-  if (Array.isArray(categoryIds) && categoryIds.length > 0) {
-    const linkRows = categoryIds.map((cid: string) => ({ villa_id: villaId, category_id: cid }));
-    const { error: linkErr } = await supabase.from("villa_categories").insert(linkRows);
-    if (linkErr) console.error("category link insert error", linkErr);
-  }
-
-  return NextResponse.json({ id: villaId });
-}
-
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }, // <-- params artık Promise
-) {
-  const { id } = await params; // <-- await et
-  if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
-  return NextResponse.json({ ok: true, id });
+  return NextResponse.json({ ok: true });
 }
 
 // DELETE /api/admin/villas/:id
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }, // <-- Promise
-) {
-  const { id } = await params; // <-- await et
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   if (!id) {
     return NextResponse.json({ error: "Villa id eksik" }, { status: 400 });
   }
@@ -173,6 +315,5 @@ export async function DELETE(
     );
   }
 
-  // 204 No Content
   return new NextResponse(null, { status: 204 });
 }

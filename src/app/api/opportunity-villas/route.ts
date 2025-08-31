@@ -1,6 +1,16 @@
+// src/app/api/opportunity-villas/route.ts
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import { addDays, format, parseISO, startOfDay } from "date-fns";
+import {
+  addDays,
+  format,
+  parseISO,
+  differenceInCalendarDays,
+  isBefore,
+  isAfter,
+  max as dateMax,
+  min as dateMin,
+} from "date-fns";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,216 +21,263 @@ type PricingPeriod = {
   nightly_price: number;
 };
 
-type Photo = {
-  url: string;
-  is_primary: boolean | null;
-  order_index: number | null;
-};
+type PhotoRow = { url: string; is_primary: boolean | null; order_index: number | null };
 
 type VillaRow = {
   id: string;
   name: string;
-  capacity: number | null;
   province: string | null;
   district: string | null;
   neighborhood: string | null;
-  villa_photos: Photo[] | null;
-  villa_pricing_periods: PricingPeriod[] | null;
-  bedrooms?: number | null; // ← Supabase kolonları (çoğul)
-  bathrooms?: number | null;
+  capacity: number | null;
+  priority: number | null;
+  villa_photos: PhotoRow[] | null;
 };
+
+type BusyRange = { start: string; end: string }; // [start, end) ISO yyyy-MM-dd
+type Gap = {
+  startDate: string; // check-in (prev checkout)
+  endDate: string; // check-out (next check-in) — DÜZELTİLDİ
+  nights: number;
+  totalPrice: number | null;
+  nightlyPrice: number | null;
+};
+
+const RANGE_RE = /^\[([0-9]{4}-[0-9]{2}-[0-9]{2}),([0-9]{4}-[0-9]{2}-[0-9]{2})[\)\]]$/;
+
+// Konfigürasyon
+const WINDOW_DAYS = 60; // bugünden itibaren bakılacak ufuk
+const MIN_NIGHTS = 2;
+const MAX_NIGHTS = 7;
+
+function parsePgRange(r: string | null | undefined): BusyRange | null {
+  if (!r) return null;
+  const m = String(r).match(RANGE_RE);
+  if (!m) return null;
+  const [_, s, e] = m;
+  return { start: s, end: e }; // Postgres daterange varsayılanı [start, end)
+}
+
+function mergeOverlaps(ranges: BusyRange[]): BusyRange[] {
+  if (ranges.length <= 1) return ranges.slice();
+  const sorted = ranges
+    .slice()
+    .sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
+
+  const out: BusyRange[] = [];
+  let cur = { ...sorted[0] };
+  for (let i = 1; i < sorted.length; i++) {
+    const nxt = sorted[i];
+    // cur: [cur.start, cur.end)  nxt: [nxt.start, nxt.end)
+    if (nxt.start <= cur.end) {
+      // ÇAKIŞIYOR veya bitişik — birleşir
+      cur.end = cur.end > nxt.end ? cur.end : nxt.end;
+    } else {
+      out.push(cur);
+      cur = { ...nxt };
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+function gapBetween(a: BusyRange, b: BusyRange): BusyRange | null {
+  // a.end .. b.start arası boşluk
+  if (a.end >= b.start) return null;
+  // [start, end) — tam istenen: giriş = önceki checkout, çıkış = sonraki check-in
+  return { start: a.end, end: b.start };
+}
+
+function clampToWindow(r: BusyRange, winStart: Date, winEnd: Date): BusyRange | null {
+  const rs = parseISO(r.start);
+  const re = parseISO(r.end);
+  // boş veya tamamen dışarıdaysa yok say
+  if (isAfter(rs, winEnd) || isBefore(re, winStart) || rs >= re) return null;
+  const s = dateMax([rs, winStart]);
+  const e = dateMin([re, winEnd]);
+  if (s >= e) return null;
+  return { start: format(s, "yyyy-MM-dd"), end: format(e, "yyyy-MM-dd") };
+}
+
+function countNights(gap: BusyRange): number {
+  return Math.max(0, differenceInCalendarDays(parseISO(gap.end), parseISO(gap.start)));
+}
+
+function priceCoverageSum(
+  periods: PricingPeriod[],
+  gap: BusyRange,
+): { ok: boolean; total: number } {
+  if (!periods || periods.length === 0) return { ok: false, total: 0 };
+  let cur = parseISO(gap.start);
+  const end = parseISO(gap.end);
+  let total = 0;
+  while (cur < end) {
+    const covered = periods.find((p) => {
+      const ps = parseISO(p.start_date);
+      const pe = parseISO(p.end_date);
+      return cur >= ps && cur <= pe;
+    });
+    if (!covered) return { ok: false, total: 0 };
+    total += Number(covered.nightly_price);
+    cur = addDays(cur, 1);
+  }
+  return { ok: true, total };
+}
 
 export async function GET() {
   try {
-    const supabase = createServiceRoleClient();
-    const today = startOfDay(new Date());
-    const endDate = addDays(today, 30);
+    const supa = createServiceRoleClient();
 
-    // Gizli olmayan villaları çek (yalnızca gerekli alanlar)
-    const { data: villas, error } = await supabase
+    const today = new Date();
+    const winStart = today;
+    const winEnd = addDays(today, WINDOW_DAYS);
+
+    // 1) Aday villalar
+    const { data: villas, error: vErr } = await supa
       .from("villas")
       .select(
         `
-        id,
-        name,
-        capacity,
-        bedrooms,
-        bathrooms,
-        province,
-        district,
-        neighborhood,
-        villa_photos(url, is_primary, order_index),
-        villa_pricing_periods(start_date, end_date, nightly_price)
+        id, name, province, district, neighborhood, capacity, priority,
+        villa_photos(url, is_primary, order_index)
       `,
       )
       .eq("is_hidden", false)
-      .limit(15);
+      .order("priority", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(24);
 
-    if (error) {
-      console.error("Error fetching villas:", error);
+    if (vErr) {
+      console.error("villas error:", vErr);
       return NextResponse.json([]);
     }
+    if (!villas || villas.length === 0) return NextResponse.json([]);
 
-    if (!villas || villas.length === 0) {
-      return NextResponse.json([]);
-    }
+    const villaIds = villas.map((v) => v.id);
 
-    const opportunityVillas: Array<{
+    // 2) Rezervasyonlar + blokkajlar + fiyat dönemleri
+    const [resv, blks, priceRows] = await Promise.all([
+      supa
+        .from("reservations")
+        .select("villa_id, date_range")
+        .eq("status", "confirmed")
+        .in("villa_id", villaIds),
+      supa.from("blocked_dates").select("villa_id, date_range").in("villa_id", villaIds),
+      supa
+        .from("villa_pricing_periods")
+        .select("villa_id, start_date, end_date, nightly_price")
+        .in("villa_id", villaIds),
+    ]);
+
+    const byVillaBusy: Record<string, BusyRange[]> = {};
+    (resv.data || []).forEach((r: any) => {
+      const pr = parsePgRange(r.date_range);
+      if (pr) (byVillaBusy[r.villa_id] ||= []).push(pr);
+    });
+    (blks.data || []).forEach((b: any) => {
+      const pr = parsePgRange(b.date_range);
+      if (pr) (byVillaBusy[b.villa_id] ||= []).push(pr);
+    });
+
+    const byVillaPrices: Record<string, PricingPeriod[]> = {};
+    (priceRows.data || []).forEach((p: any) => {
+      (byVillaPrices[p.villa_id] ||= []).push({
+        start_date: p.start_date,
+        end_date: p.end_date,
+        nightly_price: Number(p.nightly_price),
+      });
+    });
+
+    // 3) Fırsat boşlukları
+    const out: Array<{
       id: string;
       name: string;
-      capacity: number;
-      photo?: string | null;
-      province?: string | null;
-      district?: string | null;
-      neighborhood?: string | null;
-      opportunities: Array<{
-        startDate: string;
-        endDate: string;
-        nights: number;
-        totalPrice: number;
-        nightlyPrice: number;
-      }>;
-      // Tekil + çoğul alanları birlikte döndürüyoruz (UI esnekliği için)
-      bedroom?: number | null;
-      bathroom?: number | null;
-      bedrooms?: number | null;
-      bathrooms?: number | null;
+      province: string | null;
+      district: string | null;
+      neighborhood: string | null;
+      images: string[];
+      opportunities: Gap[];
+      priority: number | null;
+      capacity: number | null;
     }> = [];
 
-    // Her villa için rezervasyonları ve blokajları çekip boşlukları hesapla
     for (const v of villas as VillaRow[]) {
-      // Fiyat dönemi yoksa atla
-      if (!v.villa_pricing_periods || v.villa_pricing_periods.length === 0) {
-        continue;
-      }
+      const busyRaw = mergeOverlaps((byVillaBusy[v.id] || []).map((r) => r));
 
-      // Bu villa için rezervasyonlar
-      const { data: reservations } = await supabase
-        .from("reservations")
-        .select("date_range")
-        .eq("villa_id", v.id)
-        .eq("status", "confirmed");
+      // pencereye göre kıs
+      const busy = busyRaw
+        .map((r) => clampToWindow(r, winStart, winEnd))
+        .filter((x): x is BusyRange => !!x);
 
-      // Bu villa için bloke tarihler
-      const { data: blockedDates } = await supabase
-        .from("blocked_dates")
-        .select("date_range")
-        .eq("villa_id", v.id);
-
-      // Dolu günleri hesapla (rezervasyon + blokaj iç günleri)
-      const unavailableDays = new Set<string>();
-
-      const pushRangeDays = (range?: string | null) => {
-        const m = range?.match(/\[(\d{4}-\d{2}-\d{2}),(\d{4}-\d{2}-\d{2})\)/);
-        if (!m) return;
-        try {
-          const start = parseISO(m[1]);
-          const end = parseISO(m[2]);
-          let cur = new Date(start);
-          while (cur < end) {
-            unavailableDays.add(format(cur, "yyyy-MM-dd"));
-            cur = addDays(cur, 1);
-          }
-        } catch (e) {
-          console.error("Parse error:", e);
-        }
+      // sentinel aralıklar (pencere sınırları)
+      const sentinelStart: BusyRange = {
+        start: format(winStart, "yyyy-MM-dd"),
+        end: format(winStart, "yyyy-MM-dd"),
       };
+      const sentinelEnd: BusyRange = {
+        start: format(winEnd, "yyyy-MM-dd"),
+        end: format(winEnd, "yyyy-MM-dd"),
+      };
+      const timeline = [sentinelStart, ...busy, sentinelEnd].sort((a, b) =>
+        a.start < b.start ? -1 : a.start > b.start ? 1 : 0,
+      );
+      const merged = mergeOverlaps(timeline);
 
-      reservations?.forEach((r: any) => pushRangeDays(r.date_range));
-      blockedDates?.forEach((b: any) => pushRangeDays(b.date_range));
+      const gaps: Gap[] = [];
+      for (let i = 0; i < merged.length - 1; i++) {
+        const a = merged[i];
+        const b = merged[i + 1];
+        const gap = gapBetween(a, b); // [a.end, b.start)
+        if (!gap) continue;
 
-      // Boşlukları bul (önümüzdeki 30 gün içinde en fazla 3 fırsat)
-      const gaps: Array<{
-        startDate: string;
-        endDate: string;
-        nights: number;
-        totalPrice: number;
-        nightlyPrice: number;
-      }> = [];
+        const nights = countNights(gap);
+        if (nights < MIN_NIGHTS || nights > MAX_NIGHTS) continue;
 
-      let cursor = new Date(today);
-      while (cursor < endDate && gaps.length < 1) {
-        const cursorStr = format(cursor, "yyyy-MM-dd");
+        const prices = byVillaPrices[v.id] || [];
+        const { ok, total } = priceCoverageSum(prices, gap);
+        if (!ok) continue;
 
-        if (!unavailableDays.has(cursorStr)) {
-          let gapEnd = new Date(cursor);
-          let gapDays = 0;
-
-          // 7 güne kadar uygun günleri sırayla say
-          while (gapEnd < endDate && gapDays < 7) {
-            const dStr = format(gapEnd, "yyyy-MM-dd");
-            if (unavailableDays.has(dStr)) break;
-
-            // Bu gün için tanımlı bir fiyat dönemi olmalı
-            const hasPrice = v.villa_pricing_periods!.some((p) => {
-              const ps = parseISO(p.start_date);
-              const pe = parseISO(p.end_date);
-              return gapEnd >= ps && gapEnd <= pe;
-            });
-            if (!hasPrice) break;
-
-            gapEnd = addDays(gapEnd, 1);
-            gapDays++;
-          }
-
-          // 2–7 gece arası boşlukları değerlendir
-          if (gapDays >= 2 && gapDays <= 7) {
-            // Toplam fiyatı hesapla (dönemlere göre gecelik)
-            let totalPrice = 0;
-            let d = new Date(cursor);
-            for (let i = 0; i < gapDays; i++) {
-              const period = v.villa_pricing_periods!.find((p) => {
-                const ps = parseISO(p.start_date);
-                const pe = parseISO(p.end_date);
-                return d >= ps && d <= pe;
-              });
-              if (period) totalPrice += Number(period.nightly_price);
-              d = addDays(d, 1);
-            }
-
-            if (totalPrice > 0) {
-              gaps.push({
-                startDate: format(cursor, "yyyy-MM-dd"),
-                endDate: format(addDays(cursor, gapDays - 1), "yyyy-MM-dd"),
-                nights: gapDays,
-                totalPrice,
-                nightlyPrice: Math.round(totalPrice / gapDays),
-              });
-            }
-          }
-
-          cursor = addDays(gapEnd, 1);
-        } else {
-          cursor = addDays(cursor, 1);
-        }
+        gaps.push({
+          startDate: gap.start, // GİRİŞ = önceki rezervasyonun checkout’u
+          endDate: gap.end, // ÇIKIŞ = sonraki rezervasyonun check-in’i (DÜZELTİLDİ)
+          nights,
+          totalPrice: total,
+          nightlyPrice: Math.round(total / nights),
+        });
       }
 
       if (gaps.length > 0) {
-        const primaryPhoto =
-          v.villa_photos?.find((p) => p.is_primary)?.url || v.villa_photos?.[0]?.url || null;
+        const photos: PhotoRow[] = v.villa_photos || [];
+        const sorted = photos
+          .slice()
+          .sort((a, b) => {
+            const ap = a?.is_primary ? 0 : 1;
+            const bp = b?.is_primary ? 0 : 1;
+            if (ap !== bp) return ap - bp;
+            return (a?.order_index ?? 999) - (b?.order_index ?? 999);
+          })
+          .map((p) => p.url)
+          .filter(Boolean);
 
-        opportunityVillas.push({
+        out.push({
           id: v.id,
           name: v.name,
-          capacity: v.capacity || 4,
-          // 🔧 Doğru alanlardan oku ve iki isimle de döndür
-          bedroom: v.bedrooms ?? null,
-          bathroom: v.bathrooms ?? null,
-          bedrooms: v.bedrooms ?? null,
-          bathrooms: v.bathrooms ?? null,
-
-          photo: primaryPhoto,
-          province: v.province ?? null,
-          district: v.district ?? null,
-          neighborhood: v.neighborhood ?? null,
+          province: v.province,
+          district: v.district,
+          neighborhood: v.neighborhood,
+          images: sorted.slice(0, 6),
           opportunities: gaps,
+          priority: v.priority ?? null,
+          capacity: v.capacity ?? null,
         });
       }
     }
 
-    return NextResponse.json(opportunityVillas);
-  } catch (error) {
-    console.error("Opportunity villas error:", error);
+    // İstersen priority/nights/tarih kriterleriyle ekstra sıralama yapılabilir
+    out.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+
+    return NextResponse.json(out);
+  } catch (err) {
+    console.error("opportunity-villas error:", err);
     return NextResponse.json([]);
   }
 }

@@ -7,7 +7,7 @@ import { Sparkles } from "lucide-react";
 interface OpportunityVilla {
   id: string;
   name: string;
-  photo?: string;
+  images?: string[];
   province?: string | null;
   district?: string | null;
   neighborhood?: string | null;
@@ -87,7 +87,7 @@ export default function OpportunityVillas() {
               villaId={villa.id}
               villaName={villa.name}
               capacity={villa.capacity}
-              photo={villa.photo}
+              photo={villa.images?.[0]}
               opportunity={opportunity}
               province={villa.province ?? undefined}
               district={villa.district ?? undefined}

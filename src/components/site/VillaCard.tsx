@@ -31,12 +31,14 @@ export default function VillaCard({
       className="group block overflow-hidden rounded-xl border bg-white transition hover:shadow-md"
     >
       <CardGallery images={images} alt={name} />
-      <div className="p-4">
-        <h3 className="truncate font-semibold">{name}</h3>
 
+      <div className="text-center bg-orange-500 text-white py-1">
+        <h3 className="truncate font-semibold font-mono">{name}</h3>
+      </div>
+      <div className="p-4">
         {/* İSİM ALTINDA REFERANS KODU ROZETİ */}
         {reference_code && (
-          <span className="mt-1 inline-block rounded bg-orange-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+          <span className="text-center mt-1 inline-block rounded bg-orange-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
             #{reference_code}
           </span>
         )}

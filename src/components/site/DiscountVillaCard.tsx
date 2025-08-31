@@ -78,14 +78,38 @@ export default function DiscountVillaCard(props: Props) {
         </div>
 
         {/* İçerik */}
+        <div className="text-center bg-orange-500 text-white text-xs py-1">
+          <h3 className="truncate font-semibold font-mono">{villaName}</h3>
+        </div>
         <div className="p-3 space-y-2">
           {/* Başlık + yüzde */}
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-sm truncate">{villaName}</h3>
             {typeof discountPercent === "number" && discountPercent > 0 && (
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">
                 -%{discountPercent}
               </span>
+            )}
+          </div>
+          {/* Fiyat çizgisi */}
+          <div className="mt-1 flex items-end gap-1">
+            {originalAvgNightly && originalAvgNightly > 0 ? (
+              <>
+                <span className="text-xs text-gray-500 line-through">
+                  {tl.format(originalAvgNightly)}
+                </span>
+                <span className="text-xs text-gray-400">→</span>
+                <span className="text-2xl leading-none font-bold text-gray-900">
+                  {tl.format(discountedNightly)}
+                </span>
+                <span className="text-xs text-gray-500 ml-1">/ gece</span>
+              </>
+            ) : (
+              <>
+                <span className="text-2xl leading-none font-bold text-gray-900">
+                  {tl.format(discountedNightly)}
+                </span>
+                <span className="text-xs text-gray-500 ml-1">/ gece</span>
+              </>
             )}
           </div>
 
@@ -122,29 +146,6 @@ export default function DiscountVillaCard(props: Props) {
                 <Bath className="h-4 w-4" />
                 <span>{ba}</span>
               </span>
-            )}
-          </div>
-
-          {/* Fiyat çizgisi */}
-          <div className="mt-1 flex items-end gap-1">
-            {originalAvgNightly && originalAvgNightly > 0 ? (
-              <>
-                <span className="text-xs text-gray-500 line-through">
-                  {tl.format(originalAvgNightly)}
-                </span>
-                <span className="text-xs text-gray-400">→</span>
-                <span className="text-2xl leading-none font-bold text-gray-900">
-                  {tl.format(discountedNightly)}
-                </span>
-                <span className="text-xs text-gray-500 ml-1">/gece</span>
-              </>
-            ) : (
-              <>
-                <span className="text-2xl leading-none font-bold text-gray-900">
-                  {tl.format(discountedNightly)}
-                </span>
-                <span className="text-xs text-gray-500 ml-1">/gece</span>
-              </>
             )}
           </div>
         </div>
