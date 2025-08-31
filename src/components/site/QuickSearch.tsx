@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Portal from "@/components/util/Portal";
+import { encodeSearchState } from "@/lib/shortlink";
 
 type Option = { type: "province" | "district" | "neighborhood"; value: string; label: string };
 type Category = { id: string; name: string; slug: string };
@@ -335,8 +336,17 @@ export default function QuickSearch({
           <Button
             className="w-full bg-orange-500 hover:bg-orange-600"
             onClick={() => {
-              const qs = makeQS();
-              router.push(`/search?${qs}`);
+              const state = {
+                checkin: checkin ? format(checkin, "yyyy-MM-dd") : null,
+                nights,
+                guests,
+                provinces: selP,
+                districts: selD,
+                neighborhoods: selN,
+                categories: selCats,
+              };
+              const s = encodeSearchState(state);
+              router.push(`/search?s=${s}`);
             }}
           >
             Ara

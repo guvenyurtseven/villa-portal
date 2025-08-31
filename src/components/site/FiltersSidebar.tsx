@@ -1,4 +1,4 @@
-// src/components/search/FiltersSidebar.tsx
+// src/components/site/FiltersSidebar.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -10,10 +10,9 @@ import { tr } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CATEGORY_DEFS } from "@/lib/categories"; // kategori isim & slug listesi
+import { encodeSearchState, decodeSearchState } from "@/lib/shortlink";
 
 // Özellik listesi: DB boolean kolon adları + etiket
-// (repo’da /src/lib/features.ts varsa ordan import edebilirsin; yoksa bu listeyi kullan)
 const FEATURES: Array<{ key: string; label: string }> = [
   { key: "private_pool", label: "Özel Havuz" },
   { key: "heated_pool", label: "Isıtmalı Havuz" },
@@ -46,8 +45,8 @@ const GUESTS_MAX = 21;
 const PRICE_MIN = 1000;
 const PRICE_MAX = 100000;
 const PRICE_STEP = 100;
+const MIN_GAP = 100; // min & max arasında en az fark
 
-// --- Kategoriler ---
 type Category = { id: string; name: string; slug: string };
 
 export default function FiltersSidebar() {
@@ -55,28 +54,38 @@ export default function FiltersSidebar() {
   const pathname = usePathname();
   const sp = useSearchParams();
 
-  // URL’den başlangıç değerleri
-  const initCheckin = sp.get("checkin") || undefined;
-  const initNights = Number(sp.get("nights") ?? 7);
-  const initGuests = Number(sp.get("guests") ?? 2);
-  const initP = sp.getAll("province");
-  const initD = sp.getAll("district");
-  const initN = sp.getAll("neighborhood");
-  const initMinPrice = Number(sp.get("minPrice") ?? PRICE_MIN);
-  const initMaxPrice = Number(sp.get("maxPrice") ?? PRICE_MAX);
-  const initFeatures = sp.getAll("feature"); // &feature=heated_pool&feature=sauna ...
+  // 1) s paramı varsa decode edip başlangıç değerlerini ondan al
+  const sState = decodeSearchState(sp.get("s"));
 
-  // URL -> başlangıç kategorileri (slug)
-  const initCats = sp.getAll("category"); // ?category=denize-yakin&category=...
+  // URL’den başlangıç değerleri (sState varsa öncelikli)
+  const initCheckin = (sState?.checkin as string) || sp.get("checkin") || undefined;
+  const initNights = Number(sState?.nights ?? sp.get("nights") ?? 7);
+  const initGuests = Number(sState?.guests ?? sp.get("guests") ?? 2);
+
+  const initP = (sState?.provinces as string[]) ?? sp.getAll("province");
+  const initD = (sState?.districts as string[]) ?? sp.getAll("district");
+  const initN = (sState?.neighborhoods as string[]) ?? sp.getAll("neighborhood");
+
+  const initCats = (sState?.categories as string[]) ?? sp.getAll("category");
+
+  const initFeatures = (sState?.features as string[]) ?? sp.getAll("feature"); // &feature=... (geri uyum)
+
+  const initMinPriceRaw = Number(
+    (sState?.price_min as number | undefined) ??
+      sp.get("price_min") ??
+      sp.get("minPrice") ??
+      PRICE_MIN,
+  );
+  const initMaxPriceRaw = Number(
+    (sState?.price_max as number | undefined) ??
+      sp.get("price_max") ??
+      sp.get("maxPrice") ??
+      PRICE_MAX,
+  );
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCats, setSelectedCats] = useState<string[]>(initCats);
-
-  // Kategoriler popover & seçim
   const [openCats, setOpenCats] = useState(false);
-  const [selCats, setSelCats] = useState<string[]>(initCats);
-  function toggleCat(slug: string) {
-    setSelCats((prev) => (prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]));
-  }
 
   // Bölge popover state
   const [openRegion, setOpenRegion] = useState(false);
@@ -109,15 +118,21 @@ export default function FiltersSidebar() {
   const [featureSet, setFeatureSet] = useState<Set<string>>(new Set(initFeatures));
 
   // Price range (double thumb)
-  const [minPrice, setMinPrice] = useState<number>(initMinPrice);
-  const [maxPrice, setMaxPrice] = useState<number>(initMaxPrice);
+  const clampedInitMin = Math.max(
+    PRICE_MIN,
+    Math.min(initMinPriceRaw, initMaxPriceRaw - PRICE_STEP),
+  );
+  const clampedInitMax = Math.min(
+    PRICE_MAX,
+    Math.max(initMaxPriceRaw, initMinPriceRaw + PRICE_STEP),
+  );
+  const [minPrice, setMinPrice] = useState<number>(clampedInitMin);
+  const [maxPrice, setMaxPrice] = useState<number>(clampedInitMax);
 
-  // Bölge autocomplete
   // Bölge autocomplete
   useEffect(() => {
     const ctrl = new AbortController();
     let cancelled = false;
-
     (async () => {
       try {
         const res = await fetch(`/api/locations?q=${encodeURIComponent(query)}`, {
@@ -134,13 +149,13 @@ export default function FiltersSidebar() {
         console.error("locations load error:", err);
       }
     })();
-
     return () => {
       cancelled = true;
       ctrl.abort();
     };
   }, [query]);
 
+  // Kategorileri yükle
   useEffect(() => {
     let abort = false;
     (async () => {
@@ -149,9 +164,7 @@ export default function FiltersSidebar() {
         if (!res.ok) return;
         const json = await res.json();
         if (!abort) setCategories(json?.items ?? json ?? []);
-      } catch (_) {
-        // yut
-      }
+      } catch {}
     })();
     return () => {
       abort = true;
@@ -172,7 +185,6 @@ export default function FiltersSidebar() {
   const today = startOfDay(new Date());
   const pastDaysMatcher = { before: today };
 
-  // Feature toggle
   function toggleFeature(key: string) {
     const s = new Set(featureSet);
     if (s.has(key)) s.delete(key);
@@ -180,37 +192,56 @@ export default function FiltersSidebar() {
     setFeatureSet(s);
   }
 
-  // Price slider overlap koruması
-  const minGap = 100; // en az 100₺ fark
   function onMinPriceChange(val: number) {
-    setMinPrice(Math.min(val, maxPrice - minGap));
+    setMinPrice(Math.min(Math.max(PRICE_MIN, val), Math.max(PRICE_MIN, maxPrice - MIN_GAP)));
   }
   function onMaxPriceChange(val: number) {
-    setMaxPrice(Math.max(val, minPrice + minGap));
+    setMaxPrice(Math.max(Math.min(PRICE_MAX, val), Math.min(PRICE_MAX, minPrice + MIN_GAP)));
   }
 
-  // ARAMA
+  // Normal ARAMA (şeffaf paramlarla)
+  // Mevcut handleSearch() FONKSİYONUNU tamamen bununla değiştir
   function handleSearch() {
-    const params = new URLSearchParams();
+    const state = {
+      checkin: checkin ? format(checkin, "yyyy-MM-dd") : null,
+      nights,
+      guests,
+      provinces: selP,
+      districts: selD,
+      neighborhoods: selN,
+      categories: selectedCats,
+      features: Array.from(featureSet),
+      price_min: minPrice,
+      price_max: maxPrice,
+    };
+    const s = encodeSearchState(state);
+    router.push(`${pathname}?s=${s}`, { scroll: false });
+  }
 
-    selP.forEach((v) => params.append("province", v));
-    selD.forEach((v) => params.append("district", v));
-    selN.forEach((v) => params.append("neighborhood", v));
-    selCats.forEach((slug) => params.append("category", slug));
-    selectedCats.forEach((slug) => params.append("category", slug));
-
-    if (checkin) params.set("checkin", format(checkin, "yyyy-MM-dd"));
-    params.set("nights", String(nights));
-    params.set("guests", String(guests));
-
-    FEATURES.forEach((f) => {
-      if (featureSet.has(f.key)) params.append("feature", f.key);
-    });
-
-    params.set("minPrice", String(minPrice));
-    params.set("maxPrice", String(maxPrice));
-
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  // KISA LİNK üret ve panoya kopyala
+  async function handleCopyShortLink() {
+    const state = {
+      checkin: checkin ? format(checkin, "yyyy-MM-dd") : null,
+      nights,
+      guests,
+      provinces: selP,
+      districts: selD,
+      neighborhoods: selN,
+      categories: selectedCats,
+      features: Array.from(featureSet),
+      price_min: minPrice,
+      price_max: maxPrice,
+    };
+    const s = encodeSearchState(state);
+    const shortUrl = `${window.location.origin}${pathname}?s=${s}`;
+    try {
+      await navigator.clipboard.writeText(shortUrl);
+      alert("Kısa link kopyalandı!");
+    } catch {
+      // Bazı ortamlarda izin kısıtları olabilir
+      // (Gerekirse burada fallback uygulanabilir.)
+      alert(shortUrl);
+    }
   }
 
   return (
@@ -322,15 +353,11 @@ export default function FiltersSidebar() {
         {openCal && (
           <div className="absolute z-[70] mt-1 w-[34rem] rounded-md border bg-white p-3 shadow-xl">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium">Kalınacak Gece Sasyısı?</span>
+              <span className="text-sm font-medium">Kalınacak Gece Sayısı?</span>
               <select
                 value={nights}
                 onChange={(e) => {
                   const n = Math.max(NIGHTS_MIN, Math.min(NIGHTS_MAX, Number(e.target.value)));
-                  // nights değişince checkout otomatik güncellenecek (memo)
-                  // checkin seçili değilse sadece state güncellenir
-                  // görsel amaçlı yeterli
-
                   setNights(n);
                 }}
                 className="border rounded px-2 py-2 text-sm"
@@ -356,7 +383,6 @@ export default function FiltersSidebar() {
               className="rdp-vertical-lg"
               style={
                 {
-                  // TS için cast gerekli olabilir:
                   ["--rdp-cell-size" as any]: "34px",
                 } as React.CSSProperties
               }
@@ -364,21 +390,20 @@ export default function FiltersSidebar() {
                 months: {
                   display: "grid",
                   gridTemplateColumns: "1fr 1fr",
-                  gap: "24px", // iki ay arası boşluk
+                  gap: "24px",
                   margin: 0,
                 },
                 month: { margin: 0 },
-                head_cell: { fontWeight: 700 }, // gün kısaltmaları kalın
+                head_cell: { fontWeight: 700 },
                 caption_label: { fontWeight: 700, fontSize: "1.1rem" },
                 table: { width: "100%" },
               }}
-              /* görsel tarama: giriş + nights-1 */
               modifiers={{
                 range:
                   checkin && checkout
                     ? { from: checkin, to: addDays(checkin, nights - 1) }
                     : undefined,
-                disabled: { before: new Date() }, // geçmiş günleri kilitle
+                disabled: { before: new Date() },
               }}
               modifiersStyles={{
                 range: { backgroundColor: "rgba(251,146,60,.18)" },
@@ -505,7 +530,6 @@ export default function FiltersSidebar() {
           {/* Turuncu seçili aralık barı */}
           <div
             className="range-progress"
-            /* MIN/MAX’i kendi state’inize göre hesaplayın */
             style={{
               left: `${((minPrice - PRICE_MIN) / (PRICE_MAX - PRICE_MIN)) * 100}%`,
               right: `${100 - ((maxPrice - PRICE_MIN) / (PRICE_MAX - PRICE_MIN)) * 100}%`,
@@ -519,10 +543,7 @@ export default function FiltersSidebar() {
             max={PRICE_MAX}
             step={PRICE_STEP}
             value={minPrice}
-            onChange={(e) => {
-              const v = Math.min(Number(e.target.value), maxPrice - PRICE_STEP);
-              setMinPrice(v);
-            }}
+            onChange={(e) => onMinPriceChange(Number(e.target.value))}
             className="range-input z-20"
             aria-label="Minimum fiyat"
           />
@@ -534,10 +555,7 @@ export default function FiltersSidebar() {
             max={PRICE_MAX}
             step={PRICE_STEP}
             value={maxPrice}
-            onChange={(e) => {
-              const v = Math.max(Number(e.target.value), minPrice + PRICE_STEP);
-              setMaxPrice(v);
-            }}
+            onChange={(e) => onMaxPriceChange(Number(e.target.value))}
             className="range-input z-10"
             aria-label="Maksimum fiyat"
           />
@@ -569,6 +587,35 @@ export default function FiltersSidebar() {
         </Button>
       </div>
 
+      <Button
+        variant="outline"
+        className="w-full mt-2"
+        onClick={async () => {
+          const state = {
+            checkin: checkin ? format(checkin, "yyyy-MM-dd") : null,
+            nights,
+            guests,
+            provinces: selP,
+            districts: selD,
+            neighborhoods: selN,
+            categories: selectedCats,
+            features: Array.from(featureSet),
+            price_min: minPrice,
+            price_max: maxPrice,
+          };
+          const s = encodeSearchState(state);
+          const shortUrl = `${window.location.origin}${pathname}?s=${s}`;
+          try {
+            await navigator.clipboard.writeText(shortUrl);
+            alert("Kısa link kopyalandı!");
+          } catch {
+            alert(shortUrl);
+          }
+        }}
+      >
+        Filtre Linkini Kopyala
+      </Button>
+
       <style jsx global>{`
         /* 2 ayı yan yana; gün kısaltmalarını kalın; iki ay arasında boşluk */
         .rdp-vertical-lg .rdp-months {
@@ -584,6 +631,68 @@ export default function FiltersSidebar() {
         }
         .rdp-vertical-lg .rdp-day {
           font-size: 13px;
+        }
+        /* --- Dual range styles (price slider) --- */
+        .range-wrap {
+          position: relative;
+          height: 36px;
+        }
+        .range-track {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 15px;
+          height: 6px;
+          border-radius: 9999px;
+          background: #e5e7eb; /* gray-200 */
+          pointer-events: none; /* track tıklamayı engellemesin */
+        }
+        .range-progress {
+          position: absolute;
+          top: 15px;
+          height: 6px;
+          border-radius: 9999px;
+          background: rgb(249 115 22); /* orange-500 */
+          pointer-events: none; /* bar tıklamayı engellemesin */
+        }
+        .range-input {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 0;
+          bottom: 0;
+          width: 100%;
+          background: transparent;
+          appearance: none;
+          -webkit-appearance: none;
+        }
+        .range-input::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          height: 16px;
+          width: 16px;
+          border-radius: 9999px;
+          background: #fff;
+          border: 2px solid rgb(249 115 22);
+          cursor: pointer;
+          position: relative;
+          z-index: 30;
+        }
+        .range-input::-moz-range-thumb {
+          height: 16px;
+          width: 16px;
+          border-radius: 9999px;
+          background: #fff;
+          border: 2px solid rgb(249 115 22);
+          cursor: pointer;
+          position: relative;
+          z-index: 30;
+        }
+        .range-input::-webkit-slider-runnable-track {
+          background: transparent;
+        }
+        .range-input::-moz-range-track {
+          background: transparent;
         }
       `}</style>
     </div>
