@@ -104,40 +104,86 @@ export default function VillaCalendarPage() {
     fetchData(villaIdFromRoute);
   }, [villaIdFromRoute]);
 
+  // ---- Yardımcılar: fetchJson + pick + fallback'lı villa çekici ----
+  const fetchJson = async (url: string) => {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) return null;
+    return res.json();
+  };
+
+  const pick = (raw: any): Villa | null => {
+    if (!raw) return null;
+    const v = raw?.villa ?? raw?.data ?? raw;
+    if (!v || typeof v !== "object") return null;
+
+    const photos = Array.isArray(v?.photos)
+      ? v.photos
+      : Array.isArray(v?.villa_photos)
+        ? v.villa_photos
+        : [];
+
+    // Admin endpoint bazen { ok:true, id } gibi eksik dönebilir → fallback'e izin ver
+    if (!v?.name && v?.ok) return null;
+
+    return {
+      id: String(v?.id ?? ""),
+      name: String(v?.name ?? ""),
+      photos: photos.map((p: any) => ({
+        id: p?.id,
+        url: String(p?.url || ""),
+        is_primary: !!p?.is_primary,
+        order_index: p?.order_index ?? null,
+      })),
+    };
+  };
+
+  async function fetchVillaCore(id: string) {
+    // 1) Admin
+    const adminJson = await fetchJson(`/api/admin/villas/${id}`);
+    let cand = pick(adminJson);
+
+    // 2) Public fallback (admin eksik ise)
+    if (!cand || !cand.name || !cand.photos?.length) {
+      const pubJson = await fetchJson(`/api/villas/${id}`);
+      const pub = pick(pubJson);
+      if (pub) cand = { ...cand, ...pub };
+    }
+
+    // 3) Son çare: placeholder
+    return cand ?? { id, name: "(İsimsiz Villa)", photos: [] };
+  }
+
   async function fetchData(id: string) {
     try {
-      // Villa bilgilerini al
-      const villaRes = await fetch(`/api/admin/villas/${id}`);
-      if (!villaRes.ok) {
-        const publicRes = await fetch(`/api/villas/${id}`);
-        const villaData = await publicRes.json();
-        setVilla(villaData);
-      } else {
-        const villaData = await villaRes.json();
-        setVilla(villaData);
-      }
+      // 1) Villa bilgisini fallback+normalize ile çek
+      const villaData = await fetchVillaCore(id);
+      setVilla(villaData);
 
-      // Rezervasyonları al
-      const resRes = await fetch(`/api/reservations?villa_id=${id}`);
+      // 2) Rezervasyonlar
+      const resRes = await fetch(`/api/reservations?villa_id=${id}`, { cache: "no-store" });
       setReservations(toArray<Reservation>(await resRes.json()));
 
-      // Bloke tarihleri al
-      const blockRes = await fetch(`/api/admin/blocked-dates?villa_id=${id}`);
+      // 3) Bloke tarihleri
+      const blockRes = await fetch(`/api/admin/blocked-dates?villa_id=${id}`, {
+        cache: "no-store",
+      });
       setBlockedDates(toArray<BlockedDate>(await blockRes.json()));
 
-      // Fiyat dönemlerini al
-      const pricingRes = await fetch(`/api/admin/pricing-periods?villa_id=${id}`);
+      // 4) Fiyat dönemleri
+      const pricingRes = await fetch(`/api/admin/pricing-periods?villa_id=${id}`, {
+        cache: "no-store",
+      });
       setPricingPeriods(toArray<PricingPeriod>(await pricingRes.json()));
 
-      // İndirim dönemlerini al
+      // 5) İndirim dönemleri
       const discountRes = await fetch(`/api/admin/discount-periods?villa_id=${id}`, {
         cache: "no-store",
       });
       if (discountRes.ok) {
         const json = await discountRes.json();
         setDiscountPeriods(
-          (json.periods || []).sort((a: DiscountPeriod, b: DiscountPeriod) =>
-            a.start_date.localeCompare(b.start_date),
+          (json.periods || []).sort((a: any, b: any) =>
+            String(a.start_date).localeCompare(String(b.start_date)),
           ),
         );
       } else {
@@ -559,19 +605,19 @@ export default function VillaCalendarPage() {
         <CardContent className="p-6">
           <div className="flex items-center gap-6">
             <Image
-              src={primaryPhoto ?? "/placeholder.jpg"}
-              alt={villa?.name ?? "Villa"}
+              src={primaryPhoto}
+              alt={villa?.name || "Villa"}
               width={128}
               height={128}
               className="w-32 h-32 object-cover rounded-lg"
             />
 
             <div className="flex-1">
-              <h1 className="text-2xl font-bold">{villa?.name}</h1>
+              <h1 className="text-2xl font-bold">{villa?.name || "Villa"}</h1>
               <p className="text-sm text-gray-600 mt-1">Fiyat dönemleri aşağıdan tanımlanabilir</p>
             </div>
+
             <Button variant="outline" onClick={() => router.push("/admin/villas")}>
-              <Home className="mr-2 h-4 w-4" />
               Villalar Listesi
             </Button>
           </div>

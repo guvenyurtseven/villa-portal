@@ -237,7 +237,7 @@ export default function QuickSearch({
   return (
     <div className="relative isolate w-full mx-auto rounded-xl border bg-white/80 backdrop-blur p-3 md:p-4 shadow-sm">
       {/* 4 kolon: Bölge | Tarih | Kişi | Kategori | (Ara ayrı satıra düşebilir) */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
         {/* Bölge */}
         <div className="relative">
           <Label className="text-xs">Bölge</Label>

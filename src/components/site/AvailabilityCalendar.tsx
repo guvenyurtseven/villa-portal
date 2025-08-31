@@ -10,6 +10,7 @@ import {
   addDays,
   format,
   isWithinInterval,
+  isBefore,
 } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -17,8 +18,6 @@ import BookingForm from "./BookingForm";
 import { useRouter } from "next/navigation";
 import { DialogDescription } from "@radix-ui/react-dialog";
 import "react-day-picker/dist/style.css";
-
-const LIGHT_ORANGE = "rgba(251, 146, 60, 0.28)"; // #fb923c ~%28 opaklık
 
 // TL biçimleyici
 const tl = new Intl.NumberFormat("tr-TR", {
@@ -196,36 +195,50 @@ export default function AvailabilityCalendar({
     };
   }
 
-  // Check-in/out günlerini ve tamamen dolu günleri ayır
+  // Check-in/out günlerini ve tamamen dolu günleri ayır - GEÇMİŞ FİLTRELEMESİ EKLENDİ
   const checkInDays = useMemo(() => {
     const days: Date[] = [];
     unavailable.forEach((u) => {
       if (u.type === "reserved") {
-        days.push(startOfDay(parseISO(u.start)));
+        const day = startOfDay(parseISO(u.start));
+        if (!isBefore(day, today)) {
+          // Geçmiş değilse
+          days.push(day);
+        }
       }
     });
     return days;
-  }, [unavailable]);
+  }, [unavailable, today]);
 
   const checkOutDays = useMemo(() => {
     const days: Date[] = [];
     unavailable.forEach((u) => {
       if (u.type === "reserved") {
-        days.push(startOfDay(parseISO(u.end)));
+        const day = startOfDay(parseISO(u.end));
+        if (!isBefore(day, today)) {
+          // Geçmiş değilse
+          days.push(day);
+        }
       }
     });
     return days;
-  }, [unavailable]);
+  }, [unavailable, today]);
 
   const turnoverDays = useMemo(() => {
     const inSet = new Set(checkInDays.map((d) => d.getTime()));
     const outSet = new Set(checkOutDays.map((d) => d.getTime()));
     const both: Date[] = [];
     inSet.forEach((t) => {
-      if (outSet.has(t)) both.push(new Date(t));
+      if (outSet.has(t)) {
+        const day = new Date(t);
+        if (!isBefore(day, today)) {
+          // Geçmiş değilse
+          both.push(day);
+        }
+      }
     });
     return both;
-  }, [checkInDays, checkOutDays]);
+  }, [checkInDays, checkOutDays, today]);
 
   const fullyBookedDays = useMemo(() => {
     const days: Date[] = [];
@@ -237,20 +250,26 @@ export default function AvailabilityCalendar({
         // Başlangıç ve bitiş hariç aradaki günler
         let current = addDays(start, 1);
         while (current < end) {
-          days.push(new Date(current));
+          if (!isBefore(current, today)) {
+            // Geçmiş değilse
+            days.push(new Date(current));
+          }
           current = addDays(current, 1);
         }
       } else if (u.type === "blocked") {
         // Bloke günler tamamen dolu
         let current = new Date(start);
         while (current <= end) {
-          days.push(new Date(current));
+          if (!isBefore(current, today)) {
+            // Geçmiş değilse
+            days.push(new Date(current));
+          }
           current = addDays(current, 1);
         }
       }
     });
     return days;
-  }, [unavailable]);
+  }, [unavailable, today]);
 
   // unavailable aralıklarını DayPicker ile uyumlu range'lere çevir
   const unavailableRanges = useMemo(
@@ -286,56 +305,25 @@ export default function AvailabilityCalendar({
     return false;
   }
 
-  // Özel fiyat dönemleri için modifiers
-  const pricingModifiers = useMemo(() => {
-    const modifiers: { [key: string]: Date[] } = {};
-
-    pricingPeriods.forEach((period, index) => {
-      const days: Date[] = [];
-      const start = parseISO(period.start_date);
-      const end = parseISO(period.end_date);
-
-      let current = new Date(start);
-      while (current <= end) {
-        days.push(new Date(current));
-        current = addDays(current, 1);
-      }
-
-      modifiers[`pricing_${index}`] = days;
-    });
-    modifiers["noPrice"] = daysWithoutPrice;
-
-    return modifiers;
-  }, [pricingPeriods, daysWithoutPrice]);
-
-  const discountModifiers = useMemo(() => {
-    const modifiers: { [key: string]: Date[] } = {};
-    discountPeriods.forEach((period, index) => {
-      const days: Date[] = [];
+  // İndirimli günler - geçmiş filtresi eklendi
+  const discountDays = useMemo(() => {
+    const days: Date[] = [];
+    discountPeriods.forEach((period) => {
       const start = parseISO(period.start_date);
       const end = parseISO(period.end_date);
       let current = new Date(start);
       while (current <= end) {
-        days.push(new Date(current));
+        if (!isBefore(current, today)) {
+          // Geçmiş değilse
+          days.push(new Date(current));
+        }
         current = addDays(current, 1);
       }
-      modifiers[`discount_${index}`] = days;
     });
-    return modifiers;
-  }, [discountPeriods]);
+    return days;
+  }, [discountPeriods, today]);
 
-  const discountStyles = useMemo(() => {
-    const styles: { [key: string]: React.CSSProperties } = {};
-    discountPeriods.forEach((_, index) => {
-      styles[`discount_${index}`] = {
-        position: "relative",
-        boxShadow: "inset 0 -4px #ef4444", // kırmızı alt çizgi
-      };
-    });
-    return styles;
-  }, [discountPeriods]);
-
-  // Fırsat günleri için modifier ekle
+  // Fırsat günleri - geçmiş filtresi eklendi
   const opportunityDays = useMemo(() => {
     const days: Date[] = [];
     opportunities.forEach((opp) => {
@@ -343,12 +331,161 @@ export default function AvailabilityCalendar({
       const end = parseISO(opp.endDate);
       let current = new Date(start);
       while (current <= end) {
-        days.push(new Date(current));
+        if (!isBefore(current, today)) {
+          // Geçmiş değilse
+          days.push(new Date(current));
+        }
         current = addDays(current, 1);
       }
     });
     return days;
-  }, [opportunities]);
+  }, [opportunities, today]);
+
+  // Modifier'ları hiyerarşiye göre düzenle
+  const modifiers = useMemo(() => {
+    const mods: { [key: string]: Date[] } = {};
+
+    // Temel modifierlar
+    mods.past = [{ before: today }] as any;
+    mods.noPrice = daysWithoutPrice;
+    mods.checkIn = checkInDays;
+    mods.checkOut = checkOutDays;
+    mods.turnover = turnoverDays;
+    mods.fullyBooked = fullyBookedDays;
+
+    // Alt çizgi için modifierlar - hiyerarşik olarak filtrelenmiş
+    const availableDays = new Set<string>();
+    const allDays = new Set<string>();
+
+    // Tüm fiyatlı günleri topla
+    daysWithPrice.forEach((d) => {
+      const dateStr = format(d, "yyyy-MM-dd");
+      allDays.add(dateStr);
+
+      // Geçmiş, dolu veya fiyatsız değilse müsait
+      if (
+        d >= today &&
+        !fullyBookedDays.some((bd) => format(bd, "yyyy-MM-dd") === dateStr) &&
+        !turnoverDays.some((td) => format(td, "yyyy-MM-dd") === dateStr)
+      ) {
+        availableDays.add(dateStr);
+      }
+    });
+
+    // İndirimli günler (en yüksek öncelik)
+    const discountDaysFiltered: Date[] = [];
+    discountDays.forEach((d) => {
+      const dateStr = format(d, "yyyy-MM-dd");
+      if (availableDays.has(dateStr)) {
+        discountDaysFiltered.push(d);
+      }
+    });
+
+    // Fırsat günleri (indirimli olmayan)
+    const opportunityDaysFiltered: Date[] = [];
+    opportunityDays.forEach((d) => {
+      const dateStr = format(d, "yyyy-MM-dd");
+      if (
+        availableDays.has(dateStr) &&
+        !discountDaysFiltered.some((dd) => format(dd, "yyyy-MM-dd") === dateStr)
+      ) {
+        opportunityDaysFiltered.push(d);
+      }
+    });
+
+    // Fiyat tanımlı günler (ne indirimli ne fırsat)
+    const pricedOnlyDays: Date[] = [];
+    daysWithPrice.forEach((d) => {
+      const dateStr = format(d, "yyyy-MM-dd");
+      if (
+        availableDays.has(dateStr) &&
+        !discountDaysFiltered.some((dd) => format(dd, "yyyy-MM-dd") === dateStr) &&
+        !opportunityDaysFiltered.some((od) => format(od, "yyyy-MM-dd") === dateStr)
+      ) {
+        pricedOnlyDays.push(d);
+      }
+    });
+
+    mods.discountDays = discountDaysFiltered;
+    mods.opportunityDays = opportunityDaysFiltered;
+    mods.pricedOnly = pricedOnlyDays;
+
+    return mods;
+  }, [
+    today,
+    daysWithoutPrice,
+    checkInDays,
+    checkOutDays,
+    turnoverDays,
+    fullyBookedDays,
+    daysWithPrice,
+    discountDays,
+    opportunityDays,
+  ]);
+
+  // Modifier stilleri
+  const modifiersStyles = useMemo(() => {
+    return {
+      // En yüksek öncelik: Geçmiş günler
+      past: {
+        backgroundColor: "#f3f4f6",
+        color: "#000000",
+        textDecoration: "line-through",
+        textDecorationThickness: "1px",
+        cursor: "not-allowed",
+        pointerEvents: "none" as const,
+      },
+      // Fiyatsız günler
+      noPrice: {
+        backgroundColor: "#f3f4f6",
+        color: "#000000",
+        textDecoration: "line-through",
+        textDecorationThickness: "1px",
+        cursor: "not-allowed",
+        pointerEvents: "none" as const,
+      },
+      // Devir günleri (özel pattern)
+      turnover: {
+        background:
+          "linear-gradient(135deg, transparent 44%, white 44%, white 56%, transparent 56%), #fb923c",
+        color: "black",
+        backgroundSize: "100% 100%",
+        backgroundRepeat: "no-repeat",
+        pointerEvents: "none" as const,
+        cursor: "not-allowed",
+      },
+      // Check-out günleri (yarı turuncu)
+      checkOut: {
+        background: "linear-gradient(135deg, #fb923c 50%, white 50%)",
+        color: "black",
+      },
+      // Check-in günleri (yarı turuncu)
+      checkIn: {
+        background: "linear-gradient(135deg, white 50%, #fb923c 50%)",
+        color: "black",
+      },
+      // Tamamen rezerve/bloke günler
+      fullyBooked: {
+        backgroundColor: "#fb923c",
+        color: "white",
+        cursor: "not-allowed",
+        pointerEvents: "none" as const,
+      },
+      // Alt çizgi modifierları - sadece müsait günlerde görünür
+      discountDays: {
+        position: "relative" as const,
+        boxShadow: "inset 0 -4px #ef4444",
+      },
+      opportunityDays: {
+        position: "relative" as const,
+        boxShadow: "inset 0 -4px #1f15ecff",
+      },
+      pricedOnly: {
+        position: "relative" as const,
+        boxShadow: "inset 0 -4px #f9a8d4",
+      },
+    };
+  }, []);
 
   function onSelect(next: DateRange | undefined) {
     // her seçmede range'ı göster (ilk tıklama görsel olarak kalmalı)
@@ -407,29 +544,6 @@ export default function AvailabilityCalendar({
     setQuoteOpen(true);
   }
 
-  // Özel fiyat dönemleri için renkler (güncellenmiş)
-  const pricingStyles = useMemo(() => {
-    const styles: { [key: string]: React.CSSProperties } = {};
-
-    // Normal fiyat dönemleri
-    pricingPeriods.forEach((_, index) => {
-      styles[`pricing_${index}`] = {
-        position: "relative",
-        boxShadow: "inset 0 -4px #f9a8d4",
-      };
-    });
-
-    // Fiyatsız günler için stil
-    styles["noPrice"] = {
-      backgroundColor: "#f3f4f6", // gri arka plan
-      color: "#9ca3af", // gri metin
-      textDecoration: "line-through", // üstü çizili
-      cursor: "not-allowed",
-    };
-
-    return styles;
-  }, [pricingPeriods]);
-
   return (
     <div className="mt-8">
       {/* Hata bandı */}
@@ -438,13 +552,15 @@ export default function AvailabilityCalendar({
           {error}
         </div>
       )}
+
+      {/* İndirimli Dönemler Bilgisi */}
       {discountPeriods.length > 0 && (
         <div className="mb-4 p-4 bg-blue-50 rounded-lg">
           <h3 className="font-semibold text-sm mb-2">İndirimli Dönemler:</h3>
           <div className="space-y-1 text-sm">
             {discountPeriods.map((period) => (
               <div key={period.id} className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded bg-red-300" />
+                <span className="w-3 h-3 rounded bg-red-500" />
                 <span>
                   {format(parseISO(period.start_date), "d MMM", { locale: tr })} –
                   {format(parseISO(period.end_date), "d MMM", { locale: tr })}:
@@ -486,50 +602,13 @@ export default function AvailabilityCalendar({
           selected={range as DateRange}
           onSelect={onSelect}
           disabled={disabledMatchers}
-          modifiers={{
-            checkIn: checkInDays,
-            checkOut: checkOutDays,
-            turnover: turnoverDays,
-            fullyBooked: fullyBookedDays,
-            opportunity: opportunityDays, // Yeni
-            ...pricingModifiers,
-            ...discountModifiers,
-          }}
-          modifiersStyles={{
-            turnover: {
-              background:
-                "linear-gradient(135deg, transparent 44%, white 44%, white 56%, transparent 56%), #fb923c",
-              color: "black",
-              backgroundSize: "100% 100%",
-              backgroundRepeat: "no-repeat",
-              pointerEvents: "none",
-              cursor: "not-allowed",
-            },
-            checkOut: {
-              background: "linear-gradient(135deg, #fb923c 50%, white 50%)",
-              color: "black",
-            },
-            checkIn: {
-              background: "linear-gradient(135deg, white 50%, #fb923c 50%)",
-              color: "black",
-            },
-            fullyBooked: {
-              backgroundColor: "#fb923c",
-              color: "white",
-            },
-            opportunity: {
-              position: "relative",
-              boxShadow: "inset 0 -4px #1f15ecff", // Kırmızı alt çizgi
-            },
-            ...pricingStyles,
-            ...discountStyles,
-          }}
+          modifiers={modifiers}
+          modifiersStyles={modifiersStyles}
           className="!text-sm"
         />
 
-        {/* Lejant (güncellenmiş) */}
+        {/* Lejant */}
         <div className="mt-2 flex flex-wrap gap-3 text-xs">
-          <Legend colorClass="bg-white border" label="Müsait" />
           <div className="flex items-center gap-2">
             <span
               className="h-3 w-5 rounded border"
@@ -554,6 +633,19 @@ export default function AvailabilityCalendar({
             />
             <span>Devir günü</span>
           </div>
+          <Legend colorClass="bg-orange-500" label="Rezerve/Bloke" />
+
+          {/* Alt çizgi lejantları */}
+          {discountPeriods.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span
+                className="h-3 w-5 rounded border bg-white"
+                style={{ boxShadow: "inset 0 -4px #ef4444" }}
+              />
+              <span>İndirimli Dönem</span>
+            </div>
+          )}
+
           {opportunities.length > 0 && (
             <div className="flex items-center gap-2">
               <span
@@ -563,7 +655,7 @@ export default function AvailabilityCalendar({
               <span>Fırsat Dönemi</span>
             </div>
           )}
-          <Legend colorClass="bg-orange-500" label="Rezerve" />
+
           <div className="flex items-center gap-2">
             <span
               className="h-3 w-5 rounded border bg-white"
@@ -571,15 +663,6 @@ export default function AvailabilityCalendar({
             />
             <span>Fiyat Tanımlı</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span
-              className="h-3 w-5 rounded border bg-white"
-              style={{ boxShadow: "inset 0 -4px #ef4444" }}
-            />
-            <span>İndirimli Dönem</span>
-          </div>
-
-          <Legend colorClass="bg-gray-300 line-through" label="Fiyatsız" />
         </div>
       </div>
 
