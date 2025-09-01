@@ -349,7 +349,7 @@ export default function QuickSearch({
               router.push(`/search?s=${s}`);
             }}
           >
-            Ara
+            Filtrele
           </Button>
         </div>
       </div>

@@ -45,7 +45,7 @@ export default function VillaCard({
 
         {(province || district || neighborhood) && (
           <p className="mt-1 text-sm text-gray-600 truncate flex items-center py-2">
-            <MapPin className="h-5 w-4" />
+            <MapPin className="h-5 w-3" />
 
             {[province, district, neighborhood].filter(Boolean).join(" / ")}
           </p>

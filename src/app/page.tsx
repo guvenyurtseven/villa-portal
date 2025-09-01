@@ -3,6 +3,7 @@ import CategoryNav from "@/components/site/CategoryNav";
 import OpportunityVillas from "@/components/site/OpportunityVillas";
 import DiscountVillas from "@/components/site/DiscountVillas";
 import QuickSearch from "@/components/site/QuickSearch";
+import SearchBar from "@/components/site/SearchBar";
 
 export default function Home() {
   return (
@@ -19,9 +20,15 @@ export default function Home() {
         {/* Orta Sütun - Ana İçerik */}
         <div className="lg:col-span-8 space-y-6">
           <div>
-            <h1 className="text-4xl font-semibold mb-2">Villa Portal</h1>
-            <p className="text-gray-600 italic mb-6">Tatiliniz İçin En Seçkin Villalar</p>
-
+            <div className="grid grid-cols-2">
+              <div>
+                <h1 className="text-4xl font-semibold mb-2">Villa Portal</h1>
+                <p className="text-gray-600 italic mb-6">Tatiliniz İçin En Seçkin Villalar</p>
+              </div>
+              <section>
+                <SearchBar />
+              </section>
+            </div>
             {/* Kategoriler */}
             <CategoryNav />
 
