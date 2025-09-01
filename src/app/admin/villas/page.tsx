@@ -5,36 +5,95 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Plus, Eye, EyeOff } from "lucide-react";
 import Image from "next/image";
 
-export default async function AdminVillasPage() {
-  // Service role client kullanarak tüm villaları al (gizli olanlar dahil)
+type SearchParams = Record<string, string | string[] | undefined>;
+
+export default async function AdminVillasPage({
+  searchParams,
+}: {
+  // Next 15: Promise!
+  searchParams: Promise<SearchParams>;
+}) {
+  // Arama parametresini oku
+  const sp = await searchParams;
+  const qRaw = typeof sp?.q === "string" ? sp.q : Array.isArray(sp?.q) ? sp.q[0] : "";
+  const q = (qRaw || "").trim();
+  const nameKey = q.toLowerCase();
+  const refKey = q.replace(/^#/, "").toLowerCase(); // "#AB123" -> "ab123"
+
+  // Service role client kullanarak villaları al (gizli olanlar dahil)
   const supabase = createServiceRoleClient();
 
-  const { data: villas, error } = await supabase
-    .from("villas")
-    .select(
-      `
+  // Temel select (mevcut alanlar + foto alias)
+  let query = supabase.from("villas").select(
+    `
       *,
       photos:villa_photos(url, is_primary)
     `,
-    )
-    .order("created_at", { ascending: false });
+  );
+
+  // q varsa: isim içinde arama + referans prefix
+  if (q) {
+    const parts: string[] = [];
+    if (nameKey) parts.push(`name.ilike.%${nameKey}%`);
+    if (refKey) parts.push(`reference_code.ilike.${refKey}%`);
+    if (parts.length) {
+      query = query.or(parts.join(","));
+    }
+  }
+
+  // Sıralama: en yeni üstte (mevcut davranış)
+  const { data: villas, error } = await query.order("created_at", {
+    ascending: false,
+  });
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Villalar</h1>
-        <Button asChild>
-          <Link href="/admin/villas/new">
-            <Plus className="h-4 w-4 mr-2" />
-            Yeni Villa Ekle
-          </Link>
-        </Button>
+      <div className="flex justify-between items-end mb-8 gap-3">
+        <div>
+          <h1 className="text-3xl font-bold">Villalar</h1>
+          {q && (
+            <p className="text-sm text-muted-foreground mt-1">
+              Arama: <span className="font-medium">“{q}”</span>
+            </p>
+          )}
+        </div>
+
+        {/* Arama formu (aynı sayfada kalır, GET ile filtreler) */}
+        <form action="/admin/villas" className="flex items-center gap-2">
+          <input
+            type="text"
+            name="q"
+            defaultValue={q}
+            placeholder="Villa adı veya #REFKOD"
+            className="h-9 w-64 rounded border px-3 text-sm"
+          />
+          <button
+            type="submit"
+            className="h-9 px-4 rounded bg-orange-500 hover:bg-orange-600 text-white text-sm"
+          >
+            Ara
+          </button>
+          {q && (
+            <Link
+              href="/admin/villas"
+              className="h-9 px-3 rounded border text-sm hover:bg-muted text-center items-center flex"
+            >
+              Temizle
+            </Link>
+          )}
+          <Button asChild className="ml-2">
+            <Link href="/admin/villas/new">
+              <Plus className="h-4 w-4 mr-2" />
+              Yeni Villa Ekle
+            </Link>
+          </Button>
+        </form>
       </div>
 
       {villas && villas.length > 0 ? (
         <div className="grid gap-4">
-          {villas.map((villa) => {
-            // Birincil fotoğrafı bul
+          {villas.map((villa: any) => {
+            // Birincil fotoğrafı bul (is_primary öncelik, yoksa ilk)
             const primaryPhoto =
               villa.photos?.find((p: any) => p.is_primary)?.url ||
               villa.photos?.[0]?.url ||
@@ -53,6 +112,7 @@ export default async function AdminVillasPage() {
                           className="w-full h-full object-cover rounded-lg"
                           width={96}
                           height={96}
+                          unoptimized
                         />
                       </div>
 
@@ -74,7 +134,6 @@ export default async function AdminVillasPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-4 mt-1">
-                          {/* WEEKLY PRICE KALDIRILDI */}
                           <span className="text-sm text-gray-500">
                             {villa.bedrooms} Yatak • {villa.bathrooms} Banyo
                             {villa.has_pool && " • Havuz"}
@@ -102,7 +161,9 @@ export default async function AdminVillasPage() {
       ) : (
         <Card>
           <CardContent className="pt-6 text-center">
-            <p className="text-gray-500 mb-4">Henüz villa eklenmemiş.</p>
+            <p className="text-gray-500 mb-4">
+              {q ? "Arama kriterlerinize uygun villa bulunamadı." : "Henüz villa eklenmemiş."}
+            </p>
             <Button asChild>
               <Link href="/admin/villas/new">
                 <Plus className="h-4 w-4 mr-2" />
