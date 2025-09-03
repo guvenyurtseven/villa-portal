@@ -27,6 +27,11 @@ const menuItems = [
     href: "/admin/reservations",
     icon: Calendar,
   },
+  {
+    title: "Yorumlar",
+    href: "/admin/reviews",
+    icon: List,
+  },
 ];
 
 export default function AdminSidebar() {

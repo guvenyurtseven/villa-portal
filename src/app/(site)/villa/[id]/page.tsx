@@ -341,6 +341,12 @@ export default async function VillaPage({ params }: VillaPageProps) {
         cleaningFee={villa.cleaning_fee || 0}
         discountPeriods={discountPeriods || []}
       />
+      {/* Onaylı yorumlar */}
+      {/* >>> Bu satırı açıklama/özellik bloklarından SONRA ekleyin */}
+      {await (async () => {
+        const ReviewsSection = (await import("@/components/site/ReviewsSection")).default;
+        return <ReviewsSection villaId={villa.id} />;
+      })()}
     </main>
   );
 }
