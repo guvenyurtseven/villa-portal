@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { format } from "date-fns";
+import { useRouter } from "next/navigation";
 
 type Props = {
   villaId: string;
@@ -25,6 +26,7 @@ export default function BookingForm(props: Props) {
     _hp: "", // honeypot
   });
   const [submitting, setSubmitting] = useState(false);
+  const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -73,6 +75,8 @@ export default function BookingForm(props: Props) {
       alert("Ön rezervasyon talebiniz iletildi. Teşekkürler!");
       // İstersen burada bir yönlendirme yapabilirsin:
       // router.push("/site");
+      router.push("/?pre=1");
+      router.refresh();
     } catch (err: any) {
       console.error(err);
       alert(err?.message || "Bir hata oluştu.");

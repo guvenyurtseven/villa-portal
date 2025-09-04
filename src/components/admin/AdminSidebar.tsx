@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { Home, Building, Calendar, LogOut, Plus, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { title } from "process";
 
 const menuItems = [
   {
@@ -30,6 +31,11 @@ const menuItems = [
   {
     title: "Yorumlar",
     href: "/admin/reviews",
+    icon: List,
+  },
+  {
+    title: "Bekleyen Rezervasyonlar",
+    href: "/admin/reservations/pending",
     icon: List,
   },
 ];

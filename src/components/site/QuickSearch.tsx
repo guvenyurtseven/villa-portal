@@ -1,10 +1,11 @@
+// src/components/site/QuickSearch.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import { useRouter } from "next/navigation";
-import { DayPicker } from "react-day-picker";
+import { DayPicker, type DateRange } from "react-day-picker";
 import "react-day-picker/dist/style.css";
-import { addDays, format, parseISO } from "date-fns";
+import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,8 +16,6 @@ import { encodeSearchState } from "@/lib/shortlink";
 type Option = { type: "province" | "district" | "neighborhood"; value: string; label: string };
 type Category = { id: string; name: string; slug: string };
 
-const NIGHTS_MIN = 1;
-const NIGHTS_MAX = 60;
 const GUESTS_MIN = 1;
 const GUESTS_MAX = 12;
 
@@ -55,7 +54,7 @@ function useAnchorPosition(open: boolean, btnRef: React.RefObject<HTMLElement>) 
 
 export default function QuickSearch({
   initialCheckin,
-  initialNights = 7,
+  initialNights = 7, // Eski davranışla geriye uyum için: varsa checkout'u başlangıçta bundan türetiyoruz
   initialGuests = 2,
   initialP = [],
   initialD = [],
@@ -101,8 +100,7 @@ export default function QuickSearch({
   const [selD, setSelD] = useState<string[]>(initialD);
   const [selN, setSelN] = useState<string[]>(initialN);
 
-  // Nights & Guests
-  const [nights, setNights] = useState<number>(initialNights);
+  // Guests
   const [guests, setGuests] = useState<number>(initialGuests);
 
   // Categories
@@ -115,24 +113,46 @@ export default function QuickSearch({
     return new Date(n.getFullYear(), n.getMonth(), n.getDate());
   }, []);
 
-  // Dates
-  const [checkin, setCheckin] = useState<Date | undefined>(
-    initialCheckin ? parseISO(initialCheckin) : undefined,
-  );
+  // Tarih aralığı: giriş & çıkış
+  const [range, setRange] = useState<DateRange | undefined>(() => {
+    if (!initialCheckin) return undefined;
+    const from = parseISO(initialCheckin);
+    if (Number.isNaN(from.getTime())) return undefined;
+    const to = addDays(from, Math.max(1, initialNights)); // başlangıç uyumu
+    return { from, to };
+  });
 
-  // Coerce past initialCheckin to today
+  // Sadece giriş seçiliyken uyarı göstermek için mini hata
+  const [dateError, setDateError] = useState(false);
+
+  // Past safety: seçili giriş geçmişteyse bugüne çek
   useEffect(() => {
-    if (checkin && checkin < today) setCheckin(today);
-  }, [checkin, today]);
+    if (range?.from && range.from < today) {
+      const d = today;
+      // to varsa ve d'den küçük ise hizala
+      if (range.to && range.to <= d) {
+        setRange({ from: d, to: addDays(d, 1) });
+      } else {
+        setRange({ from: d, to: range.to });
+      }
+    }
+  }, [range?.from, range?.to, today]);
 
-  // checkout = checkin + nights (inclusive viz highlight to checkout)
-  const checkout = useMemo(
-    () =>
-      checkin ? addDays(checkin, Math.max(NIGHTS_MIN, Math.min(NIGHTS_MAX, nights))) : undefined,
-    [checkin, nights],
-  );
+  // Kategorileri yükle
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      const r = await fetch("/api/categories", { cache: "no-store" });
+      if (!r.ok) return;
+      const j = await r.json();
+      if (!ignore) setCats(j.items || []);
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
-  // Load locations with abort safety
+  // Lokasyon arama (abort güvenliği ile)
   useEffect(() => {
     const ctrl = new AbortController();
     let cancelled = false;
@@ -160,7 +180,7 @@ export default function QuickSearch({
     };
   }, [query]);
 
-  // Outside click & ESC close for all popovers
+  // Dışarı tıkla & ESC kapat
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -200,39 +220,51 @@ export default function QuickSearch({
     else setArr([...arr, o.value]);
   }
 
-  // Load categories
-  useEffect(() => {
-    let ignore = false;
-    (async () => {
-      const r = await fetch("/api/categories", { cache: "no-store" });
-      if (!r.ok) return;
-      const j = await r.json();
-      if (!ignore) setCats(j.items || []);
-    })();
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
   function toggleCat(slug: string) {
     setSelCats((prev) => (prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]));
   }
 
-  function makeQS() {
-    const params = new URLSearchParams();
-    selP.forEach((v) => params.append("province", v));
-    selD.forEach((v) => params.append("district", v));
-    selN.forEach((v) => params.append("neighborhood", v));
-    selCats.forEach((slug) => params.append("category", slug));
-    if (checkin) params.set("checkin", format(checkin, "yyyy-MM-dd"));
-    params.set("nights", String(Math.max(NIGHTS_MIN, Math.min(NIGHTS_MAX, nights))));
-    params.set("guests", String(Math.max(GUESTS_MIN, Math.min(GUESTS_MAX, guests))));
-    return params.toString();
+  function handleSearch() {
+    // Yalnızca giriş seçiliyse mini uyarı göster ve tarih panelini aç
+    if (range?.from && !range.to) {
+      setDateError(true);
+      setDateOpen(true);
+      return;
+    }
+
+    // Kısa link state — backend ile uyum için nights'ı aralıktan türetiyoruz (ikisi yoksa null)
+    const checkinStr = range?.from ? format(range.from, "yyyy-MM-dd") : null;
+    const nights =
+      range?.from && range?.to ? Math.max(1, differenceInCalendarDays(range.to, range.from)) : null;
+
+    const state = {
+      checkin: checkinStr,
+      nights, // search API nights kabul ettiği için uyumlu
+      guests,
+      provinces: selP,
+      districts: selD,
+      neighborhoods: selN,
+      categories: selCats,
+    };
+    const s = encodeSearchState(state);
+    router.push(`/search?s=${s}`);
   }
 
-  function handleDayClick(day: Date) {
-    setCheckin(day);
-  }
+  // Tarih etiketini hazırla
+  const dateLabel = useMemo(() => {
+    if (range?.from && range?.to) {
+      return `Giriş: ${format(range.from, "d MMM yyyy", { locale: tr })} · Çıkış: ${format(range.to, "d MMM yyyy", { locale: tr })}`;
+    }
+    if (range?.from && !range?.to) {
+      return `Giriş: ${format(range.from, "d MMM yyyy", { locale: tr })} · Çıkış: —`;
+    }
+    return "Tarih seçiniz";
+  }, [range?.from, range?.to]);
+
+  // Kullanıcı çıkış tarihi seçince uyarıyı kapat
+  useEffect(() => {
+    if (range?.from && range?.to && dateError) setDateError(false);
+  }, [range?.from, range?.to, dateError]);
 
   return (
     <div className="relative isolate w-full mx-auto rounded-xl border bg-white/80 backdrop-blur p-3 md:p-4 shadow-sm">
@@ -277,14 +309,13 @@ export default function QuickSearch({
               setOpenCats(false);
             }}
           >
-            <span className="text-sm">
-              {checkin
-                ? `Giriş: ${format(checkin, "d MMM yyyy", { locale: tr })} · Çıkış: ${
-                    checkout ? format(checkout, "d MMM yyyy", { locale: tr }) : "—"
-                  }`
-                : "Tarih seçiniz"}
-            </span>
+            <span className="text-sm">{dateLabel}</span>
           </button>
+          {dateError && (
+            <div className="mt-1 text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded px-2 py-1 inline-block">
+              Çıkış tarihi seçiniz
+            </div>
+          )}
         </div>
 
         {/* Kişi sayısı */}
@@ -333,22 +364,7 @@ export default function QuickSearch({
 
         {/* Ara */}
         <div className="flex items-end">
-          <Button
-            className="w-full bg-orange-500 hover:bg-orange-600"
-            onClick={() => {
-              const state = {
-                checkin: checkin ? format(checkin, "yyyy-MM-dd") : null,
-                nights,
-                guests,
-                provinces: selP,
-                districts: selD,
-                neighborhoods: selN,
-                categories: selCats,
-              };
-              const s = encodeSearchState(state);
-              router.push(`/search?s=${s}`);
-            }}
-          >
+          <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={handleSearch}>
             Filtrele
           </Button>
         </div>
@@ -450,39 +466,14 @@ export default function QuickSearch({
             }}
             className="z-[9999] rounded-lg border bg-white p-3 shadow-lg overflow-auto"
           >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-base font-medium text-gray-700">Kaç gece kalacaksınız?</span>
-              <select
-                value={nights}
-                onChange={(e) =>
-                  setNights(Math.max(NIGHTS_MIN, Math.min(NIGHTS_MAX, Number(e.target.value))))
-                }
-                className="border rounded px-3 py-2 text-base"
-              >
-                {Array.from({ length: NIGHTS_MAX - NIGHTS_MIN + 1 }, (_, i) => i + NIGHTS_MIN).map(
-                  (n) => (
-                    <option key={n} value={n}>
-                      {n} gece
-                    </option>
-                  ),
-                )}
-              </select>
-            </div>
-
             <DayPicker
               locale={tr}
-              mode="single"
+              mode="range"
               numberOfMonths={2}
               showOutsideDays
-              selected={checkin}
-              onDayClick={(d) => d && handleDayClick(d)}
+              selected={range}
+              onSelect={(r) => setRange(r ?? undefined)}
               disabled={{ before: today }}
-              modifiers={{
-                range: checkin && checkout ? { from: checkin, to: checkout } : undefined,
-              }}
-              modifiersStyles={{
-                range: { backgroundColor: "rgba(251, 146, 60, 0.22)" },
-              }}
               className="!text-[12px]"
               styles={{
                 months: {
@@ -551,11 +542,6 @@ export default function QuickSearch({
                 ),
               )}
             </ul>
-            <div className="mt-2 flex justify-end">
-              <Button variant="outline" size="sm" onClick={() => setGuestsOpen(false)}>
-                Kapat
-              </Button>
-            </div>
           </div>
         </Portal>
       )}
@@ -569,7 +555,7 @@ export default function QuickSearch({
               position: "fixed",
               top: catPos.top,
               left: catPos.left,
-              width: Math.max(320, Math.min(420, catPos.width)),
+              width: Math.max(200, Math.min(240, catPos.width)),
               maxHeight: 320,
               overflow: "auto",
             }}

@@ -608,7 +608,7 @@ export default function AvailabilityCalendar({
         />
 
         {/* Lejant */}
-        <div className="mt-2 flex flex-wrap gap-3 text-xs">
+        <div className="mt-2 py-4 flex flex-wrap gap-3 text-xs justify-center">
           <div className="flex items-center gap-2">
             <span
               className="h-3 w-5 rounded border"

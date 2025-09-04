@@ -24,12 +24,38 @@ export default function SearchBar() {
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<SuggestItem[]>([]);
   const [highlight, setHighlight] = useState(0);
+
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null); // dışarı tıklama için kapsayıcı
 
-  // Temizlenmiş anahtar (başındaki # kaldırılmış ref kodu için de çalışsın)
+  // Temizlenmiş anahtar
   const normKey = useMemo(() => q.trim(), [q]);
+
+  // Dışarı tıklayınca kapat (capture fazında pointerdown)
+  useEffect(() => {
+    const onOutside = (e: Event) => {
+      if (!open) return;
+      const t = e.target as Node | null;
+      if (!t) return;
+      if (rootRef.current && !rootRef.current.contains(t)) {
+        setOpen(false);
+      }
+    };
+    // capture: true => diğer handler'lar stopPropagation yapsa bile yakalar
+    document.addEventListener("pointerdown", onOutside, true);
+    // Escape ile kapatmayı da koruyalım
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+
+    return () => {
+      document.removeEventListener("pointerdown", onOutside, true);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
 
   // Debounced fetch
   useEffect(() => {
@@ -71,7 +97,7 @@ export default function SearchBar() {
       setHighlight((h) => (h - 1 + items.length) % items.length);
     } else if (e.key === "Enter") {
       e.preventDefault();
-      goToBestMatch(); // En üst veya highlight
+      goToBestMatch();
     } else if (e.key === "Escape") {
       setOpen(false);
     }
@@ -83,7 +109,6 @@ export default function SearchBar() {
       router.push(`/villa/${target.id}`);
       setOpen(false);
     } else {
-      // Hiç sonuç yoksa ve girdi UUID gibi görünüyorsa direkt dene:
       const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
       if (uuidRe.test(normKey)) router.push(`/villa/${normKey}`);
     }
@@ -95,7 +120,7 @@ export default function SearchBar() {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={rootRef}>
       <form onSubmit={onSubmit} className="flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -137,7 +162,7 @@ export default function SearchBar() {
                 role="option"
                 aria-selected={active}
                 onMouseEnter={() => setHighlight(i)}
-                onMouseDown={(e) => e.preventDefault()}
+                onMouseDown={(e) => e.preventDefault()} // blur'suz seçim
                 onClick={() => {
                   setHighlight(i);
                   router.push(`/villa/${it.id}`);

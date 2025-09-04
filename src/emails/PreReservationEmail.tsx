@@ -13,6 +13,7 @@ type Props = {
   message?: string;
   adminUrl?: string;
   siteUrl?: string;
+  buttonLabel?: string; // opsiyonel, "Takvimi Aç" gibi farklı metin için
 };
 
 export default function PreReservationEmail(props: Props) {
@@ -58,7 +59,7 @@ export default function PreReservationEmail(props: Props) {
               textDecoration: "none",
             }}
           >
-            Takvimi Aç
+            Bekleyen Rezervasyonları Görüntüle
           </a>
         ) : null}
         {props.siteUrl ? (

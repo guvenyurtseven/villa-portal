@@ -43,7 +43,8 @@ export default async function ReservationDetailPage(props: {
       status,
       notes,
       created_at,
-      villas ( id, name )
+      villas ( id, name ),
+      total_price
     `,
     )
     .eq("id", id!)
@@ -103,7 +104,7 @@ export default async function ReservationDetailPage(props: {
               label="Toplam Ücret"
               value={
                 data.total_price != null
-                  ? `₺${Number(data.total_price).toLocaleString("tr-TR")}`
+                  ? `${Number(data.total_price).toLocaleString("tr-TR")} ₺`
                   : "—"
               }
             />
