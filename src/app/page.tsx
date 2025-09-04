@@ -4,7 +4,7 @@ import OpportunityVillas from "@/components/site/OpportunityVillas";
 import DiscountVillas from "@/components/site/DiscountVillas";
 import QuickSearch from "@/components/site/QuickSearch";
 import SearchBar from "@/components/site/SearchBar";
-
+import FlashThanks from "@/components/site/FlashThanks";
 export default async function Home({
   searchParams,
 }: {
@@ -15,14 +15,7 @@ export default async function Home({
   const showThanks = sp?.pre === "1";
   return (
     <main className="max-w-9/10 mx-auto py-6">
-      <>
-        {showThanks && (
-          <div className="mb-4 rounded-lg border bg-green-50 text-green-700 px-4 py-3">
-            Talebiniz alındı. En kısa sürede sizinle iletişime geçeceğiz.
-          </div>
-        )}
-        {/* ...geri kalan ana sayfa içeriği... */}
-      </>
+      <FlashThanks />
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Sol Sütun */}
         <aside className="lg:col-span-2">

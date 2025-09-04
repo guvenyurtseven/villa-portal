@@ -76,7 +76,6 @@ export default function BookingForm(props: Props) {
       // İstersen burada bir yönlendirme yapabilirsin:
       // router.push("/site");
       router.push("/?pre=1");
-      router.refresh();
     } catch (err: any) {
       console.error(err);
       alert(err?.message || "Bir hata oluştu.");

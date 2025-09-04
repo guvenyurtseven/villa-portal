@@ -3,7 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { Home, Building, Calendar, LogOut, Plus, List } from "lucide-react";
+import {
+  Home,
+  Building,
+  Calendar,
+  LogOut,
+  Plus,
+  List,
+  MessageCircle,
+  ClipboardClock,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { title } from "process";
 
@@ -29,14 +38,14 @@ const menuItems = [
     icon: Calendar,
   },
   {
-    title: "Yorumlar",
+    title: "Yorumları Yönet",
     href: "/admin/reviews",
-    icon: List,
+    icon: MessageCircle,
   },
   {
     title: "Bekleyen Rezervasyonlar",
     href: "/admin/reservations/pending",
-    icon: List,
+    icon: ClipboardClock,
   },
 ];
 
