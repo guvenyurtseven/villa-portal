@@ -100,7 +100,7 @@ export async function POST(request: Request) {
     const hasCleaningFee = cleaningFee > 0;
 
     // İndirim hesapla (14 gece ve üzeri %5)
-    const discount = nights >= 14 ? Math.round(subtotal * 0.05) : 0;
+    const discount = 0;
 
     // Toplam hesaplama (temizlik ücreti indirimden sonra eklenir)
     const subtotalAfterDiscount = subtotal - discount;

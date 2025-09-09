@@ -43,7 +43,7 @@ type Gap = {
   nightlyPrice: number | null;
 };
 
-const RANGE_RE = /^\[([0-9]{4}-[0-9]{2}-[0-9]{2}),([0-9]{4}-[0-9]{2}-[0-9]{2})[\)\]]$/;
+const RANGE_RE = /^\[([0-9]{4}-[0-9]{2}-[0-9]{2}),([0-9]{4}-[0-9]{2}-[0-9]{2})[)\]]$/;
 
 // Konfigürasyon
 const WINDOW_DAYS = 60; // bugünden itibaren bakılacak ufuk

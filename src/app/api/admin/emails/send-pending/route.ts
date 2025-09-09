@@ -26,7 +26,7 @@ export async function POST(_req: NextRequest) {
     const { id, to_email, subject, html } = row;
 
     const { error } = await resend.emails.send({
-      from: "Acme <onboarding@resend.dev>", // prod’da verified domain kullanın
+      from: "Villa Dünyası <reviews@xn--villadnyas-feb45d.com>", // prod’da verified domain kullanın
       to: [to_email || "delivered@resend.dev"],
       subject: subject || "Villa Portal",
       html: html || "<p>Merhaba!</p>",

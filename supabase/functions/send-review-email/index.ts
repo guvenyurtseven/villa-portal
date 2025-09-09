@@ -2,250 +2,238 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-type PendingEmailRow = {
-  email_log_id: string;
-  recipient: string; // misafir e-posta
-  guest_name?: string | null;
-  villa_name: string;
-  villa_id: string;
-  token: string; // review token (tek kullanımlık)
-  reservation_id?: string | null; // varsa, review_reminder_sent güncellemek için kullanacağız
-};
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-cron-secret",
 };
 
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
-function buildReviewLink(appUrl: string, token: string) {
-  // Route tasarımına göre sadece token ile gidiyoruz: /review/[token]
-  try {
-    return new URL(`/review/${token}`, appUrl).toString();
-  } catch {
-    // appUrl env bozuksa fallback
-    return `${appUrl.replace(/\/$/, "")}/review/${token}`;
-  }
-}
-
-function renderEmailHtml(guestName: string, villaName: string, reviewLink: string): string {
-  return `
-    <!DOCTYPE html>
-    <html lang="tr">
-    <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-      <title>Villa Değerlendirmesi</title>
-      <style>
-        body { margin:0; padding:0; background:#f4f4f4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol', sans-serif; }
-        .container { max-width:600px; margin:0 auto; background:#fff; }
-        .header { background:#2c3e50; padding:32px 20px; text-align:center; }
-        .header h1 { color:#fff; margin:0; font-size:22px; }
-        .content { padding:32px 20px; color:#2c3e50; line-height:1.55; }
-        .button {
-          display:inline-block; padding:14px 24px; background:#e67e22; color:#fff; text-decoration:none;
-          border-radius:6px; font-weight:600; margin:18px 0;
-        }
-        .rating-info { background:#ecf0f1; padding:16px; border-radius:6px; margin:18px 0; }
-        .footer { background:#34495e; padding:16px; text-align:center; color:#fff; font-size:12px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header"><h1>Konaklamanız nasıldı?</h1></div>
-        <div class="content">
-          <p>Merhaba ${guestName},</p>
-          <p><strong>${villaName}</strong> villamızda konaklamanızın sona erdiğini görüyoruz. Umarız tatiliniz keyifli geçmiştir.</p>
-          <p>Deneyiminizi bizimle paylaşmanız, hem hizmetimizi geliştirmemize hem de diğer misafirlerimize yardımcı olmamıza destek olur.</p>
-          <div class="rating-info">
-            <h3 style="margin-top:0;">🌟 Değerlendirme kriterleri:</h3>
-            <ul>
-              <li><strong>Temizlik</strong></li>
-              <li><strong>Konfor</strong></li>
-              <li><strong>Karşılama</strong></li>
-            </ul>
-          </div>
-          <div style="text-align:center;">
-            <a class="button" href="${reviewLink}">Değerlendirmenizi Yapın</a>
-            <p style="font-size:13px; color:#7f8c8d;">Bu işlem yalnızca 2–3 dakikanızı alır.</p>
-          </div>
-          <p>Görüşleriniz bizim için çok değerli!</p>
-          <p>Saygılarımızla,<br/>Villa Kiralama Ekibi</p>
-        </div>
-        <div class="footer">
-          <p>Bu e-posta ${new Date().toLocaleDateString("tr-TR")} tarihinde gönderilmiştir.</p>
-          <p>Bu link 14 gün boyunca geçerlidir.</p>
-          <p>Eğer bu e-postayı beklemiyorduysanız lütfen dikkate almayın.</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
-}
-
-serve(async (req: Request) => {
-  // CORS preflight
+serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  // İstek gövdesinden dryRun parametresini al (opsiyonel)
-  let dryRun = false;
-  try {
-    const body = await req.json();
-    if (body && typeof body.dryRun === "boolean") dryRun = body.dryRun;
-  } catch {
-    // body yoksa sorun değil → dryRun=false varsay
-  }
-
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const serviceRoleKey =
+      Deno.env.get("SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    const appUrl = Deno.env.get("APP_URL") || "https://www.xn--villadnyas-feb45d.com";
 
-    // App URL (kamuya açık site adresiniz)
-    const appUrl =
-      Deno.env.get("APP_URL") ||
-      Deno.env.get("SITE_URL") ||
-      Deno.env.get("NEXT_PUBLIC_SITE_URL") ||
-      "http://localhost:3000";
-
-    const fromEmail = Deno.env.get("EMAIL_FROM") || "noreply@yourdomain.com";
-    const fromName = Deno.env.get("EMAIL_FROM_NAME") || "Villa Portal";
-
-    if (!supabaseUrl || !serviceKey) {
-      return jsonResponse({ error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY" }, 500);
+    if (!supabaseUrl) {
+      return new Response(JSON.stringify({ error: "SUPABASE_URL missing in env" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      });
     }
-
-    // dryRun=false ise Resend anahtarı zorunlu
-    if (!dryRun && !resendApiKey) {
-      return jsonResponse({ error: "Missing RESEND_API_KEY" }, 500);
+    if (!serviceRoleKey) {
+      return new Response(JSON.stringify({ error: "SERVICE_ROLE_KEY missing in env" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      });
     }
-
-    const supabase = createClient(supabaseUrl, serviceKey);
-
-    // 1) Pending e-postaları al (RPC fonksiyon şemanıza göre dönüyor)
-    const { data: pending, error: fetchErr } = await supabase.rpc<PendingEmailRow[]>(
-      "get_pending_review_emails",
-    );
-
-    if (fetchErr) {
-      return jsonResponse({ error: `Database error: ${fetchErr.message}` }, 500);
-    }
-
-    const pendingEmails = Array.isArray(pending) ? pending : [];
-
-    // dryRun: Adayları döndür ve çık
-    if (dryRun) {
-      return jsonResponse({
-        dryRun: true,
-        count: pendingEmails.length,
-        candidates: pendingEmails.map((p) => ({
-          email_log_id: p.email_log_id,
-          recipient: p.recipient,
-          guest_name: p.guest_name,
-          villa_name: p.villa_name,
-          reservation_id: p.reservation_id ?? null,
-        })),
+    if (!resendApiKey) {
+      return new Response(JSON.stringify({ error: "RESEND_API_KEY missing in env" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
       });
     }
 
-    if (pendingEmails.length === 0) {
-      return jsonResponse({ message: "No pending emails" });
+    // Admin client (service role)
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+    // Pending email'leri çek
+    const { data: pendingEmails, error: fetchError } = await supabase.rpc(
+      "get_pending_review_emails",
+    );
+    if (fetchError) {
+      return new Response(JSON.stringify({ error: `RPC error: ${fetchError.message}` }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      });
     }
 
-    // 2) Her bir alıcıya e-posta gönder
-    const results: Array<
-      | { email: string; status: "success"; resend_id: string }
-      | { email: string; status: "failed"; error: unknown }
-      | { email: string; status: "error"; error: string }
-    > = [];
+    if (!pendingEmails || pendingEmails.length === 0) {
+      return new Response(JSON.stringify({ message: "No pending emails" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
 
-    for (const row of pendingEmails) {
+    const results: Array<{
+      email_log_id: number;
+      email: string;
+      status: "success" | "failed" | "error";
+      resend_id?: string;
+      update_error?: string;
+      error?: unknown;
+    }> = [];
+
+    for (const emailData of pendingEmails) {
       try {
-        const reviewLink = buildReviewLink(appUrl, row.token);
-        const html = renderEmailHtml(
-          row.guest_name || "Değerli Misafirimiz",
-          row.villa_name,
+        // 🎯 YENİ: Token'ı DB'de GARANTİ ET ve DB'nin döndürdüğünü kullan
+        const { data: ensured, error: ensureErr } = await supabase.rpc(
+          "ensure_review_token_for_reservation",
+          { p_reservation_id: emailData.reservation_id },
+        );
+
+        if (ensureErr || !ensured?.[0]?.access_token) {
+          // email_logs -> failed
+          await supabase
+            .from("email_logs")
+            .update({
+              status: "failed",
+              error_message: ensureErr?.message ?? "ensure_review_token_for_reservation failed",
+            })
+            .eq("id", emailData.email_log_id);
+
+          results.push({
+            email_log_id: emailData.email_log_id,
+            email: emailData.recipient,
+            status: "failed",
+            error: ensureErr?.message ?? "ensure_review_token_for_reservation failed",
+          });
+          continue;
+        }
+
+        const token = ensured[0].access_token as string;
+
+        // (Opsiyonel ama faydalı) email_logs.token'ı güncelle (audit/debug için)
+        await supabase.from("email_logs").update({ token }).eq("id", emailData.email_log_id);
+
+        // Linki DB'nin token'ı ile kur
+        const reviewLink = `${appUrl}/review/${token}`;
+
+        const emailHtml = generateEmailTemplate(
+          emailData.guest_name || "Değerli Misafirimiz",
+          emailData.villa_name,
           reviewLink,
         );
 
-        const resp = await fetch("https://api.resend.com/emails", {
+        const emailResponse = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${resendApiKey}`,
           },
           body: JSON.stringify({
-            from: `${fromName} <${fromEmail}>`,
-            to: [row.recipient],
-            subject: `${row.villa_name} konaklamanız nasıldı?`,
-            html,
+            from: "Villa Dünyası <reviews@xn--villadnyas-feb45d.com>",
+            to: [emailData.recipient],
+            subject: `${emailData.villa_name} konaklamanız nasıldı?`,
+            html: emailHtml,
           }),
         });
 
-        const data = await resp.json().catch(() => ({}));
+        const emailResult = await emailResponse.json().catch(() => ({}) as any);
 
-        if (resp.ok && data?.id) {
-          // email_logs güncelle
-          await supabase
+        if (emailResponse.ok) {
+          const { error: updErr } = await supabase
             .from("email_logs")
             .update({
               status: "sent",
               sent_at: new Date().toISOString(),
-              external_id: String(data.id),
+              external_id: emailResult?.id ?? null,
+              error_message: null,
             })
-            .eq("id", row.email_log_id);
+            .eq("id", emailData.email_log_id);
 
-          // (Varsa) rezervasyonu işaretle: review_reminder_sent = true
-          if (row.reservation_id) {
-            await supabase
-              .from("reservations")
-              .update({ review_reminder_sent: true })
-              .eq("id", row.reservation_id);
+          if (updErr) {
+            results.push({
+              email_log_id: emailData.email_log_id,
+              email: emailData.recipient,
+              status: "error",
+              resend_id: emailResult?.id,
+              update_error: updErr.message,
+            });
+          } else {
+            results.push({
+              email_log_id: emailData.email_log_id,
+              email: emailData.recipient,
+              status: "success",
+              resend_id: emailResult?.id,
+            });
           }
-
-          results.push({ email: row.recipient, status: "success", resend_id: String(data.id) });
         } else {
-          // Başarısızlık: log’a yaz
-          await supabase
+          const { error: updErr } = await supabase
             .from("email_logs")
             .update({
               status: "failed",
-              error_message: JSON.stringify(data ?? { status: resp.status }),
+              error_message: JSON.stringify(emailResult),
             })
-            .eq("id", row.email_log_id);
+            .eq("id", emailData.email_log_id);
 
-          results.push({ email: row.recipient, status: "failed", error: data });
-        }
-      } catch (err: any) {
-        console.error(`Error sending email to ${row.recipient}:`, err);
-
-        await supabase
-          .from("email_logs")
-          .update({
+          results.push({
+            email_log_id: emailData.email_log_id,
+            email: emailData.recipient,
             status: "failed",
-            error_message: String(err?.message ?? err),
-          })
-          .eq("id", row.email_log_id);
-
+            resend_id: emailResult?.id,
+            update_error: updErr?.message,
+          });
+        }
+      } catch (err) {
         results.push({
-          email: row.recipient,
+          email_log_id: emailData.email_log_id,
+          email: emailData.recipient,
           status: "error",
-          error: String(err?.message ?? err),
+          error: (err as Error)?.message ?? String(err),
         });
       }
     }
 
-    return jsonResponse({ processed: results.length, results });
-  } catch (e: any) {
-    console.error("Function error:", e);
-    return jsonResponse({ error: String(e?.message ?? e) }, 500);
+    return new Response(JSON.stringify({ processed: results.length, results }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200,
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: (error as Error).message }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500,
+    });
   }
 });
+
+function generateEmailTemplate(guestName: string, villaName: string, reviewLink: string): string {
+  return `
+    <!DOCTYPE html>
+    <html lang="tr">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+      <title>Villa Değerlendirmesi</title>
+      <style>
+        body { margin:0; padding:0; background:#f4f4f4; }
+        .container { max-width:600px; margin:0 auto; background:#fff; }
+        .header { background:#2c3e50; padding:40px 20px; text-align:center; color:#fff; }
+        .content { padding:40px 20px; }
+        .button { display:inline-block; padding:15px 30px; background:#e67e22; color:#fff; text-decoration:none; border-radius:6px; font-weight:600; }
+        .rating-info { background:#ecf0f1; padding:16px; border-radius:6px; margin:20px 0; }
+        .footer { background:#34495e; color:#fff; font-size:12px; padding:16px; text-align:center; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header"><h1>Konaklamanız Nasıldı?</h1></div>
+        <div class="content">
+          <p>Merhaba ${guestName},</p>
+          <p><strong>${villaName}</strong> villamızdaki konaklamanızın ardından deneyiminizi bizimle paylaşır mısınız?</p>
+          <div class="rating-info">
+            <strong>Değerlendirme kriterleri:</strong>
+            <ul>
+              <li>Temizlik</li>
+              <li>Konfor</li>
+              <li>Karşılama</li>
+            </ul>
+          </div>
+          <p style="text-align:center; margin:28px 0;">
+            <a href="${reviewLink}" class="button">Değerlendirme Yap</a>
+          </p>
+          <p>Görüşleriniz bizim için çok değerli. Teşekkür ederiz!</p>
+        </div>
+        <div class="footer">
+          <p>Bu link 14 gün geçerlidir. Beklemiyorduysanız lütfen dikkate almayın.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
