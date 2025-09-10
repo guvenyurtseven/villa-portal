@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 import DiscountVillaCard from "./DiscountVillaCard";
 import { Percent } from "lucide-react";
+import { format } from "date-fns"; // YENİ
 
 type DiscountItem = {
   discount_id: string;
   villa_id: string;
   villa_name: string;
   cover_url?: string | null;
-  start_date: string;
-  end_date: string;
+  start_date: string; // YYYY-MM-DD
+  end_date: string; // YYYY-MM-DD
   discounted_price: number; // gecelik indirimli
   original_avg_price?: number | null; // indirimsiz ortalama gecelik
   discount_percent?: number | null;
@@ -21,7 +22,6 @@ type DiscountItem = {
   district?: string | null;
   neighborhood?: string | null;
 
-  // API hem tekil hem çoğul dönebilir
   bedroom?: number | null;
   bathroom?: number | null;
   bedrooms?: number | null;
@@ -38,11 +38,27 @@ export default function DiscountVillas() {
         const res = await fetch("/api/discount-villas?limit=20", { cache: "no-store" });
         if (res.ok) {
           const json = await res.json();
-          const sorted = (json.items || []).sort((a: DiscountItem, b: DiscountItem) =>
+
+          // ---- Dinamik başlangıç: bugün ile kıs, geçmişi ele ----
+          const todayStr = format(new Date(), "yyyy-MM-dd"); // yerel TZ; kart/ekranla tutarlı
+          const normalized: DiscountItem[] = (json.items || [])
+            .map((it: DiscountItem) => {
+              // indirim geçmişte bitmişse listeleme
+              if (it.end_date < todayStr) return null;
+
+              // başlangıç bugündense aynı kalsın; geçmişteyse bugüne çek
+              const adjStart = it.start_date < todayStr ? todayStr : it.start_date;
+              return { ...it, start_date: adjStart };
+            })
+            .filter(Boolean);
+
+          // ---- Sıralama (mevcut mantık) ----
+          const sorted = normalized.sort((a, b) =>
             a.priority === b.priority
               ? a.start_date.localeCompare(b.start_date)
               : a.priority - b.priority,
           );
+
           setItems(sorted);
         }
       } finally {
@@ -80,9 +96,9 @@ export default function DiscountVillas() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Percent className="h-5 w-5 text-orange-500" />
+    <div className="w-auto space-y-4">
+      <div className="flex items-center gap-2 w-full">
+        <Percent className="h-5  text-orange-500" />
         <h2 className="text-xl font-semibold">İndirimli Dönemler</h2>
       </div>
 
@@ -102,7 +118,6 @@ export default function DiscountVillas() {
             province={it.province ?? undefined}
             district={it.district ?? undefined}
             neighborhood={it.neighborhood ?? undefined}
-            // normalize ederek aktar
             bedroom={it.bedroom ?? it.bedrooms ?? null}
             bathroom={it.bathroom ?? it.bathrooms ?? null}
           />

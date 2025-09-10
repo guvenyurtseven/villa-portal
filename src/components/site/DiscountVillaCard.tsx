@@ -5,7 +5,8 @@ import Image from "next/image";
 import { Calendar, Users, BedDouble, Bath } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
-import { MapPin, X } from "lucide-react";
+import { MapPin } from "lucide-react";
+
 const tl = new Intl.NumberFormat("tr-TR", {
   style: "currency",
   currency: "TRY",
@@ -27,7 +28,6 @@ type Props = {
   district?: string;
   neighborhood?: string;
 
-  // Tekil & çoğul destek
   bedroom?: number | null;
   bathroom?: number | null;
   bedrooms?: number | null;
@@ -54,15 +54,18 @@ export default function DiscountVillaCard(props: Props) {
     bathrooms,
   } = props;
 
-  // Gelen hangi isim olursa olsun normalize et
   const br = bedroom ?? bedrooms ?? null;
   const ba = bathroom ?? bathrooms ?? null;
+
+  // ---- BUGÜN ile kıs (koruyucu) ----
+  const todayStr = format(new Date(), "yyyy-MM-dd"); // yerel TZ
+  const effectiveStart = startDate < todayStr ? todayStr : startDate;
 
   const fmt = (d: string) => format(parseISO(d), "d MMM", { locale: tr });
 
   return (
     <Link
-      href={`/villa/${villaId}?checkin=${startDate}&checkout=${endDate}`}
+      href={`/villa/${villaId}?checkin=${effectiveStart}&checkout=${endDate}`}
       className="block group"
     >
       <div className="relative border-2 border-orange-400 rounded-lg overflow-hidden bg-white hover:shadow-lg transition-all duration-200 hover:border-orange-500">
@@ -77,12 +80,13 @@ export default function DiscountVillaCard(props: Props) {
           />
         </div>
 
-        {/* İçerik */}
+        {/* Başlık */}
         <div className="text-center bg-orange-500 text-white text-xs py-1">
           <h3 className="truncate font-semibold font-mono">{villaName}</h3>
         </div>
+
         <div className="p-3 space-y-2">
-          {/* Başlık + yüzde */}
+          {/* Yüzde etiketi */}
           <div className="flex items-center justify-between">
             {typeof discountPercent === "number" && discountPercent > 0 && (
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">
@@ -90,6 +94,7 @@ export default function DiscountVillaCard(props: Props) {
               </span>
             )}
           </div>
+
           {/* Fiyat çizgisi */}
           <div className="mt-1 flex items-end gap-1">
             {originalAvgNightly && originalAvgNightly > 0 ? (
@@ -116,20 +121,19 @@ export default function DiscountVillaCard(props: Props) {
           {(province || district || neighborhood) && (
             <p className="text-xs text-gray-500 truncate flex items-center py-2">
               <MapPin className="h-5 w-3" />
-
               {[province, district, neighborhood].filter(Boolean).join(" / ")}
             </p>
           )}
 
-          {/* Tarih aralığı */}
+          {/* Tarih aralığı (gösterimde de efektif başlangıç) */}
           <div className="flex items-center gap-1 text-xs text-gray-600">
             <Calendar className="h-3 w-3" />
             <span>
-              {fmt(startDate)} - {fmt(endDate)}
+              {fmt(effectiveStart)} - {fmt(endDate)}
             </span>
           </div>
 
-          {/* Kapasite + Yatak + Banyo (tek satır) */}
+          {/* Kapasite + Yatak + Banyo */}
           <div className="flex items-center gap-3 text-sm text-gray-600">
             {typeof capacity === "number" && (
               <span className="flex items-center gap-1" title="Kişi">
