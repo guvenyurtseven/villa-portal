@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import PhotoManager from "@/components/admin/PhotoManager";
 import LocationSelect from "@/components/admin/LocationSelect";
-
+import { OwnerSelect } from "@/components/admin/OwnerSelect";
 type Villa = {
   id: string;
   name: string;
@@ -101,7 +101,7 @@ export default function VillaEditForm({
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
-
+  const [ownerId, setOwnerId] = useState<string | null>((initialVilla as any).owner_id ?? null);
   const [form, setForm] = useState({
     name: initialVilla.name ?? "",
     description: initialVilla.description ?? "",
@@ -176,6 +176,7 @@ export default function VillaEditForm({
           province: form.province,
           district: form.district,
           neighborhood: form.neighborhood || null,
+          owner_id: ownerId, // null bırakılabilir; backend karar versin
         },
         photos: photos.map((p, i) => ({
           id: p.id,
@@ -247,6 +248,14 @@ export default function VillaEditForm({
               onChange={(e) => onChange("cleaning_fee", e.target.value)}
               placeholder="7 günden az konaklamalarda uygulanır"
             />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Sahip</label>
+            <OwnerSelect value={ownerId} onChange={setOwnerId} placeholder="Sahip seçin" />
+            <p className="text-xs text-muted-foreground mt-1">
+              Değiştirirseniz villa yeni sahibin üzerine atanır.
+            </p>
           </div>
 
           <div>

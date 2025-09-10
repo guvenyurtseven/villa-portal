@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import PhotoManager from "@/components/admin/PhotoManager";
 import LocationSelect from "@/components/admin/LocationSelect";
+import { OwnerSelect } from "@/components/admin/OwnerSelect";
 type Photo = { id?: string; url: string; is_primary: boolean; order_index: number };
 type CategoryOption = { id: string; name: string; slug: string };
 
@@ -44,7 +45,7 @@ type FeatureKey = (typeof FEATURE_DEFS)[number]["key"];
 export default function VillaForm({ categories = [] }: { categories?: CategoryOption[] }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
-
+  const [ownerId, setOwnerId] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -93,7 +94,10 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
       alert("Belge numarası alanı zorunludur.");
       return;
     }
-
+    if (!ownerId) {
+      alert("Lütfen bir sahip seçin.");
+      return;
+    }
     setSaving(true);
     try {
       const priority = Math.min(5, Math.max(1, parseInt(form.priority || "1", 10)));
@@ -117,7 +121,7 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
           province: form.province,
           district: form.district,
           neighborhood: form.neighborhood || null,
-
+          owner_id: ownerId,
           document_number: documentNumber.trim(),
         },
         photos: photos.map((p, i) => ({
@@ -176,6 +180,14 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
             />
             <p className="text-xs text-muted-foreground mt-1">
               Sadece oluşturma esnasında alınır; düzenleme formunda görünmez.
+            </p>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Sahip</label>
+            <OwnerSelect value={ownerId} onChange={setOwnerId} placeholder="Sahip seçin" required />
+            <p className="text-xs text-muted-foreground mt-1">
+              Villa, seçilen sahibin üzerine kaydedilir.
             </p>
           </div>
 

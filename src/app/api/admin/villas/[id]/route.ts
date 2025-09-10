@@ -109,8 +109,32 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (hasOwn(villa, k)) v[k] = !!villa[k];
     }
 
-    // document_number edit'te güncellenmez (bilerek ignore)
-    // if (hasOwn(villa, "document_number")) { /* ignore */ }
+    // OWNER_ID: geldiyse kontrol et ve güncelle
+    if (hasOwn(villa, "owner_id")) {
+      const owner_id_raw = villa.owner_id;
+      // null'a izin veriyorsanız null bırakın; zorunlu olsun istiyorsanız burada 400 dönebilirsiniz.
+      if (owner_id_raw) {
+        const owner_id = String(owner_id_raw);
+        const { count, error } = await supabase
+          .from("owners")
+          .select("*", { count: "exact", head: true })
+          .eq("id", owner_id);
+
+        if (error) {
+          return NextResponse.json(
+            { error: `Sahip kontrolü başarısız: ${error.message}` },
+            { status: 500 },
+          );
+        }
+        if ((count ?? 0) === 0) {
+          return NextResponse.json({ error: "Geçersiz owner_id." }, { status: 400 });
+        }
+        v.owner_id = owner_id;
+      } else {
+        // null/boş gönderilmişse null set (iş kuralınıza göre kapatabilirsiniz)
+        v.owner_id = null;
+      }
+    }
 
     // Tip normalizasyonları
     if (hasOwn(v, "name") && typeof v.name === "string") v.name = v.name.trim();
@@ -124,6 +148,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (hasOwn(v, "capacity") && v.capacity != null) v.capacity = Number(v.capacity);
     if (hasOwn(v, "lat")) v.lat = v.lat === "" || v.lat == null ? null : Number(v.lat);
     if (hasOwn(v, "lng")) v.lng = v.lng === "" || v.lng == null ? null : Number(v.lng);
+
+    // document_number edit'te güncellenmez (bilerek ignore)
+    // if (hasOwn(villa, "document_number")) { /* ignore */ }
 
     // herhangi bir alan geldiyse updated_at'i güncelle
     if (Object.keys(v).length > 0) {

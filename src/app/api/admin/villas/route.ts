@@ -45,6 +45,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "İsim zorunlu" }, { status: 400 });
   }
 
+  // owner_id zorunlu + string doğrulama
+  const owner_id: string | null =
+    typeof villa?.owner_id === "string" && villa.owner_id.trim() ? villa.owner_id.trim() : null;
+
+  if (!owner_id) {
+    return NextResponse.json({ error: "owner_id zorunludur." }, { status: 400 });
+  }
+
+  // owner var mı? (existence check)
+  const { count: ownerCount, error: ownerErr } = await supabase
+    .from("owners")
+    .select("*", { count: "exact", head: true })
+    .eq("id", owner_id);
+
+  if (ownerErr) {
+    console.error("owner existence check error", ownerErr);
+    return NextResponse.json({ error: ownerErr.message }, { status: 500 });
+  }
+  if ((ownerCount ?? 0) === 0) {
+    return NextResponse.json({ error: "Geçersiz owner_id." }, { status: 400 });
+  }
+
   // villa alanlarını derle (weekly_price KALDIRILDI)
   const data: any = {
     name: String(villa.name).trim(),
@@ -64,6 +86,9 @@ export async function POST(req: NextRequest) {
     district: villa?.district?.trim() || null,
     neighborhood: villa?.neighborhood?.trim() || null,
     document_number: villa?.document_number?.trim() || null,
+
+    // KRİTİK: owner_id'yi mutlaka yaz
+    owner_id,
   };
 
   // boolean özellikleri ekle
@@ -77,7 +102,7 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (insErr || !inserted) {
-    console.error(insErr);
+    console.error("villa insert error", insErr);
     return NextResponse.json({ error: "Villa oluşturulamadı" }, { status: 500 });
   }
 
@@ -102,5 +127,5 @@ export async function POST(req: NextRequest) {
     if (linkErr) console.error("category link insert error", linkErr);
   }
 
-  return NextResponse.json({ id: villaId });
+  return NextResponse.json({ id: villaId }, { status: 201 });
 }

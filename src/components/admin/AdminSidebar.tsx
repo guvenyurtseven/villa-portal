@@ -12,6 +12,8 @@ import {
   List,
   MessageCircle,
   ClipboardClock,
+  BookUser,
+  Book,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { title } from "process";
@@ -46,6 +48,11 @@ const menuItems = [
     title: "Bekleyen Rezervasyonlar",
     href: "/admin/reservations/pending",
     icon: ClipboardClock,
+  },
+  {
+    title: "Villa Sahipleri",
+    href: "/admin/owners",
+    icon: BookUser,
   },
 ];
 
