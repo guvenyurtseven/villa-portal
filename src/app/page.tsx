@@ -16,7 +16,7 @@ export default async function Home({
   return (
     <main className="max-w-9/10 mx-auto py-6">
       <FlashThanks />
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 w-full">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Sol Sütun */}
         <aside className="lg:col-span-2">
           <div className="sticky top-20">
@@ -26,11 +26,11 @@ export default async function Home({
         </aside>
 
         {/* Orta Sütun - Ana İçerik */}
-        <div className="lg:col-span-8 space-y-8">
+        <div className="lg:col-span-8 space-y-6">
           <div>
-            <div className="grid grid-cols-2 py-8 px-4">
-              <div className="px-8">
-                <h1 className="text-4xl font-semibold mb-2">Villa Dünyası</h1>
+            <div className="grid grid-cols-2">
+              <div>
+                <h1 className="text-4xl font-semibold mb-2">Villa Portal</h1>
                 <p className="text-gray-600 italic mb-6">Tatiliniz İçin En Seçkin Villalar</p>
               </div>
               <section>

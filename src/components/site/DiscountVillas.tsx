@@ -96,9 +96,9 @@ export default function DiscountVillas() {
   }
 
   return (
-    <div className="w-auto space-y-4">
-      <div className="flex items-center gap-2 w-full">
-        <Percent className="h-5  text-orange-500" />
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Percent className="h-5 w-5 text-orange-500" />
         <h2 className="text-xl font-semibold">İndirimli Dönemler</h2>
       </div>
 

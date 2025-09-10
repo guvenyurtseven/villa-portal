@@ -6,9 +6,10 @@ import MapModal from "@/components/site/MapModal";
 import { notFound } from "next/navigation";
 import VillaFeatures from "@/components/site/VillaFeatures";
 import OpportunityPeriods from "@/components/site/OpportunityPeriods";
-import { Users } from "lucide-react";
+import { Users, BedDouble, Droplet, Image as ImageIcon } from "lucide-react";
 import Image from "next/image";
 import { MapPin, X } from "lucide-react";
+import GalleryLightbox from "@/components/site/GalleryLightbox";
 
 interface VillaPageProps {
   params: Promise<{ id: string }>;
@@ -242,111 +243,135 @@ export default async function VillaPage({ params }: VillaPageProps) {
       }
     }
   }
+  const locationStr = [villa.province, villa.district, villa.neighborhood]
+    .filter(Boolean)
+    .join(" / ");
 
   return (
-    <main className="max-w-5xl mx-auto p-6">
-      <div className="gap-2 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">{villa.name}</h1>
-
-          <p className="text-sm font-semibold flex items-center gap-2 py-4">
-            <MapPin className="h-5 w-5" />
-            {[villa.province, villa.district, villa.neighborhood].filter(Boolean).join(" / ")}
-          </p>
+    <>
+      {/* HERO: Tam genişlik kapak görseli + overlay başlık/konum + "Resimlere Bak" */}
+      <section
+        className="
+          relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw]
+          h-[56vh] min-h-[320px] max-h-[720px]
+        "
+        aria-label="Kapak görseli"
+      >
+        <div className="absolute inset-0 z-index-100">
+          {/* Next Image fill + object-cover (resmi yatayda tam yay) */}
+          {/* Docs: Image fill & object-fit */}
+          <Image
+            src={coverUrl}
+            alt={villa.name}
+            fill
+            className="object-cover"
+            priority
+            sizes="100vw"
+          />
+          {/* üst ve alt yumuşak gradient overlay (okunabilirlik) */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/30 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/70 via-black/40 to-transparent" />
         </div>
 
-        {/* Belge Numarası Paneli */}
-        <div className="mt-4 flex items-center gap-4 rounded-lg bg-orange-500 p-2 ">
-          <Image
-            src="/guvenli-turizm.png"
-            alt="Güvenli Turizm Sertifika"
-            width={44}
-            height={44}
-            priority
-          />
-          <div className="leading-tight flex flex-col">
-            <div className="text-xs font-medium text-white">TC Kültür ve Turizm Bakanlığı</div>
-            <div className="text-xs font-medium text-white">Belge No:</div>
-            <div className="text-base font-semibold text-white">
-              {villa?.document_number || "-"} 123456
-            </div>
+        {/* Ortalanmış başlık/konum */}
+        <div className="relative z-10 h-full max-w-5xl mx-auto px-6 flex flex-col items-start justify-center">
+          <h1 className="text-white drop-shadow-md font-bold text-3xl sm:text-4xl md:text-5xl">
+            {villa.name}
+          </h1>
+          {locationStr && (
+            <p className="mt-3 inline-flex items-center gap-2 text-white/95 drop-shadow">
+              <MapPin className="h-5 w-5" />
+              <span className="text-base sm:text-lg md:text-xl">{locationStr}</span>
+            </p>
+          )}
+        </div>
+
+        {/* Sağ altta "Resimlere Bak" butonu */}
+        <div className="absolute right-6 bottom-6  z-10">
+          <div className="absolute right-6 bottom-6 z-10">
+            <GalleryLightbox photos={safePhotos} />
           </div>
         </div>
-      </div>
 
-      <div className="flex items-center gap-4 text-gray-500 mt-2">
-        {villa.capacity && (
-          <div className="flex items-center gap-1">
-            <Users className="h-4 w-4" />
-            <span>{villa.capacity} Kişi</span>
+        {/* Örnek: Sertifika rozeti istersen sol üstte göster */}
+        {villa.document_number && (
+          <div className="absolute left-6 top-6 z-10 rounded-md bg-orange-500/95 px-3 py-1.5 text-white text-xs z-200">
+            Belge No: {villa.document_number}
           </div>
         )}
-      </div>
-      {villa?.reference_code && (
-        <span className="mt-2 inline-block rounded bg-orange-500 px-2 py-1 text-xs font-semibold text-white">
-          #{villa.reference_code}
-        </span>
-      )}
 
-      {/* Foto galeri */}
-      <div className="mt-6">
-        <PhotoGallery photos={safePhotos} />
-      </div>
-
-      {/* Açıklama */}
-      {/* Açıklama — kart görünümü */}
-      {villa.description && (
-        <div className="mt-6 rounded-lg border bg-white p-4">
-          <p className="text-gray-700 whitespace-pre-line">{villa.description}</p>
+        {/* Kapasite / Yatak / Özel Havuz satırı */}
+        <div className="mt-2 mb-4 ml-8 flex flex-wrap items-center gap-5 text-gray-1000">
+          {typeof villa.capacity === "number" && (
+            <span className="inline-flex items-center gap-1.5 text-gray-700">
+              <Users className="h-4 w-4" />
+              <span className="text-sm">{villa.capacity} Kişi</span>
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1.5 text-gray-700">
+            <BedDouble className="h-4 w-4" />
+            <span className="text-sm">{villa.bedrooms} Yatak Odası</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-gray-700">
+            <Droplet className="h-4 w-4" />
+            <span className="text-sm">{villa.has_pool ? "Özel Havuzlu" : "Havuz Yok"}</span>
+          </span>
         </div>
-      )}
+      </section>
 
-      {/* Özet özellikler (oda/banyo/havuz/mesafe) */}
-      <div className="grid grid-col-2 mt-6 rounded-lg border bg-white p-4 items-center">
-        <FeaturesList
-          bedrooms={villa.bedrooms}
-          bathrooms={villa.bathrooms}
-          pool={villa.has_pool}
-          seaDistance={villa.sea_distance || "Belirtilmemiş"}
-        />
-      </div>
+      {/* İçerik gövdesi */}
+      <main className="max-w-5xl mx-auto p-6">
+        {/* Açıklama */}
+        {villa.description && (
+          <div className="mt-6 rounded-lg border bg-white p-4">
+            <p className="text-gray-700 whitespace-pre-line">{villa.description}</p>
+          </div>
+        )}
 
-      {/* Detaylı boolean özellikler */}
-      <VillaFeatures villa={villa as any} className="mt-6" />
+        {/* Özet özellikler (istersen bırakmaya devam edebiliriz) */}
+        <div className="grid grid-col-2 mt-6 rounded-lg border bg-white p-4 items-center">
+          <FeaturesList
+            bedrooms={villa.bedrooms}
+            bathrooms={villa.bathrooms}
+            pool={villa.has_pool}
+            seaDistance={villa.sea_distance || "Belirtilmemiş"}
+          />
+        </div>
 
-      {/* Konum Haritası */}
-      {villa.lat != null && villa.lng != null && (
-        <MapModal
+        {/* Detaylı boolean özellikler */}
+        <VillaFeatures villa={villa as any} className="mt-6" />
+
+        {/* Konum Haritası */}
+        {villa.lat != null && villa.lng != null && (
+          <MapModal
+            villaName={villa.name}
+            coordinates={{ lat: Number(villa.lat), lng: Number(villa.lng) }}
+          />
+        )}
+
+        {/* Fırsat Aralıkları */}
+        {opportunities && opportunities.length > 0 && (
+          <OpportunityPeriods opportunities={opportunities} />
+        )}
+
+        {/* Takvim + fiyat + form */}
+        <AvailabilityCalendar
+          unavailable={unavailableRanges}
           villaName={villa.name}
-          coordinates={{
-            lat: Number(villa.lat),
-            lng: Number(villa.lng),
-          }}
+          villaImage={coverUrl}
+          villaId={villa.id}
+          pricingPeriods={pricingPeriods || []}
+          opportunities={opportunities}
+          cleaningFee={villa.cleaning_fee || 0}
+          discountPeriods={discountPeriods || []}
         />
-      )}
 
-      {/* Fırsat Aralıkları */}
-      {opportunities && opportunities.length > 0 && (
-        <OpportunityPeriods opportunities={opportunities} />
-      )}
-
-      {/* Takvim + fiyat + form */}
-      <AvailabilityCalendar
-        unavailable={unavailableRanges}
-        villaName={villa.name}
-        villaImage={coverUrl}
-        villaId={villa.id}
-        pricingPeriods={pricingPeriods || []}
-        opportunities={opportunities}
-        cleaningFee={villa.cleaning_fee || 0}
-        discountPeriods={discountPeriods || []}
-      />
-      {/* Onaylı yorumlar */}
-      {/* >>> Bu satırı açıklama/özellik bloklarından SONRA ekleyin */}
-      {await (async () => {
-        const ReviewsSection = (await import("@/components/site/ReviewsSection")).default;
-        return <ReviewsSection villaId={villa.id} />;
-      })()}
-    </main>
+        {/* Onaylı yorumlar */}
+        {await (async () => {
+          const ReviewsSection = (await import("@/components/site/ReviewsSection")).default;
+          return <ReviewsSection villaId={villa.id} />;
+        })()}
+      </main>
+    </>
   );
 }

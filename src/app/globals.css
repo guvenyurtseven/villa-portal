@@ -270,3 +270,12 @@
 .range-input:focus-visible::-moz-range-thumb {
   box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.35);
 }
+
+/* Scrollbar gizle ama kaydırmayı koru (Chrome/Safari/Edge/Firefox) */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
