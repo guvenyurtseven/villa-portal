@@ -1,28 +1,26 @@
-// src/app/api/admin/pending-reservations/[id]/approve/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceRoleClient } from "@/lib/supabase/server";
-import OwnerReservationEmail from "@/emails/OwnerReservationEmail";
 import { Resend } from "resend";
+import OwnerReservationEmail from "@/emails/OwnerReservationEmail";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-const RESEND = new Resend(process.env.RESEND_API_KEY!);
+type Params = { params: Promise<{ id: string }> };
+
+const RESEND = new Resend(process.env.RESEND_API_KEY || "");
 const MAIL_FROM = process.env.RESEND_FROM ?? "noreply@example.com";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
-type Params = { params: Promise<{ id: string }> };
-
-function formatTRY(n?: number | null) {
-  if (typeof n !== "number") return undefined;
-  return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(n);
+function formatTRY(value?: number | null) {
+  if (typeof value !== "number") return undefined;
+  return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(value);
 }
 
 function parseDateRange(range: string) {
-  // Beklenen: "[YYYY-MM-DD,YYYY-MM-DD)" gibi
-  const m = range?.match(/^\[?(\d{4}-\d{2}-\d{2}).*?,\s*(\d{4}-\d{2}-\d{2})/);
-  const start = m ? new Date(m[1] + "T00:00:00Z") : new Date();
-  const end = m ? new Date(m[2] + "T00:00:00Z") : new Date();
+  const match = range?.match(/^\[?(\d{4}-\d{2}-\d{2}).*?,\s*(\d{4}-\d{2}-\d{2})/);
+  const start = match ? new Date(`${match[1]}T00:00:00Z`) : new Date();
+  const end = match ? new Date(`${match[2]}T00:00:00Z`) : new Date();
   const nights = Math.max(1, Math.round((+end - +start) / 86400000));
   return { start, end, nights };
 }
@@ -37,8 +35,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const supabase = createServiceRoleClient();
   const force = new URL(req.url).searchParams.get("force") === "1";
 
-  // 1) Rezervasyon + villa + owner çek (mail ve token için gerekli tüm veriler)
-  const { data: r, error: rErr } = await supabase
+  const { data: reservation, error: reservationError } = await supabase
     .from("reservations")
     .select(
       `
@@ -52,84 +49,89 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     .eq("id", id)
     .single();
 
-  if (rErr || !r) {
-    return NextResponse.json({ error: rErr?.message || "Rezervasyon bulunamadı" }, { status: 404 });
+  if (reservationError || !reservation) {
+    return NextResponse.json(
+      { error: reservationError?.message || "Rezervasyon bulunamadi" },
+      { status: 404 },
+    );
   }
-  if (!r.villa?.id || !r.villa?.owner?.id || !r.villa?.owner?.email) {
+
+  const villa = Array.isArray(reservation.villa) ? reservation.villa[0] : reservation.villa;
+  const owner = Array.isArray(villa?.owner) ? villa.owner[0] : villa?.owner;
+
+  if (!villa?.id || !owner?.id || !owner?.email) {
     return NextResponse.json({ error: "Villa sahibi bilgileri eksik." }, { status: 400 });
   }
 
-  // 2) Zaten approved değilse: accept_pending_reservation RPC’si ile onayla
-  if (r.status !== "approved") {
-    const { error: rpcErr } = await supabase.rpc("approve_pending_reservation", {
-      p_id: id,
-    });
-    if (rpcErr) {
-      return NextResponse.json({ error: `Onay başarısız: ${rpcErr.message}` }, { status: 500 });
+  if (reservation.status !== "approved") {
+    const { error: rpcError } = await supabase.rpc("approve_pending_reservation", { p_id: id });
+    if (rpcError) {
+      return NextResponse.json(
+        { error: `Onay basarisiz: ${rpcError.message}` },
+        { status: 500 },
+      );
     }
   }
 
-  // owner'a daha önce mail gittiyse ve force değilse yeniden göndermeyelim
-  if (r.owner_notified_at && !force) {
-    return NextResponse.json({ ok: true, info: "Daha önce bilgilendirilmiş" });
+  if (reservation.owner_notified_at && !force) {
+    return NextResponse.json({ ok: true, info: "Daha once bilgilendirildi" });
   }
 
-  // 3) Token üret (checkout + 7 gün geçerli)
-  const { start, end, nights } = parseDateRange(String(r.date_range || ""));
+  const { start, end, nights } = parseDateRange(String(reservation.date_range || ""));
   const expiresAt = new Date(+end + 7 * 86400000).toISOString();
 
-  const { data: tokenRow, error: tokErr } = await supabase
+  const { data: tokenRow, error: tokenError } = await supabase
     .from("owner_portal_tokens")
     .insert({
-      reservation_id: r.id,
-      owner_id: r.villa.owner.id,
-      villa_id: r.villa.id,
-      // token sütunu DB default gen_random_uuid() ile üretilecek
+      reservation_id: reservation.id,
+      owner_id: owner.id,
+      villa_id: villa.id,
       expires_at: expiresAt,
     })
     .select("token")
     .single();
 
-  if (tokErr || !tokenRow) {
-    return NextResponse.json({ error: tokErr?.message || "Token üretilemedi" }, { status: 500 });
+  if (tokenError || !tokenRow) {
+    return NextResponse.json(
+      { error: tokenError?.message || "Token uretilemedi" },
+      { status: 500 },
+    );
   }
 
-  const ctaUrl = `${SITE_URL}/giris-bilgilendirme/${r.villa.id}/evsahibi?t=${tokenRow.token}`;
+  const ctaUrl = `${SITE_URL}/giris-bilgilendirme/${villa.id}/evsahibi?t=${tokenRow.token}`;
 
-  // 4) E-posta gönder (React Email bileşeni ile)
   try {
     const emailReact = OwnerReservationEmail({
-      villaName: r.villa.name,
-      guestName: r.guest_name ?? "Misafir",
-      guestPhone: r.guest_phone ?? undefined,
-      guestEmail: r.guest_email ?? undefined,
+      villaName: villa.name,
+      guestName: reservation.guest_name ?? "Misafir",
+      guestPhone: reservation.guest_phone ?? undefined,
+      guestEmail: reservation.guest_email ?? undefined,
       checkinStr: start.toLocaleDateString("tr-TR"),
       checkoutStr: end.toLocaleDateString("tr-TR"),
       nights,
-      totalPriceStr: formatTRY(Number(r.total_price)) ?? "—",
-      cleaningFeeStr: formatTRY(Number(r.villa.cleaning_fee ?? 0)),
-      // depositStr: formatTRY(...), // ileride kolon eklersen kullan
+      totalPriceStr: formatTRY(Number(reservation.total_price)) ?? "-",
+      cleaningFeeStr: formatTRY(Number(villa.cleaning_fee ?? 0)),
       ctaUrl,
     });
 
-    const { error: mailErr } = await RESEND.emails.send({
+    const { error: mailError } = await RESEND.emails.send({
       from: MAIL_FROM,
-      to: [r.villa.owner.email],
-      subject: `Rezervasyon onaylandı — ${r.villa.name}`,
+      to: [owner.email],
+      subject: `Rezervasyon onaylandi - ${villa.name}`,
       react: emailReact,
     });
 
-    if (mailErr) {
+    if (mailError) {
       return NextResponse.json(
-        { error: `Mail gönderilemedi: ${mailErr.message}` },
+        { error: `Mail gonderilemedi: ${mailError.message}` },
         { status: 502 },
       );
     }
-  } catch (e: any) {
-    return NextResponse.json({ error: `Mail gönderilemedi: ${e.message}` }, { status: 502 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Bilinmeyen hata";
+    return NextResponse.json({ error: `Mail gonderilemedi: ${message}` }, { status: 502 });
   }
 
-  // 5) owner_notified_at işaretle
   await supabase
     .from("reservations")
     .update({ owner_notified_at: new Date().toISOString() })

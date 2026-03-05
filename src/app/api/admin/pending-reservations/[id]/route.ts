@@ -1,7 +1,6 @@
-// src/app/api/admin/pending-reservations/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceRoleClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const unauthorized = await requireAdmin();
@@ -9,6 +8,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id } = await params;
   const supabase = createServiceRoleClient();
+
   const { data, error } = await supabase
     .from("reservations")
     .select(
@@ -22,9 +22,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     .eq("id", id)
     .eq("status", "pending")
     .single();
-  if (error || !data) return NextResponse.json({ error: "Bulunamadı" }, { status: 404 });
 
-  const photos = Array.isArray(data.villa?.photos) ? data.villa.photos.slice() : [];
+  if (error || !data) {
+    return NextResponse.json({ error: "Bulunamadi" }, { status: 404 });
+  }
+
+  const villa = Array.isArray(data.villa) ? data.villa[0] : data.villa;
+  const photos = Array.isArray(villa?.photos) ? villa.photos.slice() : [];
+
   photos.sort(
     (a: any, b: any) =>
       (b.is_primary ? 0 : 1) - (a.is_primary ? 0 : 1) ||
@@ -33,7 +38,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   return NextResponse.json({
     ...data,
-    villa_name: data.villa?.name ?? "-",
+    villa_name: villa?.name ?? "-",
     cover_url: photos[0]?.url ?? null,
   });
 }

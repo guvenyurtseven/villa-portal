@@ -66,7 +66,8 @@ export default async function PendingReservationDetail({
     );
   }
 
-  const photos = Array.isArray(data.villa?.photos) ? data.villa.photos.slice() : [];
+  const villa = Array.isArray(data.villa) ? data.villa[0] : data.villa;
+  const photos = Array.isArray(villa?.photos) ? villa.photos.slice() : [];
   photos.sort(
     (a: any, b: any) =>
       (b.is_primary ? 0 : 1) - (a.is_primary ? 0 : 1) ||
@@ -83,13 +84,13 @@ export default async function PendingReservationDetail({
         <div className="relative w-40 h-28 rounded overflow-hidden border bg-muted/30">
           <Image
             src={coverUrl || "/placeholder.jpg"}
-            alt={data.villa?.name || "Villa"}
+            alt={villa?.name || "Villa"}
             fill
             className="object-cover"
           />
         </div>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold">{data.villa?.name ?? "Villa"}</h1>
+          <h1 className="text-2xl font-bold">{villa?.name ?? "Villa"}</h1>
           <p className="text-sm text-gray-600">{dateText}</p>
           <div className="mt-2 flex gap-2">
             <Button asChild variant="outline">
