@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 export async function GET() {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   const supabase = createServiceRoleClient();
 
   // Sadece istenen 4 alanı çekiyoruz (Excel kolaylığı için başlıklarla)

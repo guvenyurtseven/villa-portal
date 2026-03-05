@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 const bodySchema = z.object({
   villa_id: z.string().uuid(),
@@ -23,6 +24,9 @@ function toPgDateRangeInclusive(start: string, endInclusive: string) {
 }
 
 export async function POST(req: Request) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   try {
     const supabase = createServiceRoleClient();
     const json = await req.json();

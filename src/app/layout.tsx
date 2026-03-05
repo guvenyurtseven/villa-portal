@@ -3,7 +3,7 @@ import "./globals.css";
 import HeaderGate from "@/components/site/HeaderGate";
 
 export const metadata: Metadata = {
-  title: "Villa Portal",
+  title: "Villa Dünyası",
   description: "Villa kiralama portalı",
 };
 

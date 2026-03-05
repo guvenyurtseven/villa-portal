@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 export async function GET(request: Request) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   try {
     const { searchParams } = new URL(request.url);
     const villa_id = searchParams.get("villa_id");
@@ -30,10 +33,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
 
   try {
     const body = await request.json();
@@ -77,10 +78,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
 
   try {
     const { searchParams } = new URL(request.url);

@@ -11,52 +11,52 @@ export default async function Home({
   // Next 15: Promise!
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const sp = await searchParams;
-  const showThanks = sp?.pre === "1";
+  await searchParams;
   return (
-    <main className="max-w-9/10 mx-auto py-6">
-      <FlashThanks />
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Sol Sütun */}
-        <aside className="lg:col-span-2">
-          <div className="sticky top-20">
-            {/* İndirimli Dönemler */}
-            <DiscountVillas />
-          </div>
-        </aside>
+    <main className="mx-auto w-full">
+      <div className="mx-auto w-full max-w-[1320px] px-4 py-6">
+        <FlashThanks />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Sol Sütun */}
+          <aside className="col-span-2">
+            <div className="sticky top-20 z-10">
+              <DiscountVillas />
+            </div>
+          </aside>
 
-        {/* Orta Sütun - Ana İçerik */}
-        <div className="lg:col-span-8 space-y-6">
-          <div>
-            <div className="grid grid-cols-2">
-              <div>
-                <h1 className="text-4xl font-semibold mb-2">Villa Portal</h1>
-                <p className="text-gray-600 italic mb-6">Tatiliniz İçin En Seçkin Villalar</p>
+          {/* Orta Sütun - Ana İçerik */}
+          <div className="col-span-8 space-y-6">
+            <div>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h1 className="text-4xl font-semibold mb-2">Villa Dünyası</h1>
+                  <p className="text-gray-600 italic mb-6">Tatiliniz İçin En Seçkin Villalar</p>
+                </div>
+                <section className="w-[480px] flex-shrink-0">
+                  <SearchBar />
+                </section>
               </div>
-              <section>
-                <SearchBar />
-              </section>
-            </div>
-            {/* Kategoriler */}
-            <CategoryNav />
+              {/* Kategoriler */}
+              <CategoryNav />
 
-            <div className="max-w-6xl mx-auto px-4 mt-4">
-              <QuickSearch />
-            </div>
+              <div className="max-w-6xl mx-auto px-4 mt-4">
+                <QuickSearch />
+              </div>
 
-            {/* Öne Çıkan Villalar */}
-            <div className="mt-6">
-              <FeaturedVillas showHidden={false} />
+              {/* Öne Çıkan Villalar */}
+              <div className="mt-6">
+                <FeaturedVillas />
+              </div>
             </div>
           </div>
+
+          {/* Sağ Sütun - Fırsat Villalar */}
+          <aside className="col-span-2">
+            <div className="sticky top-20 z-10">
+              <OpportunityVillas />
+            </div>
+          </aside>
         </div>
-
-        {/* Sağ Sütun - Fırsat Villalar */}
-        <aside className="lg:col-span-2">
-          <div className="sticky top-20">
-            <OpportunityVillas />
-          </div>
-        </aside>
       </div>
     </main>
   );

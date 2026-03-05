@@ -1,8 +1,12 @@
 // src/app/api/admin/pending-reservations/route.ts
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 export async function GET() {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   const supabase = createServiceRoleClient();
   const { data, error } = await supabase
     .from("reservations")

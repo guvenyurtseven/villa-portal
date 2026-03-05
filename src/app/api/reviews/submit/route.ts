@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
           typeof author_name === "string" && author_name.trim()
             ? author_name.trim().slice(0, 120)
             : null,
-        is_approved: true, // moderasyon istiyorsan false yap ve admin panelinden onayla
+        is_approved: false,
         token_used: true, // tek kullanımlık token kapat
       })
       .eq("access_token", token) // erişim token’ına göre tek satır güncellenecek

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import OwnerReservationEmail from "@/emails/OwnerReservationEmail";
 import { Resend } from "resend";
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 export const runtime = "nodejs";
 
@@ -27,6 +28,9 @@ function parseDateRange(range: string) {
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   const { id } = await params;
   if (!id) return NextResponse.json({ error: "id eksik" }, { status: 400 });
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 // params artık Promise. Next.js 15'te await edilmesi zorunlu.
 type Ctx = { params: Promise<{ id: string }> };
@@ -8,6 +9,9 @@ type Ctx = { params: Promise<{ id: string }> };
 const ParamsSchema = z.object({ id: z.string().uuid() });
 
 export async function POST(_req: Request, ctx: Ctx) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   const supabase = createServiceRoleClient();
 
   // ⬇️ HATA SEBEBİ BUYDU: ctx.params Promise => await et

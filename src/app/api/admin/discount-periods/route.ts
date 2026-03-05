@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createServiceRoleClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 function bad(msg: string, code = 400) {
   return NextResponse.json({ error: msg }, { status: code });
@@ -10,14 +11,14 @@ function bad(msg: string, code = 400) {
  * Belirli villanın indirim dönemlerini listeler (tarihe göre).
  */
 export async function GET(req: Request) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   const { searchParams } = new URL(req.url);
   const villa_id = searchParams.get("villa_id");
   if (!villa_id) return bad("villa_id zorunludur");
 
-  const supa = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!, // server-side
-  );
+  const supa = createServiceRoleClient();
   const { data, error } = await supa
     .from("villa_discount_periods")
     .select("*")
@@ -33,6 +34,9 @@ export async function GET(req: Request) {
  * Body: { villa_id, start_date, end_date, nightly_price, priority }
  */
 export async function POST(req: Request) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   const raw = await req.json();
   const villa_id = raw.villa_id ?? raw.villaId;
   const start_date = raw.start_date ?? raw.startDate;
@@ -44,10 +48,7 @@ export async function POST(req: Request) {
     return bad("villa_id, start_date, end_date, nightly_price, priority zorunludur.");
   }
 
-  const supa = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
+  const supa = createServiceRoleClient();
 
   const { data, error } = await supa
     .from("villa_discount_periods")
@@ -70,14 +71,14 @@ export async function POST(req: Request) {
  * DELETE /api/admin/discount-periods?id=...
  */
 export async function DELETE(req: Request) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return bad("id zorunludur");
 
-  const supa = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
+  const supa = createServiceRoleClient();
   const { error } = await supa.from("villa_discount_periods").delete().eq("id", id);
   if (error) return bad(error.message, 500);
 

@@ -37,7 +37,7 @@ export async function POST(req: Request) {
 
   // 2) Basit anti-spam (honeypot doluysa sessizce bitir)
   if (data._hp && data._hp.trim() !== "") {
-    return NextResponse.json({ ok: true }, { status: 204 });
+    return new NextResponse(null, { status: 204 });
   }
 
   // 3) Tarih doğrulama (start < end)

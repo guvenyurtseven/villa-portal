@@ -1,73 +1,75 @@
-// src/components/site/Header.tsx
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import { Menu } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 export default function Header() {
   return (
     <header className="sticky top-0 z-50 border-b bg-white/80 backdrop-blur">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="h-16 flex items-center justify-between gap-4">
-          {/* Sol: Logo */}
-          <Link href="/" className="flex items-center gap-2 shrink-0" aria-label="Anasayfa">
-            {/* Kendi logonu buraya koy */}
-            {/* <Image src="/logo.svg" alt="Site Logosu" width={120} height={32} priority /> */}
-            <div className="w-28 h-10 rounded-md bg-gray-200 flex items-center justify-center text-xs text-gray-500">
-              LOGO
+      <div className="mx-auto max-w-7xl px-4">
+        <div className="flex h-16 items-center justify-between gap-4">
+          <Link href="/" className="flex shrink-0 items-center gap-2" aria-label="Anasayfa">
+            <div className="relative h-10 w-10 overflow-hidden rounded-full ring-1 ring-black/10">
+              <Image
+                src="/logo-villa-dunyasi.svg"
+                alt="Villa Dünyası Logo"
+                fill
+                priority
+                className="object-cover"
+              />
             </div>
+            <span className="hidden text-sm font-semibold tracking-wide text-slate-900 sm:inline">
+              Villa Dünyası
+            </span>
           </Link>
 
-          {/* Orta: Desktop navigasyon */}
-          <nav className="hidden md:flex items-center gap-6 text-sm">
-            <Link href="/" className="hover:text-orange-600 transition-colors">
+          <nav className="hidden items-center gap-6 text-sm md:flex">
+            <Link href="/" className="transition-colors hover:text-orange-600">
               Ana Sayfa
             </Link>
-            <Link href="/villas" className="hover:text-orange-600 transition-colors">
+            <Link href="/villas" className="transition-colors hover:text-orange-600">
               Villalar
             </Link>
-            <Link href="/categories" className="hover:text-orange-600 transition-colors">
+            <Link href="/kategoriler" className="transition-colors hover:text-orange-600">
               Kategoriler
             </Link>
-            <Link href="/about" className="hover:text-orange-600 transition-colors">
+            <Link href="/hakkimizda" className="transition-colors hover:text-orange-600">
               Hakkımızda
             </Link>
           </nav>
 
-          {/* Sağ: CTA + Mobil menü */}
           <div className="flex items-center gap-2">
             <div className="hidden md:block">
-              <Link href="/contact">
+              <Link href="/hakkimizda">
                 <Button className="bg-orange-500 hover:bg-orange-600">Bize Ulaşın</Button>
               </Link>
             </div>
 
-            {/* Mobil menü */}
             <Sheet>
-              <SheetTrigger className="md:hidden inline-flex h-9 w-9 items-center justify-center rounded-md border">
+              <SheetTrigger className="inline-flex h-9 w-9 items-center justify-center rounded-md border md:hidden">
                 <Menu className="h-5 w-5" />
               </SheetTrigger>
               <SheetContent side="right" className="w-72">
                 <SheetHeader>
-                  <SheetTitle>Menü</SheetTitle>
+                  <SheetTitle>Menu</SheetTitle>
                 </SheetHeader>
                 <div className="mt-4 grid gap-3">
-                  <Link href="/" className="py-2 border-b">
+                  <Link href="/" className="border-b py-2">
                     Ana Sayfa
                   </Link>
-                  <Link href="/villas" className="py-2 border-b">
+                  <Link href="/villas" className="border-b py-2">
                     Villalar
                   </Link>
-                  <Link href="/categories" className="py-2 border-b">
+                  <Link href="/kategoriler" className="border-b py-2">
                     Kategoriler
                   </Link>
-                  <Link href="/about" className="py-2 border-b">
+                  <Link href="/hakkimizda" className="border-b py-2">
                     Hakkımızda
                   </Link>
-                  <Link href="/contact" className="py-2">
+                  <Link href="/hakkimizda" className="py-2">
                     <Button className="w-full bg-orange-500 hover:bg-orange-600">
                       Bize Ulaşın
                     </Button>

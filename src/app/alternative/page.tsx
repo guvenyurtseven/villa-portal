@@ -26,7 +26,7 @@ export default function Home() {
 
             {/* Öne Çıkan Villalar */}
             <div className="mt-6">
-              <FeaturedVillas showHidden={true} />
+              <FeaturedVillas />
             </div>
           </div>
         </div>

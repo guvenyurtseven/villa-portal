@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 export async function GET(request: Request) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   try {
     const { searchParams } = new URL(request.url);
     const villa_id = searchParams.get("villa_id");
 
-    const supabase = await createClient();
+    const supabase = createServiceRoleClient();
 
     let query = supabase
       .from("reservations")
@@ -37,6 +41,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   try {
     const body = await request.json();
     const { villa_id, start_date, end_date, guest_name, guest_email, guest_phone, notes } = body;
@@ -45,7 +52,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    const supabase = createServiceRoleClient();
 
     // RPC fonksiyonu ile fiyat hesapla (check-out günü hariç)
     const checkoutDate = new Date(end_date);

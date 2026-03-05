@@ -279,3 +279,11 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+/* Yatay scroll var, scrollbar görünmesin (çok tarayıcıda çalışan kalıp) */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+} /* WebKit */

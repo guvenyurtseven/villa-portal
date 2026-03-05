@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 export const runtime = "nodejs";
 
@@ -31,6 +32,9 @@ const FEATURE_KEYS = [
 ] as const;
 
 export async function POST(req: NextRequest) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   const supabase = createServiceRoleClient();
 
   let payload: any = {};

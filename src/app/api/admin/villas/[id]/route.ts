@@ -1,6 +1,7 @@
 // src/app/api/admin/villas/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 export const runtime = "nodejs";
 
@@ -44,6 +45,9 @@ function hasOwn<T extends object>(obj: T, key: string) {
 
 // --- GET (sağlık kontrolü / basit test) ---
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   const { id } = await params;
   if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
   return NextResponse.json({ ok: true, id });
@@ -60,6 +64,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
  * }
  */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   const { id } = await params;
   if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
 
@@ -305,6 +312,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 // DELETE /api/admin/villas/:id
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   const { id } = await params;
   if (!id) {
     return NextResponse.json({ error: "Villa id eksik" }, { status: 400 });

@@ -13,11 +13,11 @@ export default function SiteHeader() {
         {/* Logo + Brand */}
         <Link href="/" className="flex items-center gap-4 shrink-0" aria-label="Anasayfa">
           <div className="relative h-12 w-12 overflow-hidden rounded-md ring-1 ring-black/10">
-            <Image src="/logo.svg" alt="Villa Portal" fill priority className="object-cover" />
+            <Image src="/logo-villa-dunyasi.svg" alt="Villa Dünyası" fill priority className="object-cover" />
           </div>
           <div className="leading-tight">
             <div className="text-lg sm:text-xl font-semibold tracking-tight text-slate-900">
-              Villa Portal
+              Villa Dünyası
             </div>
             <div className="text-[12px] sm:text-sm text-slate-800">
               Tatiliniz İçin Mükemmel Villalar

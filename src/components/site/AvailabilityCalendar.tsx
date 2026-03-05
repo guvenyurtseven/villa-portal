@@ -14,7 +14,6 @@ import {
 } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import BookingForm from "./BookingForm";
 import { useRouter } from "next/navigation";
 import { DialogDescription } from "@radix-ui/react-dialog";
 import "react-day-picker/dist/style.css";
@@ -75,7 +74,6 @@ export default function AvailabilityCalendar({
   const [range, setRange] = useState<Range>();
   const [error, setError] = useState<string | null>(null);
   const [quoteOpen, setQuoteOpen] = useState(false);
-  const [showForm, setShowForm] = useState(false);
   const router = useRouter();
   const [quote, setQuote] = useState<{
     from: Date;
@@ -741,22 +739,6 @@ export default function AvailabilityCalendar({
           )}
         </DialogContent>
       </Dialog>
-
-      {/* Rezervasyon formu */}
-      {showForm && quote && (
-        <div className="mt-6">
-          <BookingForm
-            villaId={villaId || ""}
-            villaName={villaName}
-            villaImage={villaImage}
-            from={quote.from}
-            to={quote.to}
-            nights={quote.nights}
-            total={quote.total}
-            deposit={quote.deposit}
-          />
-        </div>
-      )}
     </div>
   );
 }

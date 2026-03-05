@@ -8,7 +8,7 @@ export default async function AdminDashboard() {
   const session = await auth();
 
   if (!session?.user) {
-    redirect("/admin/login");
+    redirect("/admin-login");
   }
 
   const supabase = createServiceRoleClient();

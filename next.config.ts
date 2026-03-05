@@ -9,21 +9,13 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
-        hostname: "images.unsplash.com", // kategori kapakları
+        hostname: "images.unsplash.com",
       },
       {
         protocol: "https",
-        hostname: "natnhxcqtfzhrfqdqvrl.supabase.co", // Supabase storage (villa fotoğrafları)
+        hostname: "natnhxcqtfzhrfqdqvrl.supabase.co",
       },
     ],
-  },
-  eslint: {
-    // UYARI: ESLint hataları varken de build devam eder
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    // UYARI: TS hataları varken de build devam eder
-    ignoreBuildErrors: true,
   },
 };
 

@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 export const runtime = "nodejs";
 
 export async function POST(_req: NextRequest) {
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   const key = process.env.RESEND_API_KEY;
   if (!key) return NextResponse.json({ error: "RESEND_API_KEY missing" }, { status: 500 });
 

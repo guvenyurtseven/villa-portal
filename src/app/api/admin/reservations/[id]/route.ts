@@ -1,19 +1,16 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
 
   try {
     const { id } = await context.params;
     const { status } = await request.json();
 
-    if (!["pending", "confirmed", "cancelled"].includes(status)) {
+    if (!["pending", "approved", "confirmed", "cancelled"].includes(status)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
 

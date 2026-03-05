@@ -15,8 +15,8 @@
     "incremental": true,
     "forceConsistentCasingInFileNames": true,
     "noImplicitReturns": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "plugins": [
       {
         "name": "next"

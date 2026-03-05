@@ -3,17 +3,18 @@ import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { OwnerUpdateSchema } from "@/lib/validation/owner";
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: Request, { params }: Params) {
   const unauthorized = await requireAdmin();
   if (unauthorized) return unauthorized;
+  const { id } = await params;
 
   const supabase = createServiceRoleClient();
   const { data, error } = await supabase
     .from("owners_with_villas")
     .select("*")
-    .eq("id", params.id)
+    .eq("id", id)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 404 });
@@ -23,6 +24,7 @@ export async function GET(_req: Request, { params }: Params) {
 export async function PATCH(req: Request, { params }: Params) {
   const unauthorized = await requireAdmin();
   if (unauthorized) return unauthorized;
+  const { id } = await params;
 
   const supabase = createServiceRoleClient();
   const body = await req.json();
@@ -40,7 +42,7 @@ export async function PATCH(req: Request, { params }: Params) {
   const { data, error } = await supabase
     .from("owners")
     .update(updates)
-    .eq("id", params.id)
+    .eq("id", id)
     .select("*")
     .single();
 
@@ -54,13 +56,14 @@ export async function PATCH(req: Request, { params }: Params) {
 export async function DELETE(_req: Request, { params }: Params) {
   const unauthorized = await requireAdmin();
   if (unauthorized) return unauthorized;
+  const { id } = await params;
 
   const supabase = createServiceRoleClient();
 
   const { count, error: cntErr } = await supabase
     .from("villas")
     .select("*", { count: "exact", head: true })
-    .eq("owner_id", params.id);
+    .eq("owner_id", id);
 
   if (cntErr) return NextResponse.json({ error: cntErr.message }, { status: 500 });
   if ((count ?? 0) > 0) {
@@ -72,7 +75,7 @@ export async function DELETE(_req: Request, { params }: Params) {
     );
   }
 
-  const { error } = await supabase.from("owners").delete().eq("id", params.id);
+  const { error } = await supabase.from("owners").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ ok: true });

@@ -9,14 +9,11 @@ import {
   Calendar,
   LogOut,
   Plus,
-  List,
   MessageCircle,
   ClipboardClock,
   BookUser,
-  Book,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { title } from "process";
 
 const menuItems = [
   {
@@ -84,7 +81,7 @@ export default function AdminSidebar() {
         <Button
           variant="ghost"
           className="w-full justify-start gap-3"
-          onClick={() => signOut({ callbackUrl: "/admin/login" })}
+          onClick={() => signOut({ callbackUrl: "/admin-login" })}
         >
           <LogOut className="h-5 w-5" />
           <span>Çıkış Yap</span>

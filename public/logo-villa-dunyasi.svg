@@ -1,0 +1,34 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Villa Dunyasi Logo</title>
+  <desc id="desc">Sunset over sea icon</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff7b3d"/>
+      <stop offset="100%" stop-color="#f7b733"/>
+    </linearGradient>
+    <linearGradient id="sea1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#6ad1f2"/>
+      <stop offset="100%" stop-color="#48b9e8"/>
+    </linearGradient>
+    <linearGradient id="sea2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2d9ad1"/>
+      <stop offset="100%" stop-color="#1e78b0"/>
+    </linearGradient>
+    <clipPath id="clipCircle">
+      <circle cx="256" cy="256" r="220"/>
+    </clipPath>
+  </defs>
+
+  <circle cx="256" cy="256" r="220" fill="#ffffff"/>
+  <g clip-path="url(#clipCircle)">
+    <rect x="0" y="0" width="512" height="256" fill="url(#sky)"/>
+    <circle cx="320" cy="170" r="70" fill="#ffd28a" opacity="0.95"/>
+
+    <path d="M40 238 C100 170, 140 168, 190 208 C220 232, 252 218, 302 258 L0 258 L0 0 L40 0 Z" fill="#0d3567"/>
+
+    <rect x="0" y="258" width="512" height="254" fill="#56c8ef"/>
+    <path d="M-20 286 C70 254, 160 264, 250 286 C340 308, 430 304, 530 284 L530 338 L-20 338 Z" fill="url(#sea1)"/>
+    <path d="M-20 336 C70 306, 160 318, 248 340 C336 362, 430 356, 530 336 L530 408 L-20 408 Z" fill="#2e9bd0"/>
+    <path d="M-20 392 C70 362, 160 374, 248 396 C336 418, 430 414, 530 394 L530 512 L-20 512 Z" fill="url(#sea2)"/>
+  </g>
+</svg>

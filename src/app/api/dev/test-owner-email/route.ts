@@ -1,10 +1,17 @@
 // src/app/api/dev/test-owner-mail/route.ts
 import { NextResponse } from "next/server";
 import { sendOwnerReservationEmail } from "@/lib/email/send-owner-reservation";
+import { requireAdmin } from "@/lib/auth/requireAdmin";
 
 export const runtime = "nodejs";
 
 export async function POST() {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  const unauthorized = await requireAdmin();
+  if (unauthorized) return unauthorized;
+
   try {
     await sendOwnerReservationEmail({
       to: "ggvnyurtseven@gmail.com",
