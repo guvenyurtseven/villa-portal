@@ -37,7 +37,9 @@ export default async function Home({
                 </section>
               </div>
               {/* Kategoriler */}
-              <CategoryNav />
+              <div className="mt-5 sm:mt-0">
+                <CategoryNav />
+              </div>
 
               <div className="mx-auto mt-4 max-w-6xl">
                 <QuickSearch />
