@@ -5,10 +5,17 @@ import HeaderGate from "@/components/site/HeaderGate";
 export const metadata: Metadata = {
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico?v=2026-08-02-villa-dunyasi", sizes: "any" },
+      { url: "/icon.svg?v=2026-08-02-villa-dunyasi", type: "image/svg+xml" },
     ],
-    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+    shortcut: [{ url: "/favicon.ico?v=2026-08-02-villa-dunyasi" }],
+    apple: [
+      {
+        url: "/apple-icon.png?v=2026-08-02-villa-dunyasi",
+        sizes: "180x180",
+        type: "image/png",
+      },
+    ],
   },
   title: "Villa Dünyası",
   description: "Villa kiralama portalı",
