@@ -6,9 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
-  useLayoutEffect,
   type CSSProperties,
-  type RefObject,
 } from "react";
 import { useRouter } from "next/navigation";
 import { DayPicker, type DateRange } from "react-day-picker";
@@ -30,6 +28,7 @@ import {
   type SearchCategory,
 } from "@/domain/search/SearchFilterState";
 import { encodeSearchState, type SearchState } from "@/lib/shortlink";
+import { useAnchoredPosition } from "@/lib/useAnchoredPosition";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 
 const GUESTS_MIN = 1;
@@ -44,40 +43,6 @@ type DayPickerCssVars = CSSProperties & {
 
 function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === "AbortError";
-}
-
-function useAnchorPosition(open: boolean, btnRef: RefObject<HTMLElement | null>) {
-  const [pos, setPos] = useState<{ top: number; left: number; width: number }>({
-    top: 0,
-    left: 0,
-    width: 320,
-  });
-
-  useLayoutEffect(() => {
-    function calc() {
-      const r = btnRef.current?.getBoundingClientRect();
-      if (!r) return;
-      const margin = 8;
-      const maxW = Math.min(720, window.innerWidth - 32);
-      setPos({
-        top: r.bottom + window.scrollY + margin,
-        left: Math.min(r.left + window.scrollX, window.innerWidth - maxW - 16),
-        width: Math.min(Math.max(320, r.width), maxW),
-      });
-    }
-    if (open) {
-      calc();
-      window.addEventListener("resize", calc);
-      window.addEventListener("scroll", calc, true);
-      return () => {
-        window.removeEventListener("resize", calc);
-        window.removeEventListener("scroll", calc, true);
-      };
-    }
-    return undefined;
-  }, [open, btnRef]);
-
-  return pos;
 }
 
 export default function QuickSearch({
@@ -118,10 +83,10 @@ export default function QuickSearch({
   const [openCats, setOpenCats] = useState(false);
 
   // Anchor positions
-  const regionPos = useAnchorPosition(regionOpen, regionBtnRef);
-  const datePos = useAnchorPosition(dateOpen, dateBtnRef);
-  const guestsPos = useAnchorPosition(guestsOpen, guestsBtnRef);
-  const catPos = useAnchorPosition(openCats, catBtnRef);
+  const regionPos = useAnchoredPosition(regionOpen, regionBtnRef, { maxWidth: 520 });
+  const datePos = useAnchoredPosition(dateOpen, dateBtnRef, { minWidth: 320, maxWidth: 680 });
+  const guestsPos = useAnchoredPosition(guestsOpen, guestsBtnRef, { minWidth: 208, maxWidth: 208 });
+  const catPos = useAnchoredPosition(openCats, catBtnRef, { minWidth: 220, maxWidth: 260 });
 
   // Region autocomplete
   const [query, setQuery] = useState("");

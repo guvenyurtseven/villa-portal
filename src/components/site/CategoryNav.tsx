@@ -5,21 +5,20 @@ import { cn } from "@/lib/utils";
 
 export default function CategoryNav() {
   return (
-    <nav className="w-full mx-auto mb-6">
-      {/* Yatay kaydırmalı tek satır */}
-      <ul className="flex flex-nowrap gap-2 overflow-x-auto no-scrollbar snap-x">
-        {CATEGORY_DEFS.map((c) => (
-          <li key={c.slug} className="snap-start flex-shrink-0">
+    <nav className="mx-auto mb-6 w-full">
+      <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {CATEGORY_DEFS.map((category) => (
+          <li key={category.slug} className="min-w-0">
             <Link
-              href={`/${c.slug}`}
+              href={`/${category.slug}`}
               className={cn(
                 buttonVariants({ variant: "primary", size: "sm" }),
-                "group rounded-lg text-center text-xs shadow-sm hover:shadow-md",
+                "group min-h-10 w-full rounded-lg px-3 text-center text-xs shadow-sm hover:shadow-md",
               )}
             >
-              <span className="text-sm">{c.icon}</span>
-              <span className="text-[11px] tracking-wider font-semibold uppercase opacity-90 group-hover:opacity-100">
-                {c.name}
+              <span className="text-sm">{category.icon}</span>
+              <span className="truncate text-[11px] font-semibold uppercase tracking-wider opacity-90 group-hover:opacity-100">
+                {category.name}
               </span>
             </Link>
           </li>

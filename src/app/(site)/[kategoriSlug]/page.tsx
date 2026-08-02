@@ -6,6 +6,7 @@ import CategoryNav from "@/components/site/CategoryNav";
 import VillaCard from "@/components/site/VillaCard";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { getSortedVillaPhotoUrls } from "@/domain/villas/PhotoSorting";
+import { getCategoryCoverImage } from "@/lib/categories";
 
 type PhotoRow = {
   villa_id: string;
@@ -76,6 +77,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
 
   const total = count ?? list.length;
   const totalPages = Math.max(Math.ceil(total / pageSize), 1);
+  const coverImage = getCategoryCoverImage(category.slug) || category.cover_image || "/placeholder.jpg";
 
   return (
     <main className="mx-auto max-w-7xl space-y-8 px-4 py-6">
@@ -83,7 +85,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
 
       <section className="relative h-52 w-full overflow-hidden rounded-xl sm:h-64 lg:h-72">
         <Image
-          src={category.cover_image || "/placeholder.jpg"}
+          src={coverImage}
           alt={category.name}
           fill
           priority
