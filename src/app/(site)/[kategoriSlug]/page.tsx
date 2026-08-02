@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import CategoryNav from "@/components/site/CategoryNav";
 import VillaCard from "@/components/site/VillaCard";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { getSortedVillaPhotoUrls } from "@/domain/villas/PhotoSorting";
 
 type PhotoRow = {
   villa_id: string;
@@ -63,15 +64,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
     .range(start, end);
 
   const list = (villas ?? []).map((v: VillaRow) => {
-    const sorted = (v.villa_photos || [])
-      .slice()
-      .sort((a, b) => {
-        const ap = a.is_primary ? 0 : 1;
-        const bp = b.is_primary ? 0 : 1;
-        if (ap !== bp) return ap - bp;
-        return (a.order_index ?? 999) - (b.order_index ?? 999);
-      })
-      .map((p) => p.url);
+    const sorted = getSortedVillaPhotoUrls(v.villa_photos);
 
     return {
       id: v.id,
@@ -90,7 +83,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
 
       <section className="relative h-52 w-full overflow-hidden rounded-xl sm:h-64 lg:h-72">
         <Image
-          src={category.cover_image || "/kategori-placeholder.jpg"}
+          src={category.cover_image || "/placeholder.jpg"}
           alt={category.name}
           fill
           priority

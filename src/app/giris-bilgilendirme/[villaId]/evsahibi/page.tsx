@@ -1,7 +1,8 @@
 // src/app/giris-bilgilendirme/[villaId]/evsahibi/page.tsx
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { formatTRYOptional } from "@/lib/formatters";
+import { parsePgDateRangeDatesOrNow } from "@/lib/pgRange";
 
 // Bu sayfayı cache'leme; token & durum anlık olmalı
 export const revalidate = 0;
@@ -9,25 +10,33 @@ export const dynamic = "force-dynamic";
 
 // Arama parametreleri Next 15'te Promise!
 type SearchParams = Record<string, string | string[] | undefined>;
+type RelationOne<T> = T | T[] | null | undefined;
+type OwnerPortalReservation = {
+  id: string;
+  status: string | null;
+  date_range: string | null;
+  guest_name: string | null;
+  guest_email: string | null;
+  guest_phone: string | null;
+  total_price: number | null;
+  villa?: {
+    id: string;
+    name: string | null;
+    cleaning_fee: number | null;
+    province: string | null;
+    district: string | null;
+    neighborhood: string | null;
+  } | null;
+};
+
+function firstRelation<T>(value: RelationOne<T>) {
+  return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+}
 
 // SEO: Bu sayfa indekslenmesin
 export const metadata = {
   robots: { index: false, follow: false },
 };
-
-function fmtTRY(n?: number | null) {
-  if (typeof n !== "number") return undefined;
-  return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(n);
-}
-
-function parseDateRange(rangeStr: string) {
-  // PostgreSQL daterange kanonik form: [YYYY-MM-DD,YYYY-MM-DD)
-  const m = rangeStr?.match(/^\[?(\d{4}-\d{2}-\d{2}).*?,\s*(\d{4}-\d{2}-\d{2})/);
-  const start = m ? new Date(m[1] + "T00:00:00Z") : new Date();
-  const end = m ? new Date(m[2] + "T00:00:00Z") : new Date();
-  const nights = Math.max(1, Math.round((+end - +start) / 86_400_000));
-  return { start, end, nights };
-}
 
 export default async function OwnerPortalPage({
   params,
@@ -78,12 +87,12 @@ export default async function OwnerPortalPage({
     .gt("expires_at", nowIso)
     .single();
 
-  if (error || !row?.reservation) {
+  const r = firstRelation(row?.reservation as RelationOne<OwnerPortalReservation>);
+
+  if (error || !r) {
     // Token yok / yanlış / süresi geçmiş
     return <Denied reason="Bağlantı süresi dolmuş ya da geçersiz." />;
   }
-
-  const r = row.reservation as any;
 
   if (r.status !== "confirmed") {
     // Rezervasyon onaylı değilse erişim verme
@@ -91,11 +100,13 @@ export default async function OwnerPortalPage({
   }
 
   // Tarih bilgilerini hesapla
-  const { start, end, nights } = parseDateRange(String(r.date_range || ""));
+  const { startDate, endExclusiveDate, nights } = parsePgDateRangeDatesOrNow(
+    String(r.date_range || ""),
+  );
 
   // Görsel içerik
-  const toplam = fmtTRY(Number(r.total_price));
-  const temizlik = fmtTRY(Number(r.villa?.cleaning_fee ?? 0));
+  const toplam = formatTRYOptional(Number(r.total_price));
+  const temizlik = formatTRYOptional(Number(r.villa?.cleaning_fee ?? 0));
   const adres = [r.villa?.province, r.villa?.district, r.villa?.neighborhood]
     .filter(Boolean)
     .join(" / ");
@@ -111,10 +122,10 @@ export default async function OwnerPortalPage({
           <h2 className="font-medium mb-2">Rezervasyon Bilgileri</h2>
           <div className="text-sm grid grid-cols-1 md:grid-cols-2 gap-2">
             <div>
-              <b>Giriş:</b> {start.toLocaleDateString("tr-TR")}
+              <b>Giriş:</b> {startDate.toLocaleDateString("tr-TR")}
             </div>
             <div>
-              <b>Çıkış:</b> {end.toLocaleDateString("tr-TR")}
+              <b>Çıkış:</b> {endExclusiveDate.toLocaleDateString("tr-TR")}
             </div>
             <div>
               <b>Gece:</b> {nights}

@@ -1,10 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import ReviewActions from "@/components/admin/reviews/ReviewActions";
+import { getVillaCoverUrl } from "@/domain/villas/PhotoSorting";
 
 export const runtime = "nodejs";
 
@@ -35,14 +36,7 @@ export default async function AdminReviewDetail({ params }: { params: Promise<{ 
       .select("url, is_primary, order_index")
       .eq("villa_id", review.villa_id);
 
-    coverUrl = (photos ?? [])
-      .sort((a, b) => {
-        const ap = a.is_primary ? 0 : 1;
-        const bp = b.is_primary ? 0 : 1;
-        if (ap !== bp) return ap - bp;
-        return (a.order_index ?? 999) - (b.order_index ?? 999);
-      })
-      .at(0)?.url;
+    coverUrl = getVillaCoverUrl(photos) ?? undefined;
   }
 
   const dateStr = review.created_at ? new Date(review.created_at).toLocaleString("tr-TR") : "-";

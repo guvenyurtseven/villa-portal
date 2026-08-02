@@ -75,7 +75,7 @@ export default function MapModal({ villaName, coordinates }: MapModalProps) {
               variant="outline"
               className="w-full"
             >
-              Google Maps'te Aç
+              Google Maps&apos;te Aç
             </Button>
           </div>
         )

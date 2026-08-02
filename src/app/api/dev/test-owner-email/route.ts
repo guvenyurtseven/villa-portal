@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { sendOwnerReservationEmail } from "@/lib/email/send-owner-reservation";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
+import { getErrorMessage } from "@/lib/errors";
 
 export const runtime = "nodejs";
 
@@ -25,7 +26,7 @@ export async function POST() {
       ctaUrl: "https://example.com/giris-bilgilendirme/xxx/evsahibi?t=TEST",
     });
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: getErrorMessage(e) }, { status: 500 });
   }
 }

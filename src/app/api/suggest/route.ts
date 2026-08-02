@@ -4,6 +4,13 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
+type SuggestRow = {
+  id: string;
+  name: string;
+  reference_code: string | null;
+  cover_url: string | null;
+};
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -24,11 +31,11 @@ export async function GET(req: NextRequest) {
 
     if (error) {
       console.error("suggest rpc error:", error);
-      return NextResponse.json({ items: [] });
+      return NextResponse.json({ error: "Suggest failed" }, { status: 500 });
     }
 
     // Şekillendir
-    const items = (data || []).map((r: any) => ({
+    const items = ((data ?? []) as SuggestRow[]).map((r) => ({
       id: r.id,
       name: r.name,
       reference_code: r.reference_code,
@@ -38,6 +45,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ items });
   } catch (e) {
     console.error(e);
-    return NextResponse.json({ items: [] }, { status: 200 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

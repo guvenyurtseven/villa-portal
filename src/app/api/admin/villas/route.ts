@@ -1,35 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
+import { FEATURE_KEYS } from "@/domain/villas/FeatureCatalog";
 
 export const runtime = "nodejs";
 
-// Formların gönderdiği boolean özellik anahtarları
-const FEATURE_KEYS = [
-  "heated_pool",
-  "sheltered_pool",
-  "tv_satellite",
-  "master_bathroom",
-  "jacuzzi",
-  "fireplace",
-  "children_pool",
-  "in_site",
-  "private_pool",
-  "playground",
-  "internet",
-  "security",
-  "sauna",
-  "hammam",
-  "indoor_pool",
-  "baby_bed",
-  "high_chair",
-  "foosball",
-  "table_tennis",
-  "underfloor_heating",
-  "generator",
-  "billiards",
-  "pet_friendly",
-] as const;
+type JsonRecord = Record<string, unknown>;
+type VillaPhotoInput = {
+  url?: unknown;
+  is_primary?: unknown;
+  order_index?: unknown;
+};
+type VillaCreatePayload = {
+  villa?: unknown;
+  photos?: unknown;
+  categoryIds?: unknown;
+};
+type VillaInsertPayload = Record<string, string | number | boolean | null>;
+
+function isRecord(value: unknown): value is JsonRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function nullableText(value: unknown) {
+  return value == null ? null : String(value);
+}
+
+function trimmedTextOrNull(value: unknown) {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  return text || null;
+}
 
 export async function POST(req: NextRequest) {
   const unauthorized = await requireAdmin();
@@ -37,14 +38,22 @@ export async function POST(req: NextRequest) {
 
   const supabase = createServiceRoleClient();
 
-  let payload: any = {};
+  let payload: VillaCreatePayload = {};
   try {
-    payload = await req.json();
+    const json = await req.json();
+    if (!isRecord(json)) {
+      return NextResponse.json({ error: "Geçersiz JSON" }, { status: 400 });
+    }
+    payload = json;
   } catch {
     return NextResponse.json({ error: "Geçersiz JSON" }, { status: 400 });
   }
 
-  const { villa, photos = [], categoryIds } = payload || {};
+  const villa = isRecord(payload.villa) ? payload.villa : null;
+  const photos = Array.isArray(payload.photos) ? (payload.photos as VillaPhotoInput[]) : [];
+  const categoryIds = Array.isArray(payload.categoryIds)
+    ? payload.categoryIds.filter((cid): cid is string => typeof cid === "string")
+    : [];
   if (!villa?.name) {
     return NextResponse.json({ error: "İsim zorunlu" }, { status: 400 });
   }
@@ -72,13 +81,13 @@ export async function POST(req: NextRequest) {
   }
 
   // villa alanlarını derle (weekly_price KALDIRILDI)
-  const data: any = {
+  const data: VillaInsertPayload = {
     name: String(villa.name).trim(),
-    description: villa.description ?? null,
+    description: nullableText(villa.description),
     bedrooms: typeof villa.bedrooms === "number" ? villa.bedrooms : Number(villa.bedrooms || 0),
     bathrooms: typeof villa.bathrooms === "number" ? villa.bathrooms : Number(villa.bathrooms || 0),
     has_pool: !!villa.has_pool,
-    sea_distance: villa.sea_distance ?? null,
+    sea_distance: nullableText(villa.sea_distance),
     lat: villa.lat === null || villa.lat === "" ? null : Number(villa.lat),
     lng: villa.lng === null || villa.lng === "" ? null : Number(villa.lng),
     is_hidden: !!villa.is_hidden,
@@ -86,10 +95,10 @@ export async function POST(req: NextRequest) {
     cleaning_fee:
       typeof villa.cleaning_fee === "number" ? villa.cleaning_fee : Number(villa.cleaning_fee || 0),
     capacity: typeof villa.capacity === "number" ? villa.capacity : Number(villa.capacity || 4),
-    province: villa?.province?.trim() || null,
-    district: villa?.district?.trim() || null,
-    neighborhood: villa?.neighborhood?.trim() || null,
-    document_number: villa?.document_number?.trim() || null,
+    province: trimmedTextOrNull(villa.province),
+    district: trimmedTextOrNull(villa.district),
+    neighborhood: trimmedTextOrNull(villa.neighborhood),
+    document_number: trimmedTextOrNull(villa.document_number),
 
     // KRİTİK: owner_id'yi mutlaka yaz
     owner_id,
@@ -113,8 +122,8 @@ export async function POST(req: NextRequest) {
   const villaId = inserted.id;
 
   // 2) foto ekleme (varsa)
-  if (Array.isArray(photos) && photos.length > 0) {
-    const rows = photos.map((p: any, i: number) => ({
+  if (photos.length > 0) {
+    const rows = photos.map((p, i) => ({
       villa_id: villaId,
       url: String(p.url),
       is_primary: !!p.is_primary,
@@ -125,8 +134,8 @@ export async function POST(req: NextRequest) {
   }
 
   // 3) kategori linkleri (opsiyonel)
-  if (Array.isArray(categoryIds) && categoryIds.length > 0) {
-    const linkRows = categoryIds.map((cid: string) => ({ villa_id: villaId, category_id: cid }));
+  if (categoryIds.length > 0) {
+    const linkRows = categoryIds.map((cid) => ({ villa_id: villaId, category_id: cid }));
     const { error: linkErr } = await supabase.from("villa_categories").insert(linkRows);
     if (linkErr) console.error("category link insert error", linkErr);
   }

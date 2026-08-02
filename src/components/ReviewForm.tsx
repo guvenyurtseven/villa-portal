@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import DOMPurify from "dompurify";
 import { Star } from "lucide-react";
+import { getErrorMessage } from "@/lib/errors";
 
 type Props = {
   token: string;
@@ -106,7 +107,7 @@ export default function ReviewForm({ token, villaName, guestName }: Props) {
       comfort_rating: ratings.comfort_rating,
       hospitality_rating: ratings.hospitality_rating,
       comment: sanitizeComment(comment).slice(0, MAX_COMMENT_LEN),
-      author_name: authorName?.trim() || undefined,
+      guest_name: authorName?.trim() || undefined,
     };
 
     try {
@@ -122,9 +123,9 @@ export default function ReviewForm({ token, villaName, guestName }: Props) {
       }
 
       setSuccess({ message: "Teşekkürler! Değerlendirmeniz başarıyla alındı." });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err?.message || "Beklenmeyen bir hata oluştu.");
+      setError(getErrorMessage(err, "Beklenmeyen bir hata oluştu."));
     } finally {
       setSubmitting(false);
     }

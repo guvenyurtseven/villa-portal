@@ -2,6 +2,22 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 
+type RelationOne<T> = T | T[] | null | undefined;
+type ReservationSearchRow = {
+  id: string;
+  villa_id: string | null;
+  guest_name: string | null;
+  guest_phone: string | null;
+  date_range: string | null;
+  status: string | null;
+  created_at: string | null;
+  villas?: RelationOne<{ id: string; name: string | null }>;
+};
+
+function firstRelation<T>(value: RelationOne<T>) {
+  return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+}
+
 export async function GET(req: Request) {
   const unauthorized = await requireAdmin();
   if (unauthorized) return unauthorized;
@@ -36,10 +52,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const results = (data ?? []).map((r: any) => ({
+  const results = ((data ?? []) as ReservationSearchRow[]).map((r) => ({
     id: r.id,
     villaId: r.villa_id,
-    villaName: r.villas?.name ?? "—",
+    villaName: firstRelation(r.villas)?.name ?? "—",
     guestName: r.guest_name,
     guestPhone: r.guest_phone,
     dateRange: r.date_range, // client'ta insan okunur forma dönüştüreceğiz

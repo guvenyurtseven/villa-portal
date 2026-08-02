@@ -1,6 +1,8 @@
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import VillaForm from "@/components/admin/VillaForm";
 
+type CategoryOption = { id: string; name: string; slug: string };
+
 export default async function NewVillaPage() {
   const supabase = createServiceRoleClient();
 
@@ -17,7 +19,7 @@ export default async function NewVillaPage() {
   return (
     <main className="max-w-5xl mx-auto p-6 space-y-6">
       <h1 className="text-2xl font-semibold">Yeni Villa Ekle</h1>
-      <VillaForm categories={(categories ?? []) as any} />
+      <VillaForm categories={(categories ?? []) as CategoryOption[]} />
     </main>
   );
 }

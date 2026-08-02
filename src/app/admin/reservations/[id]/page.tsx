@@ -3,6 +3,10 @@ import { redirect } from "next/navigation";
 import CancelReservationButton from "@/components/admin/CancelReservationButton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  canCancelReservation,
+  reservationStatusLabel,
+} from "@/domain/reservations/ReservationStatus";
 import { displayPgDateRange } from "@/lib/pgRange";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
@@ -67,13 +71,13 @@ export default async function ReservationDetailPage({
 
   const villaName = Array.isArray(data.villas) ? data.villas[0]?.name : data.villas?.name;
   const rangeText = displayPgDateRange(data.date_range);
-  const isCancelled = data.status === "cancelled";
+  const isCancellable = canCancelReservation(data.status);
 
   return (
     <main className="space-y-4 p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Rezervasyon Detayi</h1>
-        {!isCancelled && <CancelReservationButton id={data.id} />}
+        {isCancellable && <CancelReservationButton id={data.id} />}
 
         <div className="flex gap-2">
           <Button asChild variant="outline">
@@ -89,7 +93,7 @@ export default async function ReservationDetailPage({
         <CardContent className="pt-6">
           <div className="grid gap-6 sm:grid-cols-2">
             <Field label="Villa" value={villaName ?? "-"} />
-            <Field label="Durum" value={statusLabel(data.status)} pill />
+            <Field label="Durum" value={reservationStatusLabel(data.status)} pill />
             <Field label="Musteri Adi" value={data.guest_name ?? "-"} />
             <Field label="Telefon" value={data.guest_phone ?? "-"} />
             <Field label="E-posta" value={data.guest_email ?? "-"} />
@@ -116,7 +120,6 @@ export default async function ReservationDetailPage({
     </main>
   );
 }
-
 function Field({ label, value, pill = false }: { label: string; value: string; pill?: boolean }) {
   return (
     <div>
@@ -128,16 +131,4 @@ function Field({ label, value, pill = false }: { label: string; value: string; p
       )}
     </div>
   );
-}
-
-function statusLabel(value: string) {
-  switch (value) {
-    case "confirmed":
-    case "approved":
-      return "Onaylandi";
-    case "cancelled":
-      return "Iptal";
-    default:
-      return "Bekliyor";
-  }
 }

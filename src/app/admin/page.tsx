@@ -4,6 +4,15 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building, Calendar, TrendingUp, Users } from "lucide-react";
 
+type RecentReservation = {
+  id: string;
+  guest_name: string | null;
+  guest_email: string | null;
+  total_price: number | null;
+  status: string | null;
+  villa?: { name: string | null } | null;
+};
+
 export default async function AdminDashboard() {
   const session = await auth();
 
@@ -32,6 +41,8 @@ export default async function AdminDashboard() {
         .order("created_at", { ascending: false })
         .limit(5),
     ]);
+
+  const recentReservationItems = (recentReservations ?? []) as RecentReservation[];
 
   return (
     <div>
@@ -89,7 +100,7 @@ export default async function AdminDashboard() {
         <CardContent>
           {recentReservations && recentReservations.length > 0 ? (
             <div className="space-y-4">
-              {recentReservations.map((reservation: any) => (
+              {recentReservationItems.map((reservation) => (
                 <div
                   key={reservation.id}
                   className="flex justify-between items-center border-b pb-2"

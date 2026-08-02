@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
-
-function toIsoDate(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
+import {
+  reservationRpcErrorMessage,
+  reservationRpcErrorStatus,
+} from "@/domain/reservations/ReservationApiErrors";
+import {
+  addDaysToIsoDate,
+  isoDateToUtcDate,
+} from "@/lib/pgRange";
 
 export async function GET(request: Request) {
   const unauthorized = await requireAdmin();
@@ -55,58 +59,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const start = new Date(`${start_date}T00:00:00Z`);
-    const endInclusive = new Date(`${end_date}T00:00:00Z`);
-    if (!Number.isFinite(+start) || !Number.isFinite(+endInclusive) || endInclusive < start) {
+    const start = isoDateToUtcDate(start_date);
+    const endInclusive = isoDateToUtcDate(end_date);
+    const checkoutDate = addDaysToIsoDate(end_date, 1);
+    if (!start || !endInclusive || !checkoutDate || endInclusive < start) {
       return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
     }
 
-    const checkout = new Date(endInclusive);
-    checkout.setUTCDate(checkout.getUTCDate() + 1);
-    const checkoutDate = toIsoDate(checkout);
-
     const supabase = createServiceRoleClient();
 
-    const { data: totalPrice, error: priceError } = await supabase.rpc("villa_total_price", {
-      p_villa_id: villa_id,
-      p_checkin: start_date,
-      p_checkout: checkoutDate,
-    });
-
-    if (priceError) {
-      console.error("Price calculation error:", priceError);
-      return NextResponse.json({ error: "Price calculation failed" }, { status: 500 });
-    }
-
-    if (!totalPrice || totalPrice === 0) {
-      return NextResponse.json({ error: "No pricing defined for selected dates" }, { status: 400 });
-    }
-
-    const dateRange = `[${start_date},${checkoutDate})`;
-
-    const { data: reservation, error: reservationError } = await supabase
-      .from("reservations")
-      .insert({
-        villa_id,
-        date_range: dateRange,
-        guest_name,
-        guest_email: guest_email || null,
-        guest_phone,
-        total_price: totalPrice,
-        status: "pending",
-        notes: notes || null,
-      })
-      .select()
-      .single();
+    const { data: reservation, error: reservationError } = await supabase.rpc(
+      "create_reservation",
+      {
+        p_villa_id: villa_id,
+        p_checkin: start_date,
+        p_checkout: checkoutDate,
+        p_guest_name: guest_name,
+        p_guest_phone: guest_phone,
+        p_guest_email: guest_email || null,
+        p_notes: notes || null,
+        p_status: "pending",
+      },
+    );
 
     if (reservationError) {
-      if (reservationError.code === "23P01") {
-        return NextResponse.json(
-          { error: "Date conflict: These dates were just booked" },
-          { status: 409 },
-        );
-      }
-      return NextResponse.json({ error: reservationError.message }, { status: 500 });
+      return NextResponse.json(
+        { error: reservationRpcErrorMessage(reservationError) },
+        { status: reservationRpcErrorStatus(reservationError) },
+      );
     }
 
     return NextResponse.json({ success: true, reservation });

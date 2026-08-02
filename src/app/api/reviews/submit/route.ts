@@ -4,6 +4,13 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
+type ReviewTokenValidation = {
+  is_valid: boolean;
+  error?: string | null;
+  villa_id?: string | null;
+  reservation_id?: string | null;
+};
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -13,7 +20,8 @@ export async function POST(req: NextRequest) {
       comfort_rating, // 1..5
       hospitality_rating, // 1..5
       comment, // zorunlu (metin)
-      author_name, // opsiyonel (kısa ad)
+      guest_name,
+      author_name,
     } = body ?? {};
 
     // ---- Basit doğrulamalar
@@ -21,6 +29,12 @@ export async function POST(req: NextRequest) {
     const co = Number(comfort_rating);
     const ho = Number(hospitality_rating);
     const text = typeof comment === "string" ? comment.trim() : "";
+    const displayName =
+      typeof guest_name === "string" && guest_name.trim()
+        ? guest_name.trim().slice(0, 120)
+        : typeof author_name === "string" && author_name.trim()
+          ? author_name.trim().slice(0, 120)
+          : null;
 
     const isValidStar = (n: number) => Number.isFinite(n) && n >= 1 && n <= 5;
 
@@ -36,9 +50,11 @@ export async function POST(req: NextRequest) {
       .rpc("validate_review_token", { token_value: token })
       .single();
 
-    if (verr || !vres || !vres.is_valid) {
+    const validation = vres as ReviewTokenValidation | null;
+
+    if (verr || !validation?.is_valid) {
       return NextResponse.json(
-        { error: vres?.error || "Bağlantı geçersiz ya da süresi dolmuş" },
+        { error: validation?.error || "Bağlantı geçersiz ya da süresi dolmuş" },
         { status: 400 },
       );
     }
@@ -51,10 +67,7 @@ export async function POST(req: NextRequest) {
         comfort_rating: Math.round(co),
         hospitality_rating: Math.round(ho),
         comment: text.slice(0, 5000),
-        author_name:
-          typeof author_name === "string" && author_name.trim()
-            ? author_name.trim().slice(0, 120)
-            : null,
+        guest_name: displayName,
         is_approved: false,
         token_used: true, // tek kullanımlık token kapat
       })

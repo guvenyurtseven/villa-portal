@@ -18,28 +18,28 @@ export default async function Home({
         <FlashThanks />
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Sol Sütun */}
-          <aside className="col-span-2">
+          <aside className="order-2 lg:order-none lg:col-span-2">
             <div className="sticky top-20 z-10">
               <DiscountVillas />
             </div>
           </aside>
 
           {/* Orta Sütun - Ana İçerik */}
-          <div className="col-span-8 space-y-6">
+          <div className="order-1 space-y-6 lg:order-none lg:col-span-8">
             <div>
-              <div className="flex items-start justify-between gap-4">
-                <div>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
                   <h1 className="text-4xl font-semibold mb-2">Villa Dünyası</h1>
                   <p className="text-gray-600 italic mb-6">Tatiliniz İçin En Seçkin Villalar</p>
                 </div>
-                <section className="w-[480px] flex-shrink-0">
+                <section className="w-full sm:max-w-[480px] sm:flex-shrink-0">
                   <SearchBar />
                 </section>
               </div>
               {/* Kategoriler */}
               <CategoryNav />
 
-              <div className="max-w-6xl mx-auto px-4 mt-4">
+              <div className="mx-auto mt-4 max-w-6xl">
                 <QuickSearch />
               </div>
 
@@ -51,7 +51,7 @@ export default async function Home({
           </div>
 
           {/* Sağ Sütun - Fırsat Villalar */}
-          <aside className="col-span-2">
+          <aside className="order-3 lg:order-none lg:col-span-2">
             <div className="sticky top-20 z-10">
               <OpportunityVillas />
             </div>

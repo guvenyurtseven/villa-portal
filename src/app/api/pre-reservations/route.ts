@@ -4,6 +4,12 @@ import { z } from "zod";
 import { Resend } from "resend";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import PreReservationEmail from "@/emails/PreReservationEmail";
+import {
+  reservationRpcErrorMessage,
+  reservationRpcErrorStatus,
+} from "@/domain/reservations/ReservationApiErrors";
+import { isoDateToUtcDate } from "@/lib/pgRange";
+import { getErrorMessage } from "@/lib/errors";
 
 export const runtime = "nodejs"; // Resend + Supabase için Node.js runtime
 
@@ -41,15 +47,9 @@ export async function POST(req: Request) {
   }
 
   // 3) Tarih doğrulama (start < end)
-  const start = new Date(data.startDate + "T00:00:00Z");
-  const end = new Date(data.endDate + "T00:00:00Z");
-  if (
-    !(start instanceof Date) ||
-    !(end instanceof Date) ||
-    isNaN(+start) ||
-    isNaN(+end) ||
-    +start >= +end
-  ) {
+  const start = isoDateToUtcDate(data.startDate);
+  const end = isoDateToUtcDate(data.endDate);
+  if (!start || !end || start >= end) {
     return NextResponse.json({ error: "Geçersiz tarih aralığı" }, { status: 400 });
   }
 
@@ -71,10 +71,6 @@ export async function POST(req: Request) {
     to = ["delivered@resend.dev"]; // Resend test alıcısı
   }
 
-  // 5) Ön rezervasyonu DB’ye pending olarak yaz
-  //    – date_range formatı: [start,end)
-  const rangeLiteral = `[${data.startDate},${data.endDate})`;
-
   const supabase = createServiceRoleClient();
 
   // Not: adults/children ve mesajı notes alanına özetleyerek yazıyoruz
@@ -85,28 +81,26 @@ export async function POST(req: Request) {
   ].filter(Boolean);
   const notes = notesParts.join(" | ") || null;
 
-  // reservations tablosuna pending kayıt
-  const { data: inserted, error: insErr } = await supabase
-    .from("reservations")
-    .insert({
-      villa_id: data.villaId,
-      date_range: rangeLiteral as unknown as any, // Postgres range literal
-      guest_name: data.name,
-      guest_email: data.email,
-      guest_phone: data.phone,
-      status: "pending",
-      notes,
-      checkout_date: data.endDate, // raporlama/hatırlatmalar için yardımcı
-    })
-    .select("id")
-    .single();
+  const { data: inserted, error: insErr } = await supabase.rpc("create_reservation", {
+    p_villa_id: data.villaId,
+    p_checkin: data.startDate,
+    p_checkout: data.endDate,
+    p_guest_name: data.name,
+    p_guest_phone: data.phone,
+    p_guest_email: data.email,
+    p_notes: notes,
+    p_status: "pending",
+  });
 
-  if (insErr || !inserted) {
+  if (insErr || !inserted || typeof inserted !== "object" || !("reservation_id" in inserted)) {
     console.error("Reservation insert error:", insErr);
-    return NextResponse.json({ error: "Ön rezervasyon kaydı oluşturulamadı" }, { status: 500 });
+    return NextResponse.json(
+      { error: reservationRpcErrorMessage(insErr) },
+      { status: reservationRpcErrorStatus(insErr) },
+    );
   }
 
-  const reservationId = inserted.id;
+  const reservationId = String(inserted.reservation_id);
 
   // 6) Admin’e e-posta: buton “Bekleyen rezervasyonlar” sayfasına götürsün
   //    Odaklanma için query param ekliyoruz (UI bu paramı opsiyonel kullanabilir)
@@ -146,8 +140,8 @@ export async function POST(req: Request) {
     // (İsteğe bağlı) email_logs’a da yazmak isterseniz burada insert edebilirsiniz.
 
     return NextResponse.json({ ok: true, id: sent?.id, reservationId });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Resend unexpected error:", err);
-    return NextResponse.json({ error: err?.message || "Email send failed" }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(err, "Email send failed") }, { status: 500 });
   }
 }

@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 
 export async function requireAdmin() {
   const session = await auth();
-  const role = (session?.user as any)?.role;
+  const role = session?.user?.role;
   if (!session || role !== "admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

@@ -4,7 +4,7 @@ import { OwnerForm } from "@/components/admin/OwnerForm";
 
 export default async function OwnerNewPage() {
   const session = await auth();
-  const role = (session?.user as any)?.role;
+  const role = session?.user?.role;
   if (!session || role !== "admin") {
     redirect("/admin-login");
   }

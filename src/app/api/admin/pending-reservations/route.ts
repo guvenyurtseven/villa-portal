@@ -2,6 +2,27 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
+import { getVillaCoverUrl } from "@/domain/villas/PhotoSorting";
+
+type RelationOne<T> = T | T[] | null | undefined;
+type PendingReservationRow = {
+  id: string;
+  villa_id: string | null;
+  date_range: string | null;
+  guest_name: string | null;
+  guest_email: string | null;
+  guest_phone: string | null;
+  notes: string | null;
+  created_at: string | null;
+  villa?: RelationOne<{
+    name: string | null;
+    photos?: { url: string | null; is_primary: boolean | null; order_index: number | null }[] | null;
+  }>;
+};
+
+function firstRelation<T>(value: RelationOne<T>) {
+  return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+}
 
 export async function GET() {
   const unauthorized = await requireAdmin();
@@ -24,14 +45,10 @@ export async function GET() {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Kapak foto/thumbnail seç
-  const items = (data ?? []).map((r: any) => {
-    const photos = Array.isArray(r.villa?.photos) ? r.villa.photos.slice() : [];
-    photos.sort(
-      (a: any, b: any) =>
-        (b.is_primary ? 0 : 1) - (a.is_primary ? 0 : 1) ||
-        (a.order_index ?? 999) - (b.order_index ?? 999),
-    );
-    return { ...r, cover_url: photos[0]?.url ?? null, villa_name: r.villa?.name ?? "-" };
+  const items = ((data ?? []) as PendingReservationRow[]).map((r) => {
+    const villa = firstRelation(r.villa);
+    const photos = Array.isArray(villa?.photos) ? villa.photos.slice() : [];
+    return { ...r, cover_url: getVillaCoverUrl(photos), villa_name: villa?.name ?? "-" };
   });
 
   return NextResponse.json({ items });

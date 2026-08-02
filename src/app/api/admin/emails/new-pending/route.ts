@@ -9,11 +9,18 @@ export async function GET() {
   const supabase = createServiceRoleClient();
   const { data, error } = await supabase
     .from("email_logs")
-    .select("id, to_email, subject, status, created_at")
+    .select(
+      "id, recipient, email_type, status, created_at, reservation_id, villa_id, token, sent_at, error_message",
+    )
     .eq("status", "pending")
     .order("created_at", { ascending: false })
     .limit(100);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ items: data ?? [] });
+  return NextResponse.json({
+    items: (data ?? []).map((row) => ({
+      ...row,
+      to_email: row.recipient,
+    })),
+  });
 }

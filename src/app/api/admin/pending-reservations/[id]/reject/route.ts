@@ -1,29 +1,20 @@
-// src/app/api/admin/pending-reservations/[id]/reject/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const unauthorized = await requireAdmin();
   if (unauthorized) return unauthorized;
 
   const { id } = await params;
   const supabase = createServiceRoleClient();
 
-  // Bekleyen mi?
-  const { data: r } = await supabase
-    .from("reservations")
-    .select("id")
-    .eq("id", id)
-    .eq("status", "pending")
-    .single();
-  if (!r) return NextResponse.json({ error: "Bulunamadı" }, { status: 404 });
+  const { error } = await supabase.rpc("reject_pending_reservation", { p_id: id });
 
-  // email_logs -> reservations FK temizle
-  await supabase.from("email_logs").delete().eq("reservation_id", id);
-  // rezervasyonu sil
-  const { error: delErr } = await supabase.from("reservations").delete().eq("id", id);
-  if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 });
+  if (error) {
+    const status = error.code === "P0002" ? 404 : 500;
+    return NextResponse.json({ error: error.message }, { status });
+  }
 
   return new NextResponse(null, { status: 204 });
 }

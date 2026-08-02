@@ -5,18 +5,17 @@ import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
 import { Calendar, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { PricedOpportunity } from "@/domain/opportunities/OpportunityCalculator";
 
-interface Opportunity {
-  startDate: string;
-  endDate: string;
-  nights: number;
-  totalPrice: number;
-  nightlyPrice: number;
-}
+type Opportunity = PricedOpportunity;
+
+type DateSelectionHandler = {
+  bivarianceHack(startDate: string, endDate: string): void;
+}["bivarianceHack"];
 
 interface OpportunityPeriodsProps {
   opportunities: Opportunity[];
-  onSelectDates?: (startDate: string, endDate: string) => void;
+  onSelectDates?: DateSelectionHandler;
 }
 
 export default function OpportunityPeriods({

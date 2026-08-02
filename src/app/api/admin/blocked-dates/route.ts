@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
+import { toPgDateRange } from "@/lib/pgRange";
 
 export async function GET(request: Request) {
   const unauthorized = await requireAdmin();
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
     const supabase = createServiceRoleClient();
 
     // PostgreSQL daterange formatı
-    const date_range = `[${start_date},${end_date})`;
+    const date_range = toPgDateRange(start_date, end_date);
 
     const { data, error } = await supabase
       .from("blocked_dates")

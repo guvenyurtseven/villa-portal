@@ -1,35 +1,22 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
-import { parseISO, format, isWithinInterval } from "date-fns";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { format } from "date-fns";
 import { tr } from "date-fns/locale";
 import BookingForm from "@/components/site/BookingForm";
 import Image from "next/image";
-
-// TL biçimleyici
-const tl = new Intl.NumberFormat("tr-TR", {
-  style: "currency",
-  currency: "TRY",
-  maximumFractionDigits: 0,
-});
+import { parseBookingSearchParams } from "@/domain/booking/BookingSearchParams";
+import { formatTRYNoFraction } from "@/lib/formatters";
 
 function BookingContent() {
   const searchParams = useSearchParams();
   const [recalculatedPrice, setRecalculatedPrice] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // URL'den parametreleri al
-  const villaId = searchParams?.get("villaId") || "";
-  const villaName = searchParams?.get("villaName") || "";
-  const villaImage = searchParams?.get("villaImage") || "";
-  const from = searchParams?.get("from") ? parseISO(searchParams.get("from")!) : new Date();
-  const to = searchParams?.get("to") ? parseISO(searchParams.get("to")!) : new Date();
-  const nights = parseInt(searchParams?.get("nights") || "0");
-  const total = parseInt(searchParams?.get("total") || "0");
-  const deposit = parseInt(searchParams?.get("deposit") || "0");
-  const cleaningFee = parseInt(searchParams?.get("cleaningFee") || "0");
-  const hasCleaningFee = searchParams?.get("hasCleaningFee") === "true";
+  const bookingParams = useMemo(() => parseBookingSearchParams(searchParams), [searchParams]);
+  const { villaId, villaName, villaImage, from, to, nights, total, cleaningFee, hasCleaningFee } =
+    bookingParams;
 
   // Fiyatı yeniden hesapla (güvenlik için)
   useEffect(() => {
@@ -71,21 +58,21 @@ function BookingContent() {
   const finalDeposit = Math.round(finalTotal * 0.35);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-4xl mx-auto px-6">
+    <div className="min-h-screen bg-gray-50 py-8 sm:py-12">
+      <div className="mx-auto w-full max-w-4xl px-4 sm:px-6">
         {/* Başlık */}
         <h1 className="text-3xl font-bold mb-8">Rezervasyon Tamamla</h1>
 
         {/* Villa Bilgisi */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex gap-6">
+        <div className="mb-6 rounded-lg bg-white p-4 shadow-sm sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
             {villaImage && (
-              <div className="relative w-32 h-32 flex-shrink-0">
+              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg sm:h-32 sm:w-32 sm:flex-shrink-0">
                 <Image src={villaImage} alt={villaName} fill className="object-cover rounded-lg" />
               </div>
             )}
-            <div className="flex-1">
-              <h2 className="text-xl font-semibold mb-2">{villaName}</h2>
+            <div className="min-w-0 flex-1">
+              <h2 className="mb-2 break-words text-xl font-semibold">{villaName}</h2>
               <div className="text-gray-600 space-y-1">
                 <p>
                   <span className="font-medium">Giriş:</span>{" "}
@@ -104,58 +91,64 @@ function BookingContent() {
         </div>
 
         {/* Fiyat Özeti */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <div className="mb-6 rounded-lg bg-white p-4 shadow-sm sm:p-6">
           <h3 className="text-lg font-semibold mb-4">Fiyat Özeti</h3>
           <div className="space-y-2">
-            <div className="flex justify-between">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
               <span className="text-gray-600">Ara Toplam</span>
-              <span className="font-semibold">{tl.format(total - cleaningFee)}</span>
+              <span className="text-right font-semibold tabular-nums">
+                {formatTRYNoFraction(total - cleaningFee)}
+              </span>
             </div>
             {hasCleaningFee && (
               <>
-                <div className="flex justify-between">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
                   <span className="text-gray-600">Temizlik Ücreti</span>
-                  <span className="font-semibold">{tl.format(cleaningFee)}</span>
+                  <span className="text-right font-semibold tabular-nums">
+                    {formatTRYNoFraction(cleaningFee)}
+                  </span>
                 </div>
                 <div className="text-xs text-orange-600 bg-orange-50 p-2 rounded mt-2">
                   ⚠️ 7 günden az konaklamalarda uygulanır
                 </div>
               </>
             )}
-            <div className="flex justify-between">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
               <span className="text-gray-600">Toplam Tutar</span>
-              <span className="font-semibold">
+              <span className="text-right font-semibold tabular-nums">
                 {loading ? (
                   <span className="text-gray-400">Hesaplanıyor...</span>
                 ) : (
-                  tl.format(finalTotal)
+                  formatTRYNoFraction(finalTotal)
                 )}
               </span>
             </div>
-            <div className="flex justify-between">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
               <span className="text-gray-600">Ön Ödeme (%35)</span>
-              <span className="font-semibold">
+              <span className="text-right font-semibold tabular-nums">
                 {loading ? (
                   <span className="text-gray-400">Hesaplanıyor...</span>
                 ) : (
-                  tl.format(finalDeposit)
+                  formatTRYNoFraction(finalDeposit)
                 )}
               </span>
             </div>
-            <div className="flex justify-between text-sm text-gray-500">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 text-sm text-gray-500">
               <span>Kalan Ödeme (Girişte)</span>
-              <span>{tl.format(finalTotal - finalDeposit)}</span>
+              <span className="text-right tabular-nums">
+                {formatTRYNoFraction(finalTotal - finalDeposit)}
+              </span>
             </div>
           </div>
           {recalculatedPrice && recalculatedPrice !== total && (
             <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
-              Fiyat güncellendi. Yeni toplam: {tl.format(recalculatedPrice)}
+              Fiyat güncellendi. Yeni toplam: {formatTRYNoFraction(recalculatedPrice)}
             </div>
           )}
         </div>
 
         {/* Rezervasyon Formu */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="rounded-lg bg-white p-4 shadow-sm sm:p-6">
           <h3 className="text-lg font-semibold mb-4">Misafir Bilgileri</h3>
           <BookingForm
             villaId={villaId}

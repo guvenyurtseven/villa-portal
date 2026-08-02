@@ -5,14 +5,10 @@ import Image from "next/image";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
 import { Calendar, Users, BedDouble, Bath } from "lucide-react";
-import { MapPin, X } from "lucide-react";
-interface Opportunity {
-  startDate: string;
-  endDate: string;
-  nights: number;
-  totalPrice: number;
-  nightlyPrice: number;
-}
+import { MapPin } from "lucide-react";
+import type { PricedOpportunity } from "@/domain/opportunities/OpportunityCalculator";
+
+type Opportunity = PricedOpportunity;
 
 interface OpportunityVillaCardProps {
   villaId: string;

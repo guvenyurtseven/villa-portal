@@ -124,7 +124,10 @@ serve(async (req) => {
           }),
         });
 
-        const emailResult = await emailResponse.json().catch(() => ({}) as any);
+        const emailResult = (await emailResponse
+          .json()
+          .catch(() => ({}))) as Record<string, unknown>;
+        const resendId = typeof emailResult.id === "string" ? emailResult.id : undefined;
 
         if (emailResponse.ok) {
           const { error: updErr } = await supabase
@@ -132,7 +135,7 @@ serve(async (req) => {
             .update({
               status: "sent",
               sent_at: new Date().toISOString(),
-              external_id: emailResult?.id ?? null,
+              external_id: resendId ?? null,
               error_message: null,
             })
             .eq("id", emailData.email_log_id);
@@ -142,7 +145,7 @@ serve(async (req) => {
               email_log_id: emailData.email_log_id,
               email: emailData.recipient,
               status: "error",
-              resend_id: emailResult?.id,
+              resend_id: resendId,
               update_error: updErr.message,
             });
           } else {
@@ -150,7 +153,7 @@ serve(async (req) => {
               email_log_id: emailData.email_log_id,
               email: emailData.recipient,
               status: "success",
-              resend_id: emailResult?.id,
+              resend_id: resendId,
             });
           }
         } else {
@@ -166,7 +169,7 @@ serve(async (req) => {
             email_log_id: emailData.email_log_id,
             email: emailData.recipient,
             status: "failed",
-            resend_id: emailResult?.id,
+            resend_id: resendId,
             update_error: updErr?.message,
           });
         }

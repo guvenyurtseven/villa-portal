@@ -1,46 +1,52 @@
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Calendar, Mail, Phone, User, Home } from "lucide-react";
 import Link from "next/link";
+import {
+  reservationStatusColor,
+  reservationStatusLabel,
+} from "@/domain/reservations/ReservationStatus";
+import { parsePgDateRangeInclusive } from "@/lib/pgRange";
 
 type SearchParams = Promise<{ q?: string }>;
+type RelationOne<T> = T | T[] | null | undefined;
+type ReservationSearchRow = {
+  id: string;
+  date_range: string | null;
+  guest_name: string | null;
+  guest_phone: string | null;
+  status: string | null;
+  created_at: string | null;
+  villas?: RelationOne<{ id: string; name: string | null }>;
+};
+
+type ReservationListRow = {
+  id: string;
+  date_range: string | null;
+  guest_name: string | null;
+  guest_email: string | null;
+  guest_phone: string | null;
+  total_price: number | null;
+  status: string | null;
+  notes: string | null;
+  created_at: string | null;
+};
+
+type VillaReservationsRow = {
+  id: string;
+  name: string;
+  reservations?: ReservationListRow[] | null;
+};
+
+function firstRelation<T>(value: RelationOne<T>) {
+  return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+}
 
 export default async function AdminReservationsPage(props: { searchParams: SearchParams }) {
   const supabase = createServiceRoleClient();
   const { q } = await props.searchParams;
   const qRaw = (q || "").trim();
-
-  function parseDateRangeInclusive(dateRange: string): { start: string; endInclusive: string } {
-    const m = dateRange.match(/\[(\d{4}-\d{2}-\d{2}),(\d{4}-\d{2}-\d{2})\)/);
-    if (!m) return { start: "", endInclusive: "" };
-    const start = m[1];
-    const endExclusive = m[2];
-    const d = new Date(endExclusive + "T00:00:00Z");
-    d.setUTCDate(d.getUTCDate() - 1);
-    return { start, endInclusive: d.toISOString().slice(0, 10) };
-  }
-
-  function getStatusColor(status: string) {
-    switch (status) {
-      case "confirmed":
-        return "bg-green-100 text-green-700";
-      case "cancelled":
-        return "bg-red-100 text-red-700";
-      default:
-        return "bg-yellow-100 text-yellow-700";
-    }
-  }
-  function getStatusText(status: string) {
-    switch (status) {
-      case "confirmed":
-        return "Onaylandı";
-      case "cancelled":
-        return "İptal";
-      default:
-        return "Bekliyor";
-    }
-  }
 
   // ===================== ARAMA MODU =====================
   if (qRaw) {
@@ -71,7 +77,7 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
       .ilike("name", `%${qRaw}%`)
       .limit(300);
 
-    let qVillas: PromiseLike<{ data: any[] | null; error: any }> | null = null;
+    let qVillas: PromiseLike<{ data: unknown; error: unknown }> | null = null;
 
     if (!villasByName.error && villasByName.data && villasByName.data.length > 0) {
       const ids = villasByName.data.map((v) => v.id);
@@ -99,11 +105,14 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
     }
 
     // 3) İki sonucu id bazında tekilleştir + sırala
-    const map = new Map<string, any>();
-    (rGuests.data ?? []).forEach((r) => map.set(r.id, r));
-    (rVillas?.data ?? []).forEach((r) => map.set(r.id, r));
+    const guestRows = (rGuests.data ?? []) as ReservationSearchRow[];
+    const villaRows = (rVillas?.data ?? []) as ReservationSearchRow[];
+    const map = new Map<string, ReservationSearchRow>();
+    guestRows.forEach((r) => map.set(r.id, r));
+    villaRows.forEach((r) => map.set(r.id, r));
     const data = Array.from(map.values()).sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      (a, b) =>
+        new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime(),
     );
 
     return (
@@ -112,8 +121,12 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
         <SearchBar defaultValue={qRaw} />
         {data.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mt-6">
-            {data.map((r: any) => {
-              const dates = parseDateRangeInclusive(r.date_range);
+            {data.map((r) => {
+              const villa = firstRelation(r.villas);
+              const dates = parsePgDateRangeInclusive(r.date_range) ?? {
+                start: "",
+                endInclusive: "",
+              };
               return (
                 <Link
                   key={r.id}
@@ -121,9 +134,9 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
                   className="block rounded-2xl border border-gray-200 hover:shadow-md transition p-4 bg-white"
                 >
                   <div className="flex items-start justify-between">
-                    <h3 className="text-lg font-semibold">{r.villas?.name ?? "—"}</h3>
+                    <h3 className="text-lg font-semibold">{villa?.name ?? "—"}</h3>
                     <span className="text-xs px-2 py-1 rounded-full bg-gray-100">
-                      {getStatusText(r.status)}
+                      {reservationStatusLabel(r.status)}
                     </span>
                   </div>
                   <div className="mt-2 text-sm text-gray-700 space-y-1">
@@ -170,7 +183,7 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
       <div className="flex items-center justify-end  px-8 py-8">
         <Link
           href="/api/admin/past-reservations/export"
-          className="rounded-lg bg-emerald-600 text-white px-3 py-3 hover:bg-emerald-700 transition"
+          className={buttonVariants({ variant: "success", size: "lg" })}
         >
           Geçmiş rezervasyonları indir
         </Link>
@@ -180,8 +193,9 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
         <p className="text-red-600 mt-6">Veriler yüklenirken hata oluştu</p>
       ) : villas && villas.length > 0 ? (
         <div className="space-y-6 mt-6">
-          {villas.map((villa: any) => {
-            const hasReservations = villa.reservations && villa.reservations.length > 0;
+          {((villas ?? []) as VillaReservationsRow[]).map((villa) => {
+            const reservations = villa.reservations ?? [];
+            const hasReservations = reservations.length > 0;
             return (
               <Card key={villa.id}>
                 <CardHeader className="bg-gray-50">
@@ -197,13 +211,17 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
                 <CardContent className="pt-6">
                   {hasReservations ? (
                     <div className="space-y-3">
-                      {villa.reservations
+                      {reservations
                         .sort(
-                          (a: any, b: any) =>
-                            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+                          (a: ReservationListRow, b: ReservationListRow) =>
+                            new Date(b.created_at ?? 0).getTime() -
+                            new Date(a.created_at ?? 0).getTime(),
                         )
-                        .map((reservation: any) => {
-                          const dates = parseDateRangeInclusive(reservation.date_range);
+                        .map((reservation) => {
+                          const dates = parsePgDateRangeInclusive(reservation.date_range) ?? {
+                            start: "",
+                            endInclusive: "",
+                          };
                           return (
                             <Link
                               key={reservation.id}
@@ -247,12 +265,14 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
                                 </div>
                                 <div className="text-right">
                                   <span
-                                    className={`px-3 py-1 text-xs rounded-full font-medium ${getStatusColor(reservation.status)}`}
+                                    className={`px-3 py-1 text-xs rounded-full font-medium ${reservationStatusColor(reservation.status)}`}
                                   >
-                                    {getStatusText(reservation.status)}
+                                    {reservationStatusLabel(reservation.status)}
                                   </span>
                                   <p className="text-xs text-gray-400 mt-2">
-                                    {new Date(reservation.created_at).toLocaleDateString("tr-TR")}
+                                    {reservation.created_at
+                                      ? new Date(reservation.created_at).toLocaleDateString("tr-TR")
+                                      : "-"}
                                   </p>
                                 </div>
                               </div>

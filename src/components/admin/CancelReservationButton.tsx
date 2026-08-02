@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 
 export default function CancelReservationButton({ id }: { id: string }) {
   const router = useRouter();
@@ -26,12 +27,12 @@ export default function CancelReservationButton({ id }: { id: string }) {
   }
 
   return (
-    <button
+    <Button
       onClick={onClick}
       disabled={loading}
-      className="rounded-lg bg-red-600 text-white px-4 py-2 hover:bg-red-700 transition disabled:opacity-60"
+      variant="danger"
     >
       {loading ? "İptal ediliyor..." : "İptal Et"}
-    </button>
+    </Button>
   );
 }

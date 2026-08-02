@@ -10,7 +10,8 @@ import { Card } from "@/components/ui/card";
 import PhotoManager from "@/components/admin/PhotoManager";
 import LocationSelect from "@/components/admin/LocationSelect";
 import { OwnerSelect } from "@/components/admin/OwnerSelect";
-type Villa = {
+import { FEATURE_DEFS, type FeatureKey } from "@/domain/villas/FeatureCatalog";
+export type Villa = {
   id: string;
   name: string;
   description: string | null;
@@ -24,6 +25,10 @@ type Villa = {
   is_hidden: boolean | null;
   priority?: number | null;
   cleaning_fee: number | null;
+  owner_id?: string | null;
+  province?: string | null;
+  district?: string | null;
+  neighborhood?: string | null;
   // boolean özellik kolonları (opsiyonel)
   heated_pool?: boolean | null;
   sheltered_pool?: boolean | null;
@@ -50,43 +55,14 @@ type Villa = {
   pet_friendly?: boolean | null;
 };
 
-type Photo = {
+export type Photo = {
   id?: string;
   url: string;
   is_primary: boolean;
   order_index: number;
 };
 
-type CategoryOption = { id: string; name: string; slug: string };
-
-// Özellik listesi
-const FEATURE_DEFS = [
-  { key: "heated_pool", label: "Isıtmalı Havuz" },
-  { key: "sheltered_pool", label: "Korunaklı havuz" },
-  { key: "tv_satellite", label: "TV - Uydu" },
-  { key: "master_bathroom", label: "Ebeveyn Banyosu" },
-  { key: "jacuzzi", label: "Jakuzi" },
-  { key: "fireplace", label: "Şömine" },
-  { key: "children_pool", label: "Çocuk Havuzu" },
-  { key: "in_site", label: "Site İçinde" },
-  { key: "private_pool", label: "Özel Havuzlu" },
-  { key: "playground", label: "Oyun Alanı" },
-  { key: "internet", label: "İnternet Bağlantısı" },
-  { key: "security", label: "Güvenlik" },
-  { key: "sauna", label: "Sauna" },
-  { key: "hammam", label: "Hamam" },
-  { key: "indoor_pool", label: "Kapalı Havuz" },
-  { key: "baby_bed", label: "Bebek Yatağı" },
-  { key: "high_chair", label: "Mama Sandalyesi" },
-  { key: "foosball", label: "Langırt" },
-  { key: "table_tennis", label: "Masa Tenisi" },
-  { key: "underfloor_heating", label: "Yerden Isıtma" },
-  { key: "generator", label: "Jeneratör" },
-  { key: "billiards", label: "Bilardo" },
-  { key: "pet_friendly", label: "Evcil Hayvan İzinli" },
-] as const;
-
-type FeatureKey = (typeof FEATURE_DEFS)[number]["key"];
+export type CategoryOption = { id: string; name: string; slug: string };
 
 export default function VillaEditForm({
   initialVilla,
@@ -101,20 +77,20 @@ export default function VillaEditForm({
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
-  const [ownerId, setOwnerId] = useState<string | null>((initialVilla as any).owner_id ?? null);
+  const [ownerId, setOwnerId] = useState<string | null>(initialVilla.owner_id ?? null);
   const [form, setForm] = useState({
     name: initialVilla.name ?? "",
     description: initialVilla.description ?? "",
-    bedrooms: Number(initialVilla.bedrooms ?? 1),
-    bathrooms: Number(initialVilla.bathrooms ?? 1),
+    bedrooms: String(initialVilla.bedrooms ?? 1),
+    bathrooms: String(initialVilla.bathrooms ?? 1),
     has_pool: Boolean(initialVilla.has_pool ?? false),
     sea_distance: initialVilla.sea_distance ?? "",
-    lat: initialVilla.lat ?? 0,
-    lng: initialVilla.lng ?? 0,
+    lat: String(initialVilla.lat ?? 0),
+    lng: String(initialVilla.lng ?? 0),
     is_hidden: Boolean(initialVilla.is_hidden ?? false),
-    priority: Number(initialVilla.priority ?? 1),
-    cleaning_fee: Number(initialVilla.cleaning_fee ?? 0),
-    capacity: Number(initialVilla.capacity ?? 4),
+    priority: String(initialVilla.priority ?? 1),
+    cleaning_fee: String(initialVilla.cleaning_fee ?? 0),
+    capacity: String(initialVilla.capacity ?? 4),
     province: initialVilla.province ?? "",
     district: initialVilla.district ?? "",
     neighborhood: initialVilla.neighborhood ?? "",
@@ -127,16 +103,17 @@ export default function VillaEditForm({
   );
 
   const [categoryIds, setCategoryIds] = useState<string[]>(initialCategoryIds ?? []);
+  const initialFeatureValues = initialVilla as Partial<Record<FeatureKey, boolean | null>>;
 
   // Özellikler state (initialVilla değerlerinden)
   const [features, setFeatures] = useState<Record<FeatureKey, boolean>>(
-    Object.fromEntries(FEATURE_DEFS.map((f) => [f.key, !!(initialVilla as any)[f.key]])) as Record<
+    Object.fromEntries(FEATURE_DEFS.map((f) => [f.key, !!initialFeatureValues[f.key]])) as Record<
       FeatureKey,
       boolean
     >,
   );
 
-  const onChange = (key: keyof typeof form, val: any) =>
+  const onChange = <K extends keyof typeof form>(key: K, val: (typeof form)[K]) =>
     setForm((prev) => ({ ...prev, [key]: val }));
 
   const toggleCategory = (id: string) =>

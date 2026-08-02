@@ -12,6 +12,8 @@ export type GalleryPhoto = {
   order_index?: number | null;
 };
 
+type ValidGalleryPhoto = GalleryPhoto & { url: string };
+
 type CommonProps = {
   photos: GalleryPhoto[] | null | undefined;
   alt?: string;
@@ -34,12 +36,16 @@ type LightboxProps = CommonProps & {
 
 type Props = InlineProps | LightboxProps;
 
+function hasImageUrl(photo: GalleryPhoto | null | undefined): photo is ValidGalleryPhoto {
+  return typeof photo?.url === "string" && photo.url.trim().length > 0;
+}
+
 export default function PhotoGallery(props: Props) {
   // --- her zaman aynı sırada/aynı sayıda hook çağır ---
   const valid = useMemo(
     () =>
       (props.photos ?? [])
-        .filter((p) => typeof p?.url === "string" && p!.url!.trim().length > 0)
+        .filter(hasImageUrl)
         .sort((a, b) => Number(a.order_index ?? 0) - Number(b.order_index ?? 0)),
     [props.photos],
   );
@@ -73,7 +79,10 @@ export default function PhotoGallery(props: Props) {
   const onTouchEnd = (e: React.TouchEvent) => {
     if (touchStartX.current === null) return;
     const dx = e.changedTouches[0].clientX - touchStartX.current;
-    if (Math.abs(dx) > 30) dx > 0 ? prev() : next();
+    if (Math.abs(dx) > 30) {
+      if (dx > 0) prev();
+      else next();
+    }
     touchStartX.current = null;
   };
 
@@ -126,7 +135,8 @@ export default function PhotoGallery(props: Props) {
   }
 
   const current = valid[Math.min(idx, Math.max(0, total - 1))];
-  const src = (current?.url || "/placeholder.jpg") as string;
+  const src = current?.url || "/placeholder.jpg";
+  const fallbackAlt = props.alt ?? "Villa fotografi";
 
   // ---------------------------
   // LIGHTBOX (tam ekran modal)
@@ -141,7 +151,7 @@ export default function PhotoGallery(props: Props) {
 
     return (
       <div
-        className="fixed inset-0 w-screen h-screen z-[10000] bg-black/95"
+        className="fixed inset-0 z-[10000] h-dvh w-screen bg-black/95"
         role="dialog"
         aria-modal="true"
         aria-label="Fotoğraf galeri (tam ekran)"
@@ -155,7 +165,7 @@ export default function PhotoGallery(props: Props) {
             props.onClose();
           }}
           aria-label="Kapat"
-          className="absolute right-4 top-4 z-30 rounded-full bg-white/15 hover:bg-white/25 text-white px-3 py-1.5"
+          className="absolute right-4 top-[calc(env(safe-area-inset-top)+1rem)] z-30 rounded-full bg-white/15 px-3 py-1.5 text-white hover:bg-white/25"
         >
           ×
         </button>
@@ -170,7 +180,7 @@ export default function PhotoGallery(props: Props) {
                 e.stopPropagation();
                 prev();
               }}
-              className="absolute left-4 top-1/2 -translate-y-1/2 z-30 h-12 w-12 rounded-full grid place-items-center bg-white/15 hover:bg-white/25 text-white border border-white/30"
+              className="absolute left-3 top-1/2 z-30 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-white/30 bg-white/15 text-white hover:bg-white/25 sm:left-4 sm:h-12 sm:w-12"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -192,7 +202,7 @@ export default function PhotoGallery(props: Props) {
                 e.stopPropagation();
                 next();
               }}
-              className="absolute right-4 top-1/2 -translate-y-1/2 z-30 h-12 w-12 rounded-full grid place-items-center bg-white/15 hover:bg-white/25 text-white border border-white/30"
+              className="absolute right-3 top-1/2 z-30 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-white/30 bg-white/15 text-white hover:bg-white/25 sm:right-4 sm:h-12 sm:w-12"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -236,21 +246,21 @@ export default function PhotoGallery(props: Props) {
 
         {/* İçerik */}
         <div
-          className="absolute inset-0 flex items-center justify-center overflow-hidden"
+          className="absolute inset-0 flex items-center justify-center overflow-hidden pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0"
           onClick={(e) => e.stopPropagation()}
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
         >
-          <div className="relative w-screen h-screen">
+          <div className="relative h-dvh w-screen">
             {centerMode ? (
               <div className="absolute inset-0 flex items-center justify-center">
                 {/* sol komşu */}
                 {total > 1 && (
-                  <div className="relative h-[86vh] w-[36vw] max-w-[680px] mx-1 scale-[0.92] opacity-70">
+                  <div className="relative mx-1 hidden h-[86vh] w-[36vw] max-w-[680px] scale-[0.92] opacity-70 md:block">
                     <Image
                       key={`L${leftIdx}`}
-                      src={(valid[leftIdx]?.url as string) ?? src}
-                      alt={valid[leftIdx]?.alt ?? props.alt}
+                      src={valid[leftIdx]?.url ?? src}
+                      alt={valid[leftIdx]?.alt ?? fallbackAlt}
                       fill
                       className="object-contain"
                       sizes="36vw"
@@ -260,11 +270,11 @@ export default function PhotoGallery(props: Props) {
                   </div>
                 )}
                 {/* merkez */}
-                <div className="relative h-[88vh] w-[64vw] max-w-[1280px] mx-1">
+                <div className="relative mx-1 h-[calc(100dvh-7rem)] w-[92vw] max-w-[1280px] md:h-[88vh] md:w-[64vw]">
                   <Image
                     key={`C${idx}`}
                     src={src}
-                    alt={current?.alt ?? props.alt}
+                    alt={current?.alt ?? fallbackAlt}
                     fill
                     className="object-contain"
                     sizes="64vw"
@@ -273,11 +283,11 @@ export default function PhotoGallery(props: Props) {
                 </div>
                 {/* sağ komşu */}
                 {total > 1 && (
-                  <div className="relative h-[86vh] w-[36vw] max-w-[680px] mx-1 scale-[0.92] opacity-70">
+                  <div className="relative mx-1 hidden h-[86vh] w-[36vw] max-w-[680px] scale-[0.92] opacity-70 md:block">
                     <Image
                       key={`R${rightIdx}`}
-                      src={(valid[rightIdx]?.url as string) ?? src}
-                      alt={valid[rightIdx]?.alt ?? props.alt}
+                      src={valid[rightIdx]?.url ?? src}
+                      alt={valid[rightIdx]?.alt ?? fallbackAlt}
                       fill
                       className="object-contain"
                       sizes="36vw"
@@ -293,7 +303,7 @@ export default function PhotoGallery(props: Props) {
                   <Image
                     key={idx}
                     src={src}
-                    alt={current?.alt ?? props.alt}
+                    alt={current?.alt ?? fallbackAlt}
                     fill
                     className="object-contain"
                     sizes="100vw"
@@ -308,7 +318,7 @@ export default function PhotoGallery(props: Props) {
         {/* Alt film şeridi (dinamik kayar) */}
         {showFilmstrip && total > 1 && (
           <div
-            className="absolute left-0 right-0 bottom-0 z-30 bg-black/70 backdrop-blur-sm"
+            className="absolute bottom-0 left-0 right-0 z-30 bg-black/70 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm"
             onClick={(e) => e.stopPropagation()}
           >
             <div
@@ -332,8 +342,8 @@ export default function PhotoGallery(props: Props) {
                       )}
                     >
                       <Image
-                        src={p.url as string}
-                        alt={p.alt ?? props.alt}
+                        src={p.url}
+                        alt={p.alt ?? fallbackAlt}
                         fill
                         className="object-cover"
                         sizes="10vw"
@@ -367,7 +377,7 @@ export default function PhotoGallery(props: Props) {
         <Image
           key={idx}
           src={src}
-          alt={current?.alt ?? props.alt}
+          alt={current?.alt ?? fallbackAlt}
           fill
           className="object-cover transition-transform duration-500 ease-out md:group-hover:scale-[1.03] will-change-transform"
           sizes="(max-width: 768px) 100vw, 70vw"

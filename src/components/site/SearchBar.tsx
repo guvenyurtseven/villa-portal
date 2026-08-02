@@ -70,6 +70,11 @@ export default function SearchBar() {
         setLoading(true);
         const url = `/api/suggest?q=${encodeURIComponent(normKey)}`;
         const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) {
+          setItems([]);
+          setOpen(false);
+          return;
+        }
         const json = (await res.json()) as { items: SuggestItem[] };
         setItems(json.items || []);
         setOpen((json.items || []).length > 0);
@@ -139,7 +144,7 @@ export default function SearchBar() {
         </div>
         <Button
           type="submit"
-          className="bg-orange-500 hover:bg-orange-600 text-white focus-visible:ring-orange-500 disabled:opacity-60"
+          variant="primary"
           disabled={!q || loading}
         >
           Ara

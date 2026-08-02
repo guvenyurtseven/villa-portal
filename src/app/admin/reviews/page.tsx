@@ -3,13 +3,7 @@ import Image from "next/image";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-
-type ReviewRow = {
-  id: string;
-  villa_id: string | null;
-  guest_name: string | null;
-  created_at: string | null;
-};
+import { sortVillaPhotos } from "@/domain/villas/PhotoSorting";
 
 type VillaRow = {
   id: string;
@@ -69,14 +63,7 @@ export default async function AdminReviewsPage() {
       .select("villa_id, url, is_primary, order_index")
       .in("villa_id", villaIds);
 
-    (photos ?? [])
-      .sort((a: PhotoRow, b: PhotoRow) => {
-        const ap = a.is_primary ? 0 : 1;
-        const bp = b.is_primary ? 0 : 1;
-        if (ap !== bp) return ap - bp;
-        return (a.order_index ?? 999) - (b.order_index ?? 999);
-      })
-      .forEach((p) => {
+    sortVillaPhotos((photos ?? []) as PhotoRow[]).forEach((p) => {
         if (!coverByVilla.has(p.villa_id)) coverByVilla.set(p.villa_id, p.url);
       });
   }

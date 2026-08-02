@@ -1,7 +1,7 @@
 // src/components/site/FiltersSidebar.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
@@ -10,49 +10,41 @@ import { tr } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  getLocationSelectionPreview,
+  normalizeCategories,
+  normalizeLocationOptions,
+  toggleLocationOption,
+  type LocationOption,
+  type SearchCategory,
+} from "@/domain/search/SearchFilterState";
 import { encodeSearchState, decodeSearchState } from "@/lib/shortlink";
-
-// Özellik listesi: DB boolean kolon adları + etiket
-const FEATURES: Array<{ key: string; label: string }> = [
-  { key: "private_pool", label: "Özel Havuz" },
-  { key: "heated_pool", label: "Isıtmalı Havuz" },
-  { key: "indoor_pool", label: "Kapalı Havuz" },
-  { key: "sheltered_pool", label: "Korunaklı Havuz" },
-  { key: "jacuzzi", label: "Jakuzi" },
-  { key: "sauna", label: "Sauna" },
-  { key: "hammam", label: "Hamam" },
-  { key: "fireplace", label: "Şömine" },
-  { key: "pet_friendly", label: "Evcil Hayvan İzinli" },
-  { key: "internet", label: "İnternet" },
-  { key: "master_bathroom", label: "Ebeveyn Banyosu" },
-  { key: "children_pool", label: "Çocuk Havuzu" },
-  { key: "in_site", label: "Site İçinde" },
-  { key: "playground", label: "Oyun Alanı" },
-  { key: "billiards", label: "Bilardo" },
-  { key: "table_tennis", label: "Masa Tenisi" },
-  { key: "foosball", label: "Langırt" },
-  { key: "underfloor_heating", label: "Yerden Isıtma" },
-  { key: "generator", label: "Jeneratör" },
-];
-
-type Option = { type: "province" | "district" | "neighborhood"; value: string; label: string };
+import { useMediaQuery } from "@/lib/useMediaQuery";
+import { SEARCHABLE_FEATURES } from "@/domain/villas/FeatureCatalog";
 
 const NIGHTS_MIN = 1;
 const NIGHTS_MAX = 60;
 const GUESTS_MIN = 1;
 const GUESTS_MAX = 21;
+type DayPickerCssVars = CSSProperties & {
+  "--rdp-cell-size"?: string;
+};
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError";
+}
 // Bütçe varsayılan aralığı (₺/gece)
 const PRICE_MIN = 1000;
 const PRICE_MAX = 100000;
 const PRICE_STEP = 100;
 const MIN_GAP = 100; // min & max arasında en az fark
 
-type Category = { id: string; name: string; slug: string };
-
 export default function FiltersSidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
+  const isNarrowCalendar = useMediaQuery("(max-width: 767px)");
+  const calendarMonths = isNarrowCalendar ? 1 : 2;
 
   // 1) s paramı varsa decode edip başlangıç değerlerini ondan al
   const sState = decodeSearchState(sp.get("s"));
@@ -83,14 +75,14 @@ export default function FiltersSidebar() {
       PRICE_MAX,
   );
 
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<SearchCategory[]>([]);
   const [selectedCats, setSelectedCats] = useState<string[]>(initCats);
   const [openCats, setOpenCats] = useState(false);
 
   // Bölge popover state
   const [openRegion, setOpenRegion] = useState(false);
   const [query, setQuery] = useState("");
-  const [options, setOptions] = useState<Option[]>([]);
+  const [options, setOptions] = useState<LocationOption[]>([]);
   const [selP, setSelP] = useState<string[]>(initP);
   const [selD, setSelD] = useState<string[]>(initD);
   const [selN, setSelN] = useState<string[]>(initN);
@@ -142,10 +134,10 @@ export default function FiltersSidebar() {
         if (!res.ok) return;
         const json = await res.json();
         if (!cancelled && !ctrl.signal.aborted) {
-          setOptions((json?.options ?? []) as Option[]);
+          setOptions(normalizeLocationOptions(json));
         }
-      } catch (err: any) {
-        if (err?.name === "AbortError") return;
+      } catch (err: unknown) {
+        if (isAbortError(err)) return;
         console.error("locations load error:", err);
       }
     })();
@@ -163,23 +155,24 @@ export default function FiltersSidebar() {
         const res = await fetch("/api/categories", { cache: "no-store" });
         if (!res.ok) return;
         const json = await res.json();
-        if (!abort) setCategories(json?.items ?? json ?? []);
-      } catch {}
+        if (!abort) setCategories(normalizeCategories(json));
+      } catch (err: unknown) {
+        console.error("categories load error:", err);
+      }
     })();
     return () => {
       abort = true;
     };
   }, []);
 
-  function toggleSel(o: Option) {
-    const map = {
-      province: [selP, setSelP] as const,
-      district: [selD, setSelD] as const,
-      neighborhood: [selN, setSelN] as const,
-    }[o.type];
-    const [arr, setArr] = map;
-    if (arr.includes(o.value)) setArr(arr.filter((x) => x !== o.value));
-    else setArr([...arr, o.value]);
+  function toggleSel(o: LocationOption) {
+    const next = toggleLocationOption(
+      { provinces: selP, districts: selD, neighborhoods: selN },
+      o,
+    );
+    setSelP(next.provinces);
+    setSelD(next.districts);
+    setSelN(next.neighborhoods);
   }
 
   const today = startOfDay(new Date());
@@ -244,6 +237,15 @@ export default function FiltersSidebar() {
     }
   }
 
+  const locationPreview = getLocationSelectionPreview(
+    { provinces: selP, districts: selD, neighborhoods: selN },
+    3,
+  );
+  void handleCopyShortLink;
+  const dayPickerStyle: DayPickerCssVars = {
+    "--rdp-cell-size": isNarrowCalendar ? "32px" : "34px",
+  };
+
   return (
     <div className="space-y-6">
       {/* Bölge */}
@@ -252,13 +254,10 @@ export default function FiltersSidebar() {
         <button
           type="button"
           onClick={() => setOpenRegion((v) => !v)}
-          className="w-full border rounded-md px-3 py-2 text-left hover:bg-gray-50"
+          className="min-h-9 w-full min-w-0 overflow-hidden rounded-md border px-3 py-2 text-left hover:bg-gray-50"
         >
-          {selP.length + selD.length + selN.length > 0 ? (
-            <span className="text-sm">
-              {selP.concat(selD).concat(selN).slice(0, 3).join(", ")}
-              {selP.length + selD.length + selN.length > 3 ? " +" : ""}
-            </span>
+          {locationPreview ? (
+            <span className="block truncate text-sm">{locationPreview}</span>
           ) : (
             <span className="text-sm text-gray-500">Bölge seçiniz…</span>
           )}
@@ -338,7 +337,7 @@ export default function FiltersSidebar() {
         <button
           type="button"
           onClick={() => setOpenCal((v) => !v)}
-          className="w-full border rounded-md px-3 py-2 text-left hover:bg-gray-50"
+          className="min-h-9 w-full min-w-0 overflow-hidden rounded-md border px-3 py-2 text-left hover:bg-gray-50"
         >
           {checkin ? (
             <span className="text-sm">
@@ -351,8 +350,8 @@ export default function FiltersSidebar() {
         </button>
 
         {openCal && (
-          <div className="absolute z-[70] mt-1 w-[34rem] rounded-md border bg-white p-3 shadow-xl">
-            <div className="flex items-center justify-between mb-3">
+          <div className="absolute z-[70] mt-1 max-h-[min(80vh,34rem)] w-[min(34rem,calc(100vw-2rem))] overflow-auto rounded-md border bg-white p-3 shadow-xl">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <span className="text-sm font-medium">Kalınacak Gece Sayısı?</span>
               <select
                 value={nights}
@@ -376,21 +375,17 @@ export default function FiltersSidebar() {
               mode="single"
               selected={checkin ?? undefined}
               onSelect={(d) => d && setCheckin(d)}
-              numberOfMonths={2}
+              numberOfMonths={calendarMonths}
               showOutsideDays
               locale={tr}
               disabled={pastDaysMatcher}
               className="rdp-vertical-lg"
-              style={
-                {
-                  ["--rdp-cell-size" as any]: "34px",
-                } as React.CSSProperties
-              }
+              style={dayPickerStyle}
               styles={{
                 months: {
                   display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "24px",
+                  gridTemplateColumns: isNarrowCalendar ? "1fr" : "1fr 1fr",
+                  gap: isNarrowCalendar ? "12px" : "24px",
                   margin: 0,
                 },
                 month: { margin: 0 },
@@ -424,7 +419,7 @@ export default function FiltersSidebar() {
         <button
           type="button"
           onClick={() => setOpenCats((v) => !v)}
-          className="w-full border rounded-md px-3 py-2 text-left hover:bg-gray-50"
+          className="min-h-9 w-full min-w-0 overflow-hidden rounded-md border px-3 py-2 text-left hover:bg-gray-50"
         >
           {selectedCats.length > 0 ? (
             <span className="text-sm">
@@ -490,7 +485,7 @@ export default function FiltersSidebar() {
         <button
           type="button"
           onClick={() => setOpenGuests((v) => !v)}
-          className="w-full border rounded-md px-3 py-2 text-left hover:bg-gray-50"
+          className="min-h-9 w-full min-w-0 overflow-hidden rounded-md border px-3 py-2 text-left hover:bg-gray-50"
         >
           <span className="text-sm">{guests} kişi</span>
         </button>
@@ -566,7 +561,7 @@ export default function FiltersSidebar() {
       <div className="rounded-xl border bg-slate-100/90 p-4">
         <Label className="text-xs">Özellikler</Label>
         <div className="mt-2 grid grid-cols-1 gap-2 max-h-[18rem] overflow-auto pr-1">
-          {FEATURES.map((f) => (
+          {SEARCHABLE_FEATURES.map((f) => (
             <label key={f.key} className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -582,7 +577,7 @@ export default function FiltersSidebar() {
 
       {/* Ara */}
       <div className="pt-2">
-        <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={handleSearch}>
+        <Button variant="primary" className="w-full" onClick={handleSearch}>
           Ara
         </Button>
       </div>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
+import { getErrorCode } from "@/lib/errors";
 
 /**
  * GET /api/admin/pricing-periods?villa_id=...
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
     // Tablo yoksa PostgREST 42P01 döndürebilir; UI kırılmasın diye boş dizi dön.
     // (Tablonun doğru adı: villa_pricing_periods)
     // Şeman: Villa Pricing Periods with Date Range Exclusion.txt
-    if ((error as any)?.code === "42P01") {
+    if (getErrorCode(error) === "42P01") {
       return NextResponse.json([]);
     }
 
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
       .single();
 
     // Exclusion constraint (tarihler çakışıyor) için daha okunur mesaj
-    if ((error as any)?.code === "23P01") {
+    if (getErrorCode(error) === "23P01") {
       return NextResponse.json(
         { error: "Bu villada seçilen tarih aralığı başka bir fiyat dönemiyle çakışıyor." },
         { status: 409 },

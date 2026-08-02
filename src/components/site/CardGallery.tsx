@@ -37,7 +37,7 @@ export default function CardGallery({
   const onTouchEnd = (e: React.TouchEvent) => {
     if (touchStartX.current === null) return;
     const dx = e.changedTouches[0].clientX - touchStartX.current;
-    if (Math.abs(dx) > 30) (dx > 0 ? prev() : next)();
+    if (Math.abs(dx) > 30) (dx > 0 ? prev : next)();
     touchStartX.current = null;
   };
 

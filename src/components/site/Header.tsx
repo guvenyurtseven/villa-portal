@@ -44,7 +44,7 @@ export default function Header() {
           <div className="flex items-center gap-2">
             <div className="hidden md:block">
               <Link href="/hakkimizda">
-                <Button className="bg-orange-500 hover:bg-orange-600">Bize Ulaşın</Button>
+                <Button variant="primary">Bize Ulaşın</Button>
               </Link>
             </div>
 
@@ -70,7 +70,7 @@ export default function Header() {
                     Hakkımızda
                   </Link>
                   <Link href="/hakkimizda" className="py-2">
-                    <Button className="w-full bg-orange-500 hover:bg-orange-600">
+                    <Button variant="primary" className="w-full">
                       Bize Ulaşın
                     </Button>
                   </Link>

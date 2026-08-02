@@ -36,7 +36,7 @@ export default function GalleryLightbox({
         isOpen={open}
         onClose={() => setOpen(false)}
         initialIndex={initialIndex}
-        showThumbnails
+        showFilmstrip
       />
     </>
   );

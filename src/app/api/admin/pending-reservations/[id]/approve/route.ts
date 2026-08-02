@@ -2,28 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import OwnerReservationEmail from "@/emails/OwnerReservationEmail";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
+import { formatTRYOptional } from "@/lib/formatters";
+import { parsePgDateRangeDatesOrNow } from "@/lib/pgRange";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
 type Params = { params: Promise<{ id: string }> };
+type ApprovalResult = { total_price?: number | string | null };
 
 const RESEND = new Resend(process.env.RESEND_API_KEY || "");
 const MAIL_FROM = process.env.RESEND_FROM ?? "noreply@example.com";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-
-function formatTRY(value?: number | null) {
-  if (typeof value !== "number") return undefined;
-  return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(value);
-}
-
-function parseDateRange(range: string) {
-  const match = range?.match(/^\[?(\d{4}-\d{2}-\d{2}).*?,\s*(\d{4}-\d{2}-\d{2})/);
-  const start = match ? new Date(`${match[1]}T00:00:00Z`) : new Date();
-  const end = match ? new Date(`${match[2]}T00:00:00Z`) : new Date();
-  const nights = Math.max(1, Math.round((+end - +start) / 86400000));
-  return { start, end, nights };
-}
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   const unauthorized = await requireAdmin();
@@ -63,22 +53,35 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Villa sahibi bilgileri eksik." }, { status: 400 });
   }
 
-  if (reservation.status !== "approved") {
-    const { error: rpcError } = await supabase.rpc("approve_pending_reservation", { p_id: id });
+  let totalPrice = reservation.total_price;
+
+  if (reservation.status === "pending") {
+    const { data: approval, error: rpcError } = await supabase.rpc("approve_pending_reservation", {
+      p_id: id,
+    });
     if (rpcError) {
       return NextResponse.json(
         { error: `Onay basarisiz: ${rpcError.message}` },
         { status: 500 },
       );
     }
+
+    totalPrice = (approval as ApprovalResult | null)?.total_price ?? totalPrice;
+  } else if (reservation.status !== "confirmed") {
+    return NextResponse.json(
+      { error: `Rezervasyon onaylanabilir durumda degil: ${reservation.status ?? "unknown"}` },
+      { status: 409 },
+    );
   }
 
   if (reservation.owner_notified_at && !force) {
     return NextResponse.json({ ok: true, info: "Daha once bilgilendirildi" });
   }
 
-  const { start, end, nights } = parseDateRange(String(reservation.date_range || ""));
-  const expiresAt = new Date(+end + 7 * 86400000).toISOString();
+  const { startDate, endExclusiveDate, nights } = parsePgDateRangeDatesOrNow(
+    String(reservation.date_range || ""),
+  );
+  const expiresAt = new Date(endExclusiveDate.getTime() + 7 * 86400000).toISOString();
 
   const { data: tokenRow, error: tokenError } = await supabase
     .from("owner_portal_tokens")
@@ -106,11 +109,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       guestName: reservation.guest_name ?? "Misafir",
       guestPhone: reservation.guest_phone ?? undefined,
       guestEmail: reservation.guest_email ?? undefined,
-      checkinStr: start.toLocaleDateString("tr-TR"),
-      checkoutStr: end.toLocaleDateString("tr-TR"),
+      checkinStr: startDate.toLocaleDateString("tr-TR"),
+      checkoutStr: endExclusiveDate.toLocaleDateString("tr-TR"),
       nights,
-      totalPriceStr: formatTRY(Number(reservation.total_price)) ?? "-",
-      cleaningFeeStr: formatTRY(Number(villa.cleaning_fee ?? 0)),
+      totalPriceStr: formatTRYOptional(Number(totalPrice)) ?? "-",
+      cleaningFeeStr: formatTRYOptional(Number(villa.cleaning_fee ?? 0)),
       ctaUrl,
     });
 

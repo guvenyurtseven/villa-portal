@@ -1,7 +1,15 @@
 // src/components/site/QuickSearch.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useLayoutEffect,
+  type CSSProperties,
+  type RefObject,
+} from "react";
 import { useRouter } from "next/navigation";
 import { DayPicker, type DateRange } from "react-day-picker";
 import "react-day-picker/dist/style.css";
@@ -11,15 +19,34 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Portal from "@/components/util/Portal";
-import { encodeSearchState } from "@/lib/shortlink";
-
-type Option = { type: "province" | "district" | "neighborhood"; value: string; label: string };
-type Category = { id: string; name: string; slug: string };
+import {
+  countSelectedLocations,
+  getLocationSelectionPreview,
+  normalizeCategories,
+  normalizeLocationOptions,
+  toggleLocationOption,
+  type LocationOption,
+  type LocationSelection,
+  type SearchCategory,
+} from "@/domain/search/SearchFilterState";
+import { encodeSearchState, type SearchState } from "@/lib/shortlink";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 
 const GUESTS_MIN = 1;
 const GUESTS_MAX = 12;
 
-function useAnchorPosition(open: boolean, btnRef: React.RefObject<HTMLElement>) {
+type DayPickerCssVars = CSSProperties & {
+  "--rdp-cell-size"?: string;
+  "--rdp-caption-font-size"?: string;
+  "--rdp-day_button-width"?: string;
+  "--rdp-day_button-height"?: string;
+};
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+function useAnchorPosition(open: boolean, btnRef: RefObject<HTMLElement | null>) {
   const [pos, setPos] = useState<{ top: number; left: number; width: number }>({
     top: 0,
     left: 0,
@@ -47,6 +74,7 @@ function useAnchorPosition(open: boolean, btnRef: React.RefObject<HTMLElement>) 
         window.removeEventListener("scroll", calc, true);
       };
     }
+    return undefined;
   }, [open, btnRef]);
 
   return pos;
@@ -68,6 +96,8 @@ export default function QuickSearch({
   initialN?: string[];
 }) {
   const router = useRouter();
+  const isNarrowCalendar = useMediaQuery("(max-width: 767px)");
+  const calendarMonths = isNarrowCalendar ? 1 : 2;
 
   // Button refs
   const regionBtnRef = useRef<HTMLButtonElement | null>(null);
@@ -95,7 +125,7 @@ export default function QuickSearch({
 
   // Region autocomplete
   const [query, setQuery] = useState("");
-  const [options, setOptions] = useState<Option[]>([]);
+  const [options, setOptions] = useState<LocationOption[]>([]);
   const [selP, setSelP] = useState<string[]>(initialP);
   const [selD, setSelD] = useState<string[]>(initialD);
   const [selN, setSelN] = useState<string[]>(initialN);
@@ -104,7 +134,7 @@ export default function QuickSearch({
   const [guests, setGuests] = useState<number>(initialGuests);
 
   // Categories
-  const [cats, setCats] = useState<Category[]>([]);
+  const [cats, setCats] = useState<SearchCategory[]>([]);
   const [selCats, setSelCats] = useState<string[]>([]); // slug[]
 
   // Today (local midnight) — disable past days
@@ -145,7 +175,7 @@ export default function QuickSearch({
       const r = await fetch("/api/categories", { cache: "no-store" });
       if (!r.ok) return;
       const j = await r.json();
-      if (!ignore) setCats(j.items || []);
+      if (!ignore) setCats(normalizeCategories(j));
     })();
     return () => {
       ignore = true;
@@ -166,10 +196,10 @@ export default function QuickSearch({
         if (!res.ok) return;
         const json = await res.json();
         if (!cancelled && !ctrl.signal.aborted) {
-          setOptions((json?.options ?? []) as Option[]);
+          setOptions(normalizeLocationOptions(json));
         }
-      } catch (err: any) {
-        if (err?.name === "AbortError") return;
+      } catch (err: unknown) {
+        if (isAbortError(err)) return;
         console.error("locations load error:", err);
       }
     })();
@@ -209,15 +239,14 @@ export default function QuickSearch({
     };
   }, [regionOpen, dateOpen, guestsOpen, openCats]);
 
-  function toggleSel(o: Option) {
-    const map = {
-      province: [selP, setSelP] as const,
-      district: [selD, setSelD] as const,
-      neighborhood: [selN, setSelN] as const,
-    }[o.type];
-    const [arr, setArr] = map;
-    if (arr.includes(o.value)) setArr(arr.filter((x) => x !== o.value));
-    else setArr([...arr, o.value]);
+  function toggleSel(o: LocationOption) {
+    const next = toggleLocationOption(
+      { provinces: selP, districts: selD, neighborhoods: selN },
+      o,
+    );
+    setSelP(next.provinces);
+    setSelD(next.districts);
+    setSelN(next.neighborhoods);
   }
 
   function toggleCat(slug: string) {
@@ -237,9 +266,9 @@ export default function QuickSearch({
     const nights =
       range?.from && range?.to ? Math.max(1, differenceInCalendarDays(range.to, range.from)) : null;
 
-    const state = {
+    const state: SearchState = {
       checkin: checkinStr,
-      nights, // search API nights kabul ettiği için uyumlu
+      nights: nights ?? undefined, // search API nights kabul ettiği için uyumlu
       guests,
       provinces: selP,
       districts: selD,
@@ -266,17 +295,30 @@ export default function QuickSearch({
     if (range?.from && range?.to && dateError) setDateError(false);
   }, [range?.from, range?.to, dateError]);
 
+  const locationSelection = useMemo<LocationSelection>(
+    () => ({ provinces: selP, districts: selD, neighborhoods: selN }),
+    [selP, selD, selN],
+  );
+  const locationPreview = getLocationSelectionPreview(locationSelection, 2);
+  const selectedLocationCount = countSelectedLocations(locationSelection);
+  const dayPickerStyle: DayPickerCssVars = {
+    "--rdp-cell-size": isNarrowCalendar ? "32px" : "30px",
+    "--rdp-caption-font-size": "14px",
+    "--rdp-day_button-width": isNarrowCalendar ? "32px" : "30px",
+    "--rdp-day_button-height": isNarrowCalendar ? "32px" : "30px",
+  };
+
   return (
     <div className="relative isolate w-full mx-auto rounded-xl border bg-white/80 backdrop-blur p-3 md:p-4 shadow-sm">
       {/* 4 kolon: Bölge | Tarih | Kişi | Kategori | (Ara ayrı satıra düşebilir) */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {/* Bölge */}
         <div className="relative">
           <Label className="text-xs">Bölge</Label>
           <button
             ref={regionBtnRef}
             type="button"
-            className="w-full border rounded-md px-3 py-2 text-left hover:bg-gray-50"
+            className="min-h-9 w-full min-w-0 overflow-hidden rounded-md border px-3 py-2 text-left hover:bg-gray-50"
             onClick={() => {
               setRegionOpen((v) => !v);
               setDateOpen(false);
@@ -284,10 +326,9 @@ export default function QuickSearch({
               setOpenCats(false);
             }}
           >
-            {selP.length + selD.length + selN.length > 0 ? (
-              <span className="text-sm">
-                {selP.concat(selD).concat(selN).slice(0, 2).join(", ")}
-                {selP.length + selD.length + selN.length > 2 ? " +" : ""}
+            {locationPreview ? (
+              <span className="block truncate text-sm">
+                {locationPreview}
               </span>
             ) : (
               <span className="text-sm text-gray-500">Bölge seçiniz…</span>
@@ -301,7 +342,7 @@ export default function QuickSearch({
           <button
             ref={dateBtnRef}
             type="button"
-            className="w-full border rounded-md px-3 py-2 text-left hover:bg-gray-50"
+            className="min-h-9 w-full min-w-0 overflow-hidden rounded-md border px-3 py-2 text-left hover:bg-gray-50"
             onClick={() => {
               setDateOpen((v) => !v);
               setRegionOpen(false);
@@ -309,7 +350,7 @@ export default function QuickSearch({
               setOpenCats(false);
             }}
           >
-            <span className="text-sm">{dateLabel}</span>
+            <span className="block truncate text-sm">{dateLabel}</span>
           </button>
           {dateError && (
             <div className="mt-1 text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded px-2 py-1 inline-block">
@@ -324,7 +365,7 @@ export default function QuickSearch({
           <button
             ref={guestsBtnRef}
             type="button"
-            className="w-full border rounded-md px-3 py-2 text-left hover:bg-gray-50"
+            className="min-h-9 w-full min-w-0 overflow-hidden rounded-md border px-3 py-2 text-left hover:bg-gray-50"
             onClick={() => {
               setGuestsOpen((v) => !v);
               setRegionOpen(false);
@@ -349,10 +390,10 @@ export default function QuickSearch({
               setGuestsOpen(false);
             }}
             aria-expanded={openCats}
-            className="w-full border rounded-md px-3 py-2 text-left hover:bg-gray-50"
+            className="min-h-9 w-full min-w-0 overflow-hidden rounded-md border px-3 py-2 text-left hover:bg-gray-50"
           >
             {selCats.length > 0 ? (
-              <span className="text-sm">
+              <span className="block truncate text-sm">
                 {selCats.slice(0, 2).join(", ")}
                 {selCats.length > 2 ? " +" : ""}
               </span>
@@ -363,8 +404,8 @@ export default function QuickSearch({
         </div>
 
         {/* Ara */}
-        <div className="flex items-end">
-          <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={handleSearch}>
+        <div className="flex items-end sm:col-span-2 lg:col-span-1">
+          <Button variant="primary" className="w-full" onClick={handleSearch}>
             Filtrele
           </Button>
         </div>
@@ -415,7 +456,7 @@ export default function QuickSearch({
                 );
               })}
             </ul>
-            {selP.length + selD.length + selN.length > 0 && (
+            {selectedLocationCount > 0 && (
               <div className="pt-2 flex flex-wrap gap-2">
                 {selP.map((v) => (
                   <span
@@ -461,15 +502,15 @@ export default function QuickSearch({
               position: "fixed",
               top: datePos.top,
               left: datePos.left,
-              width: Math.max(620, datePos.width),
-              maxWidth: Math.min(720, window.innerWidth - 24),
+              width: isNarrowCalendar ? "calc(100vw - 24px)" : Math.max(620, datePos.width),
+              maxWidth: "calc(100vw - 24px)",
             }}
-            className="z-[9999] rounded-lg border bg-white p-3 shadow-lg overflow-auto"
+            className="z-[9999] max-h-[min(80vh,34rem)] overflow-auto rounded-lg border bg-white p-3 shadow-lg"
           >
             <DayPicker
               locale={tr}
               mode="range"
-              numberOfMonths={2}
+              numberOfMonths={calendarMonths}
               showOutsideDays
               selected={range}
               onSelect={(r) => setRange(r ?? undefined)}
@@ -478,20 +519,13 @@ export default function QuickSearch({
               styles={{
                 months: {
                   display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
+                  gridTemplateColumns: isNarrowCalendar ? "1fr" : "1fr 1fr",
                   gap: "16px",
                   alignItems: "start",
                 },
                 month: { margin: 0 },
               }}
-              style={
-                {
-                  ["--rdp-cell-size" as any]: "30px",
-                  ["--rdp-caption-font-size" as any]: "14px",
-                  ["--rdp-day_button-width" as any]: "30px",
-                  ["--rdp-day_button-height" as any]: "30px",
-                } as React.CSSProperties
-              }
+              style={dayPickerStyle}
             />
 
             <style jsx global>{`

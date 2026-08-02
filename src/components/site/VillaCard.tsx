@@ -1,7 +1,7 @@
 import Link from "next/link";
 import CardGallery from "./CardGallery";
 import { Users, BedDouble, Bath } from "lucide-react";
-import { MapPin, X } from "lucide-react";
+import { MapPin } from "lucide-react";
 export default function VillaCard({
   id,
   name,

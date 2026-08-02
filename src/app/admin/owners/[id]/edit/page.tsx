@@ -8,7 +8,7 @@ type Props = { params: Promise<{ id: string }> }; // Next 15: async params
 export default async function OwnerEditPage({ params }: Props) {
   const { id } = await params;
   const session = await auth();
-  const role = (session?.user as any)?.role;
+  const role = session?.user?.role;
   if (!session || role !== "admin") {
     redirect("/admin-login");
   }

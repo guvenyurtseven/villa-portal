@@ -1,6 +1,7 @@
 // src/app/api/categories/route.ts
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { getErrorMessage } from "@/lib/errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     return NextResponse.json({ items: data ?? [] });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "server error" }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: getErrorMessage(e, "server error") }, { status: 500 });
   }
 }

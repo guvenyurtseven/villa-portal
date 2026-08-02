@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import OpportunityVillaCard from "./OpportunityVillaCard";
 import { Sparkles } from "lucide-react";
+import type { PricedOpportunity } from "@/domain/opportunities/OpportunityCalculator";
 
 interface OpportunityVilla {
   id: string;
@@ -12,13 +13,7 @@ interface OpportunityVilla {
   district?: string | null;
   neighborhood?: string | null;
   capacity?: number;
-  opportunities: Array<{
-    startDate: string;
-    endDate: string;
-    nights: number;
-    totalPrice: number;
-    nightlyPrice: number;
-  }>;
+  opportunities: PricedOpportunity[];
   bedrooms?: number | null; // API alanı
   bathrooms?: number | null; // API alanı
 }

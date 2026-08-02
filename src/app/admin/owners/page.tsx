@@ -22,7 +22,7 @@ export default async function OwnersPage({
 }) {
   // 1) Yetki kontrolü (sayfa seviyesinde)
   const session = await auth();
-  const role = (session?.user as any)?.role;
+  const role = session?.user?.role;
   if (!session || role !== "admin") {
     redirect("/admin-login");
   }

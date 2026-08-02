@@ -1,6 +1,8 @@
 // src/app/api/list-villas/route.ts
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server"; // search-villas ile aynı yolu kullan
+import { getSortedVillaPhotoUrls } from "@/domain/villas/PhotoSorting";
+import { getErrorMessage } from "@/lib/errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -119,16 +121,7 @@ export async function GET(req: Request) {
     }
 
     const items = (villas ?? []).map((v: VillaRow) => {
-      const sorted = (photosByVilla.get(v.id) ?? [])
-        .slice()
-        .sort((a, b) => {
-          const ap = a?.is_primary ? 0 : 1;
-          const bp = b?.is_primary ? 0 : 1;
-          if (ap !== bp) return ap - bp;
-          return (a?.order_index ?? 999) - (b?.order_index ?? 999);
-        })
-        .map((p) => p.url)
-        .filter(Boolean);
+      const sorted = getSortedVillaPhotoUrls(photosByVilla.get(v.id));
 
       return {
         id: v.id,
@@ -152,8 +145,8 @@ export async function GET(req: Request) {
       totalPages: Math.ceil((totalVisible ?? 0) / pageSize),
       ...(debug ? { totalRaw } : {}),
     });
-  } catch (e: any) {
-    const msg = e?.message || String(e);
+  } catch (e: unknown) {
+    const msg = getErrorMessage(e, String(e));
     if (debug) return NextResponse.json({ items: [], error: msg }, { status: 500 });
     return NextResponse.json({ items: [], total: 0 }, { status: 500 });
   }

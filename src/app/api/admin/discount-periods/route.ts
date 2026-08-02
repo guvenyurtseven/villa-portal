@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
+import { getErrorCode } from "@/lib/errors";
 
 function bad(msg: string, code = 400) {
   return NextResponse.json({ error: msg }, { status: code });
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
 
   if (error) {
     // 23P01 = exclusion violation (çakışma)
-    if ((error as any).code === "23P01") {
+    if (getErrorCode(error) === "23P01") {
       return bad("Seçilen tarih aralığı, mevcut bir indirim dönemiyle çakışıyor.", 409);
     }
     return bad(error.message, 500);

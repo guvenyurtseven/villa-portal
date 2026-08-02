@@ -8,6 +8,27 @@ import Image from "next/image";
 import { OwnerIdFilter } from "@/components/admin/OwnerIdFilter";
 
 type SearchParams = Record<string, string | string[] | undefined>;
+type VillaPhotoRow = {
+  url: string | null;
+  is_primary: boolean | null;
+};
+
+type VillaOwnerRow = {
+  id?: string;
+  full_name?: string | null;
+};
+
+type VillaListRow = {
+  id: string;
+  name: string;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  has_pool: boolean | null;
+  capacity: number | null;
+  is_hidden: boolean | null;
+  owner?: VillaOwnerRow | null;
+  photos?: VillaPhotoRow[] | null;
+};
 
 // Basit UUID doğrulayıcı (v4'e kısıtlamadan genel UUID biçimi)
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -111,14 +132,14 @@ export default async function AdminVillasPage({
         </Card>
       ) : villas && villas.length > 0 ? (
         <div className="grid gap-4">
-          {villas.map((villa: any) => {
+          {((villas ?? []) as VillaListRow[]).map((villa) => {
             // Birincil fotoğrafı bul (is_primary öncelik, yoksa ilk)
             const primaryPhoto =
-              villa.photos?.find((p: any) => p.is_primary)?.url ||
+              villa.photos?.find((p) => p.is_primary)?.url ||
               villa.photos?.[0]?.url ||
               "/placeholder.jpg";
 
-            const owner = villa.owner as { id?: string; full_name?: string } | null;
+            const owner = villa.owner;
 
             return (
               <Card key={villa.id}>
@@ -240,12 +261,12 @@ function FilterBar({ defaultQ, defaultOwnerId }: { defaultQ?: string; defaultOwn
         />
       </div>
 
-      <button
+      <Button
         type="submit"
-        className="h-9 px-4 rounded bg-orange-500 hover:bg-orange-600 text-white text-sm"
+        variant="primary"
       >
         Ara
-      </button>
+      </Button>
 
       <Link
         href="/admin/villas"

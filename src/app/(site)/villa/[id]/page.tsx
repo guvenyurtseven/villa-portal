@@ -1,15 +1,20 @@
 import { createClient } from "@/lib/supabase/server";
-import PhotoGallery from "@/components/site/PhotoGallery";
 import FeaturesList from "@/components/site/FeaturesList";
 import AvailabilityCalendar from "@/components/site/AvailabilityCalendar";
 import MapModal from "@/components/site/MapModal";
 import { notFound } from "next/navigation";
 import VillaFeatures from "@/components/site/VillaFeatures";
 import OpportunityPeriods from "@/components/site/OpportunityPeriods";
-import { Users, BedDouble, Droplet, Image as ImageIcon } from "lucide-react";
+import { Users, BedDouble, Droplet } from "lucide-react";
 import Image from "next/image";
-import { MapPin, X } from "lucide-react";
+import { MapPin } from "lucide-react";
 import GalleryLightbox from "@/components/site/GalleryLightbox";
+import {
+  buildBusyRangesFromDateRangeRows,
+  calculatePublicDetailOpportunities,
+  type OpportunityDateRangeRow,
+  type OpportunityPricingPeriod,
+} from "@/domain/opportunities/OpportunityCalculator";
 
 interface VillaPageProps {
   params: Promise<{ id: string }>;
@@ -63,42 +68,14 @@ export default async function VillaPage({ params }: VillaPageProps) {
     .eq("villa_id", id)
     .order("start_date", { ascending: true });
 
-  // Müsait olmayan tarihleri formatla
-  const unavailableRanges: Array<{
-    start: string;
-    end: string;
-    type: "reserved";
-  }> = [];
-
-  const RANGE_RE = /^\[([0-9]{4}-[0-9]{2}-[0-9]{2}),([0-9]{4}-[0-9]{2}-[0-9]{2})[\)\]]$/;
-
-  // Onaylı rezervasyonlar
-  if (reservations) {
-    reservations.forEach((r: any) => {
-      const match = String(r.date_range ?? "").match(RANGE_RE);
-      if (match) {
-        unavailableRanges.push({
-          start: match[1],
-          end: match[2],
-          type: "reserved",
-        });
-      }
-    });
-  }
-
-  // Bloke tarihleri (temizlik vs.) — kullanıcı tarafında aynı davranır
-  if (blockedDates) {
-    blockedDates.forEach((block: any) => {
-      const match = String(block.date_range ?? "").match(RANGE_RE);
-      if (match) {
-        unavailableRanges.push({
-          start: match[1],
-          end: match[2],
-          type: "reserved",
-        });
-      }
-    });
-  }
+  const reservationRows = (reservations ?? []) as OpportunityDateRangeRow[];
+  const blockedDateRows = (blockedDates ?? []) as OpportunityDateRangeRow[];
+  const busyRanges = buildBusyRangesFromDateRangeRows([...reservationRows, ...blockedDateRows]);
+  const unavailableRanges = busyRanges.map((range) => ({
+    start: range.start,
+    end: range.endExclusive,
+    type: "reserved" as const,
+  }));
 
   // --- FOTOĞRAFLAR: güvenli dizi ---
   const photosRaw: Array<{
@@ -124,125 +101,12 @@ export default async function VillaPage({ params }: VillaPageProps) {
 
   const coverUrl = safePhotos[0]?.url || "/placeholder.jpg";
 
-  // --- FIRSAT ARALIKLARI HESAPLAMA ---
-  const today = new Date();
-  const endDate = new Date();
-  endDate.setDate(today.getDate() + 30);
-
-  const unavailableDays = new Set<string>();
-
-  // Tüm dolu günleri topla
-  unavailableRanges.forEach((range) => {
-    const start = new Date(range.start);
-    const end = new Date(range.end);
-    const current = new Date(start);
-    while (current < end) {
-      unavailableDays.add(current.toISOString().slice(0, 10));
-      current.setDate(current.getDate() + 1);
-    }
+  const opportunities = calculatePublicDetailOpportunities({
+    busyRanges,
+    pricingPeriods: (pricingPeriods ?? []) as OpportunityPricingPeriod[],
+    minNights: 2,
+    maxNights: 7,
   });
-
-  // Dolu günleri sırala
-  const sortedUnavailable = Array.from(unavailableDays).sort();
-  const opportunities: any[] = [];
-
-  // Ardışık dolu günler arasındaki boşlukları bul
-  for (let i = 0; i < sortedUnavailable.length - 1; i++) {
-    const currentEnd = new Date(sortedUnavailable[i]);
-    const nextStart = new Date(sortedUnavailable[i + 1]);
-
-    // İki dolu dönem arasındaki boşluk başlangıcı
-    const gapStart = new Date(currentEnd);
-    gapStart.setDate(gapStart.getDate() + 1);
-
-    // Boşluk günlerini hesapla
-    const diffTime = Math.abs(nextStart.getTime() - gapStart.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    // 2-7 gün arasındaki boşlukları fırsat olarak değerlendir
-    if (diffDays >= 2 && diffDays <= 7) {
-      let hasPrice = true;
-      let totalPrice = 0;
-      const checkDate = new Date(gapStart);
-
-      // Her gün için fiyat kontrolü
-      for (let j = 0; j < diffDays; j++) {
-        const dateStr = checkDate.toISOString().slice(0, 10);
-
-        // Bu gün için tanımlı fiyat var mı?
-        const period = pricingPeriods?.find((p: any) => {
-          const start = new Date(p.start_date);
-          const end = new Date(p.end_date);
-          return checkDate >= start && checkDate <= end;
-        });
-
-        if (!period) {
-          hasPrice = false;
-          break;
-        }
-
-        totalPrice += Number(period.nightly_price);
-        checkDate.setDate(checkDate.getDate() + 1);
-      }
-
-      // Tüm günlerde fiyat tanımlıysa fırsata ekle
-      if (hasPrice && totalPrice > 0) {
-        const opportunityEnd = new Date(gapStart);
-        opportunityEnd.setDate(opportunityEnd.getDate() + diffDays - 1);
-
-        opportunities.push({
-          startDate: gapStart.toISOString().slice(0, 10),
-          endDate: opportunityEnd.toISOString().slice(0, 10),
-          nights: diffDays,
-          totalPrice: totalPrice, // İndirim yok
-          nightlyPrice: Math.round(totalPrice / diffDays), // Gecelik ortalama
-        });
-      }
-    }
-  }
-
-  // Bugün müsaitse ve yakın rezervasyon varsa kontrol et
-  const todayStr = today.toISOString().slice(0, 10);
-  if (!unavailableDays.has(todayStr) && sortedUnavailable.length > 0) {
-    const firstBookedDate = new Date(sortedUnavailable[0]);
-    const diffTime = Math.abs(firstBookedDate.getTime() - today.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays >= 2 && diffDays <= 7) {
-      let hasPrice = true;
-      let totalPrice = 0;
-      const checkDate = new Date(today);
-
-      for (let j = 0; j < diffDays; j++) {
-        const period = pricingPeriods?.find((p: any) => {
-          const start = new Date(p.start_date);
-          const end = new Date(p.end_date);
-          return checkDate >= start && checkDate <= end;
-        });
-
-        if (!period) {
-          hasPrice = false;
-          break;
-        }
-
-        totalPrice += Number(period.nightly_price);
-        checkDate.setDate(checkDate.getDate() + 1);
-      }
-
-      if (hasPrice && totalPrice > 0) {
-        const opportunityEnd = new Date(today);
-        opportunityEnd.setDate(opportunityEnd.getDate() + diffDays - 1);
-
-        opportunities.unshift({
-          startDate: todayStr,
-          endDate: opportunityEnd.toISOString().slice(0, 10),
-          nights: diffDays,
-          totalPrice: totalPrice, // İndirim yok
-          nightlyPrice: Math.round(totalPrice / diffDays), // Gecelik ortalama
-        });
-      }
-    }
-  }
   const locationStr = [villa.province, villa.district, villa.neighborhood]
     .filter(Boolean)
     .join(" / ");
@@ -274,7 +138,7 @@ export default async function VillaPage({ params }: VillaPageProps) {
         </div>
 
         {/* Ortalanmış başlık/konum */}
-        <div className="relative z-10 h-full max-w-5xl mx-auto px-6 flex flex-col items-start justify-center">
+        <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-start justify-center px-4 sm:px-6">
           <h1 className="text-white drop-shadow-md font-bold text-3xl sm:text-4xl md:text-5xl">
             {villa.name}
           </h1>
@@ -287,21 +151,19 @@ export default async function VillaPage({ params }: VillaPageProps) {
         </div>
 
         {/* Sağ altta "Resimlere Bak" butonu */}
-        <div className="absolute right-6 bottom-6  z-10">
-          <div className="absolute right-6 bottom-6 z-10">
-            <GalleryLightbox photos={safePhotos} />
-          </div>
+        <div className="absolute inset-x-4 bottom-4 z-10 flex justify-end sm:inset-x-6 sm:bottom-6">
+          <GalleryLightbox photos={safePhotos} className="max-w-full" />
         </div>
 
         {/* Örnek: Sertifika rozeti istersen sol üstte göster */}
         {villa.document_number && (
-          <div className="absolute left-6 top-6 z-10 rounded-md bg-orange-500/95 px-3 py-1.5 text-white text-xs z-200">
+          <div className="absolute left-4 top-4 z-10 max-w-[calc(100%-2rem)] rounded-md bg-orange-500/95 px-3 py-1.5 text-xs text-white sm:left-6 sm:top-6">
             Belge No: {villa.document_number}
           </div>
         )}
 
         {/* Kapasite / Yatak / Özel Havuz satırı */}
-        <div className="mt-2 mb-4 ml-8 flex flex-wrap items-center gap-5 text-gray-1000">
+        <div className="hidden">
           {typeof villa.capacity === "number" && (
             <span className="inline-flex items-center gap-1.5 text-gray-700">
               <Users className="h-4 w-4" />
@@ -320,16 +182,33 @@ export default async function VillaPage({ params }: VillaPageProps) {
       </section>
 
       {/* İçerik gövdesi */}
-      <main className="max-w-5xl mx-auto p-6">
+      <main className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
+        <div className="flex flex-wrap items-center gap-4 text-gray-700 sm:gap-5">
+          {typeof villa.capacity === "number" && (
+            <span className="inline-flex items-center gap-1.5">
+              <Users className="h-4 w-4" />
+              <span className="text-sm">{villa.capacity} Kişi</span>
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1.5">
+            <BedDouble className="h-4 w-4" />
+            <span className="text-sm">{villa.bedrooms} Yatak Odası</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <Droplet className="h-4 w-4" />
+            <span className="text-sm">{villa.has_pool ? "Özel Havuzlu" : "Havuz Yok"}</span>
+          </span>
+        </div>
+
         {/* Açıklama */}
         {villa.description && (
-          <div className="mt-6 rounded-lg border bg-white p-4">
-            <p className="text-gray-700 whitespace-pre-line">{villa.description}</p>
+          <div className="mt-6 overflow-hidden rounded-lg border bg-white p-4">
+            <p className="whitespace-pre-line break-words text-gray-700">{villa.description}</p>
           </div>
         )}
 
         {/* Özet özellikler (istersen bırakmaya devam edebiliriz) */}
-        <div className="grid grid-col-2 mt-6 rounded-lg border bg-white p-4 items-center">
+        <div className="mt-6 grid grid-cols-1 items-center overflow-hidden rounded-lg border bg-white p-4">
           <FeaturesList
             bedrooms={villa.bedrooms}
             bathrooms={villa.bathrooms}
@@ -339,7 +218,7 @@ export default async function VillaPage({ params }: VillaPageProps) {
         </div>
 
         {/* Detaylı boolean özellikler */}
-        <VillaFeatures villa={villa as any} className="mt-6" />
+        <VillaFeatures villa={villa} className="mt-6" />
 
         {/* Konum Haritası */}
         {villa.lat != null && villa.lng != null && (

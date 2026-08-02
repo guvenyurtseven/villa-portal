@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
 type Props = {
   villaId: string;
@@ -36,13 +37,13 @@ export default function DeleteVillaButton({ villaId, villaName }: Props) {
   };
 
   return (
-    <button
+    <Button
       onClick={handleDelete}
       disabled={loading}
       aria-label="villayi-sil"
-      className="px-3 py-2 rounded-lg border border-red-500 bg-red-500 text-white font-semibold disabled:opacity-60"
+      variant="danger"
     >
       {loading ? "Siliniyor…" : "Villayı Sil"}
-    </button>
+    </Button>
   );
 }

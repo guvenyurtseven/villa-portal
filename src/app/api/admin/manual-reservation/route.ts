@@ -3,6 +3,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
+import {
+  reservationRpcErrorMessage,
+  reservationRpcErrorStatus,
+} from "@/domain/reservations/ReservationApiErrors";
+import { addDaysToIsoDate, isoDateToUtcDate } from "@/lib/pgRange";
+import { getErrorMessage } from "@/lib/errors";
 
 const bodySchema = z.object({
   villa_id: z.string().uuid(),
@@ -14,14 +20,6 @@ const bodySchema = z.object({
   status: z.enum(["pending", "confirmed", "cancelled"]).default("confirmed"),
   notes: z.string().optional().nullable(),
 });
-
-function toPgDateRangeInclusive(start: string, endInclusive: string) {
-  // [start, endExclusive)
-  const end = new Date(endInclusive);
-  end.setDate(end.getDate() + 1);
-  const endExclusive = end.toISOString().slice(0, 10);
-  return `[${start},${endExclusive})`;
-}
 
 export async function POST(req: Request) {
   const unauthorized = await requireAdmin();
@@ -35,55 +33,37 @@ export async function POST(req: Request) {
     // villa_total_price: check-in dahil, check-out hariç çalışır.
     // UI'den gelen end_date dahil olduğu için +1 gün ekleyip check-out yapıyoruz.
     const checkin = input.start_date;
-    const checkoutDate = new Date(input.end_date);
-    checkoutDate.setDate(checkoutDate.getDate() + 1);
-    const checkout = checkoutDate.toISOString().slice(0, 10);
+    const startDate = isoDateToUtcDate(input.start_date);
+    const endInclusiveDate = isoDateToUtcDate(input.end_date);
+    const checkout = addDaysToIsoDate(input.end_date, 1);
 
-    // Toplam ücreti RPC ile hesapla (fiyat dönemlerini dikkate alır)
-    const { data: totalPrice, error: rpcError } = await supabase.rpc("villa_total_price", {
+    if (!startDate || !endInclusiveDate || !checkout || endInclusiveDate < startDate) {
+      return NextResponse.json({ error: "Geçersiz tarih aralığı" }, { status: 400 });
+    }
+
+    const { data, error } = await supabase.rpc("create_reservation", {
       p_villa_id: input.villa_id,
       p_checkin: checkin,
       p_checkout: checkout,
+      p_guest_name: input.guest_name,
+      p_guest_phone: input.guest_phone,
+      p_guest_email: input.guest_email || null,
+      p_notes: input.notes ?? null,
+      p_status: input.status,
     });
 
-    if (rpcError) {
-      console.error("[manual-reservation] villa_total_price error:", rpcError);
-      return NextResponse.json(
-        { error: "Fiyat hesaplanamadı", details: rpcError.message },
-        { status: 500 },
-      );
-    }
-
-    if (!totalPrice || totalPrice === 0) {
-      return NextResponse.json(
-        { error: "Bu tarihler için fiyat tanımlanmamıştır. Önce fiyat dönemi ekleyin." },
-        { status: 400 },
-      );
-    }
-
-    const date_range = toPgDateRangeInclusive(input.start_date, input.end_date);
-
-    const { data, error } = await supabase
-      .from("reservations")
-      .insert({
-        villa_id: input.villa_id,
-        date_range,
-        guest_name: input.guest_name,
-        guest_phone: input.guest_phone,
-        guest_email: input.guest_email || null,
-        total_price: totalPrice, // RPC sonucu
-        status: input.status,
-        notes: input.notes ?? null,
-      })
-      .select()
-      .single();
-
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json(
+        { error: reservationRpcErrorMessage(error), details: error.message },
+        { status: reservationRpcErrorStatus(error) },
+      );
     }
 
     return NextResponse.json(data);
-  } catch (err: any) {
-    return NextResponse.json({ error: "Beklenmeyen hata", details: err?.message }, { status: 500 });
+  } catch (err: unknown) {
+    return NextResponse.json(
+      { error: "Beklenmeyen hata", details: getErrorMessage(err) },
+      { status: 500 },
+    );
   }
 }

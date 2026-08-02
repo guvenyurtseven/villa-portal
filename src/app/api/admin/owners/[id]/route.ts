@@ -4,6 +4,11 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { OwnerUpdateSchema } from "@/lib/validation/owner";
 
 type Params = { params: Promise<{ id: string }> };
+type OwnerUpdatePayload = {
+  full_name: string;
+  phone: string;
+  email: string;
+};
 
 export async function GET(_req: Request, { params }: Params) {
   const unauthorized = await requireAdmin();
@@ -34,7 +39,7 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const updates: Record<string, any> = {};
+  const updates: Partial<OwnerUpdatePayload> = {};
   if (parsed.data.full_name !== undefined) updates.full_name = parsed.data.full_name;
   if (parsed.data.phone !== undefined) updates.phone = parsed.data.phone;
   if (parsed.data.email !== undefined) updates.email = parsed.data.email;

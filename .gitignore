@@ -45,3 +45,8 @@ node_modules
 .next
 .env
 .env.local
+
+# local analysis / generated workspace artifacts
+/prospective/
+/villas.sql
+/supabase/.temp/

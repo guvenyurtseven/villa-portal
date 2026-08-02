@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { CATEGORY_DEFS } from "@/lib/categories";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function CategoryNav() {
   return (
@@ -10,11 +12,10 @@ export default function CategoryNav() {
           <li key={c.slug} className="snap-start flex-shrink-0">
             <Link
               href={`/${c.slug}`}
-              className="group inline-flex items-center justify-center gap-2
-                         h-8 px-3 text-xs rounded-lg
-                         bg-orange-500 hover:bg-orange-600 text-white text-center
-                         shadow-sm hover:shadow-md transition
-                         focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-orange-500"
+              className={cn(
+                buttonVariants({ variant: "primary", size: "sm" }),
+                "group rounded-lg text-center text-xs shadow-sm hover:shadow-md",
+              )}
             >
               <span className="text-sm">{c.icon}</span>
               <span className="text-[11px] tracking-wider font-semibold uppercase opacity-90 group-hover:opacity-100">

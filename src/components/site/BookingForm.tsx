@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { getErrorMessage } from "@/lib/errors";
 
 type Props = {
   villaId: string;
@@ -68,7 +71,9 @@ export default function BookingForm(props: Props) {
           } else {
             msg = await res.text();
           }
-        } catch {}
+        } catch (err: unknown) {
+          console.warn("pre-reservation error response parse failed:", err);
+        }
         throw new Error(msg);
       }
 
@@ -76,9 +81,9 @@ export default function BookingForm(props: Props) {
       // İstersen burada bir yönlendirme yapabilirsin:
       // router.push("/site");
       router.push("/?pre=1");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert(err?.message || "Bir hata oluştu.");
+      alert(getErrorMessage(err, "Bir hata oluştu."));
     } finally {
       setSubmitting(false);
     }
@@ -101,34 +106,34 @@ export default function BookingForm(props: Props) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <label className="block">
           <span className="block text-sm font-medium">Ad Soyad*</span>
-          <input
+          <Input
             type="text"
             required
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            className="mt-1 w-full rounded-md border px-3 py-2"
+            className="mt-1"
           />
         </label>
 
         <label className="block">
           <span className="block text-sm font-medium">E-posta*</span>
-          <input
+          <Input
             type="email"
             required
             value={form.email}
             onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-            className="mt-1 w-full rounded-md border px-3 py-2"
+            className="mt-1"
           />
         </label>
 
         <label className="block">
           <span className="block text-sm font-medium">Telefon*</span>
-          <input
+          <Input
             type="tel"
             required
             value={form.phone}
             onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-            className="mt-1 w-full rounded-md border px-3 py-2"
+            className="mt-1"
             placeholder="+90 ..."
           />
         </label>
@@ -136,22 +141,22 @@ export default function BookingForm(props: Props) {
         <div className="grid grid-cols-2 gap-4">
           <label className="block">
             <span className="block text-sm font-medium">Yetişkin</span>
-            <input
+            <Input
               type="number"
               min={1}
               value={form.adults}
               onChange={(e) => setForm((f) => ({ ...f, adults: Number(e.target.value || 0) }))}
-              className="mt-1 w-full rounded-md border px-3 py-2"
+              className="mt-1"
             />
           </label>
           <label className="block">
             <span className="block text-sm font-medium">Çocuk</span>
-            <input
+            <Input
               type="number"
               min={0}
               value={form.children}
               onChange={(e) => setForm((f) => ({ ...f, children: Number(e.target.value || 0) }))}
-              className="mt-1 w-full rounded-md border px-3 py-2"
+              className="mt-1"
             />
           </label>
         </div>
@@ -163,19 +168,21 @@ export default function BookingForm(props: Props) {
           rows={4}
           value={form.message}
           onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
-          className="mt-1 w-full rounded-md border px-3 py-2"
+          className="mt-1 min-h-28 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
           placeholder="Var ise eklemek istediğiniz notlar..."
         />
       </label>
 
       <div className="pt-2">
-        <button
+        <Button
           type="submit"
           disabled={submitting}
-          className="px-5 py-2.5 rounded-lg bg-black text-white disabled:opacity-50"
+          variant="primary"
+          size="lg"
+          className="w-full sm:w-auto"
         >
           {submitting ? "Gönderiliyor..." : "Rezervasyonu tamamla"}
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { getErrorMessage } from "@/lib/errors";
 
 // API'dan beklenen minimal şekil
 type Owner = { id: string; full_name: string; email?: string; phone?: string };
@@ -44,8 +45,8 @@ export function OwnerSelect({
         items.sort((a, b) => collator.compare(a.full_name || "", b.full_name || ""));
 
         if (mounted) setOwners(items);
-      } catch (e: any) {
-        if (mounted) setError(e?.message || "Bilinmeyen hata");
+      } catch (e: unknown) {
+        if (mounted) setError(getErrorMessage(e));
       } finally {
         if (mounted) setLoading(false);
       }

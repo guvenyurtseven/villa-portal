@@ -1,6 +1,12 @@
+import { differenceInCalendarDays, format, isValid, parseISO } from "date-fns";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { parseISO, addDays, format, isWithinInterval } from "date-fns";
+import { createServiceRoleClient } from "@/lib/supabase/server";
+
+type DailyPriceRow = {
+  day: string;
+  nightly_price: number | null;
+  source: string;
+};
 
 export async function POST(request: Request) {
   try {
@@ -11,9 +17,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    const checkin = parseISO(start_date);
+    const checkout = parseISO(end_date);
+    const nights = differenceInCalendarDays(checkout, checkin);
 
-    // Villa bilgilerini al (temizlik ücreti dahil)
+    if (!isValid(checkin) || !isValid(checkout) || nights <= 0) {
+      return NextResponse.json({ error: "Gecersiz tarih araligi" }, { status: 400 });
+    }
+
+    const supabase = createServiceRoleClient();
+
     const { data: villa, error: villaError } = await supabase
       .from("villas")
       .select("id, name, cleaning_fee")
@@ -21,90 +34,62 @@ export async function POST(request: Request) {
       .single();
 
     if (villaError || !villa) {
-      return NextResponse.json({ error: "Villa bulunamadı" }, { status: 404 });
+      return NextResponse.json({ error: "Villa bulunamadi" }, { status: 404 });
     }
 
-    // Özel fiyat dönemlerini al
-    const { data: pricingPeriods, error: pricingError } = await supabase
-      .from("villa_pricing_periods")
-      .select("*")
-      .eq("villa_id", villa_id)
-      .order("start_date", { ascending: true });
+    const { data: dailyPrices, error: dailyPriceError } = await supabase.rpc("villa_daily_prices", {
+      p_villa_id: villa_id,
+      p_checkin: start_date,
+      p_checkout: end_date,
+    });
 
-    if (pricingError) {
-      console.error("Pricing periods fetch error:", pricingError);
-      return NextResponse.json({ error: "Fiyat bilgileri alınamadı" }, { status: 500 });
+    if (dailyPriceError) {
+      console.error("Daily price calculation error:", dailyPriceError);
+      return NextResponse.json({ error: "Fiyat bilgileri alinamadi" }, { status: 500 });
     }
 
-    // Belirli bir tarih için fiyatı hesapla
-    function getPriceForDate(date: Date): number | null {
-      if (!pricingPeriods || pricingPeriods.length === 0) {
-        return null;
-      }
+    const rows = (dailyPrices ?? []) as DailyPriceRow[];
+    const undefinedPriceDates = rows
+      .filter((row) => row.nightly_price == null)
+      .map((row) => format(parseISO(row.day), "dd/MM/yyyy"));
 
-      for (const period of pricingPeriods) {
-        const periodStart = parseISO(period.start_date);
-        const periodEnd = parseISO(period.end_date);
-
-        if (isWithinInterval(date, { start: periodStart, end: periodEnd })) {
-          return Number(period.nightly_price);
-        }
-      }
-
-      return null;
-    }
-
-    // Toplam fiyatı hesapla
-    const startDateObj = parseISO(start_date);
-    const endDateObj = parseISO(end_date);
-    let current = new Date(startDateObj);
-    let subtotal = 0;
-    let nights = 0;
-    const priceBreakdown = [];
-    const undefinedPriceDates = [];
-
-    // Her gece için fiyatı hesapla
-    while (current < endDateObj) {
-      const nightlyPrice = getPriceForDate(current);
-
-      if (nightlyPrice === null) {
-        undefinedPriceDates.push(format(current, "dd/MM/yyyy"));
-      } else {
-        subtotal += nightlyPrice;
-        priceBreakdown.push({
-          date: format(current, "yyyy-MM-dd"),
-          price: nightlyPrice,
-        });
-      }
-
-      current = addDays(current, 1);
-      nights++;
-    }
-
-    // Eğer fiyat tanımlı olmayan günler varsa hata dön
-    if (undefinedPriceDates.length > 0) {
+    if (rows.length !== nights || undefinedPriceDates.length > 0) {
       return NextResponse.json(
         {
           error: "NO_PRICE_DEFINED",
-          message: "Seçilen tarih aralığında fiyat tanımlanmamış günler bulunmaktadır",
+          message: "Secilen tarih araliginda fiyat tanimlanmamis gunler bulunmaktadir",
           undefinedDates: undefinedPriceDates,
-          nights: nights,
-          definedPriceCount: priceBreakdown.length,
+          nights,
+          definedPriceCount: rows.length - undefinedPriceDates.length,
         },
         { status: 400 },
       );
     }
 
-    // Temizlik ücreti hesapla (7 günden az rezervasyonlarda)
+    const { data: totalPrice, error: totalPriceError } = await supabase.rpc("villa_total_price", {
+      p_villa_id: villa_id,
+      p_checkin: start_date,
+      p_checkout: end_date,
+    });
+
+    if (totalPriceError) {
+      console.error("Total price calculation error:", totalPriceError);
+      return NextResponse.json({ error: "Fiyat hesaplanamadi" }, { status: 500 });
+    }
+
+    if (totalPrice == null || Number(totalPrice) <= 0) {
+      return NextResponse.json({ error: "NO_PRICE_DEFINED" }, { status: 400 });
+    }
+
+    const priceBreakdown = rows.map((row) => ({
+      date: row.day,
+      price: Number(row.nightly_price),
+      source: row.source,
+    }));
+    const subtotal = priceBreakdown.reduce((sum, row) => sum + row.price, 0);
+    const discount = nights >= 14 ? Math.round(subtotal * 0.05) : 0;
     const cleaningFee = nights < 7 ? Number(villa.cleaning_fee || 0) : 0;
-    const hasCleaningFee = cleaningFee > 0;
-
-    // İndirim hesapla (14 gece ve üzeri %5)
-    const discount = 0;
-
-    // Toplam hesaplama (temizlik ücreti indirimden sonra eklenir)
-    const subtotalAfterDiscount = subtotal - discount;
-    const total = subtotalAfterDiscount + cleaningFee;
+    const total = Number(totalPrice);
     const deposit = Math.round(total * 0.35);
     const averagePerNight = nights > 0 ? Math.round(subtotal / nights) : 0;
 
@@ -113,7 +98,7 @@ export async function POST(request: Request) {
       subtotal,
       discount,
       cleaningFee,
-      hasCleaningFee,
+      hasCleaningFee: cleaningFee > 0,
       total,
       deposit,
       averagePerNight,

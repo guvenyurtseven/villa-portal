@@ -1,13 +1,31 @@
-import NextAuth, { NextAuthConfig } from "next-auth";
+import NextAuth, { type DefaultSession, type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
+declare module "next-auth" {
+  interface Session {
+    user: DefaultSession["user"] & {
+      id?: string;
+      role?: string;
+    };
+  }
+
+  interface User {
+    role?: string;
+  }
+}
+
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
 });
+
+type AdminToken = {
+  id?: string;
+  role?: string;
+};
 
 // 1) Export your config so other files can import it.
 export const authOptions: NextAuthConfig = {
@@ -59,19 +77,17 @@ export const authOptions: NextAuthConfig = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        // @ts-expect-error – custom claims
-        token.id = (user as any).id;
-        // @ts-expect-error – custom claims
-        token.role = (user as any).role;
+        const adminToken = token as typeof token & AdminToken;
+        adminToken.id = user.id;
+        adminToken.role = user.role;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        // @ts-expect-error – custom fields
-        session.user.id = token.id as string;
-        // @ts-expect-error – custom fields
-        session.user.role = token.role as string;
+        const adminToken = token as typeof token & AdminToken;
+        if (typeof adminToken.id === "string") session.user.id = adminToken.id;
+        if (typeof adminToken.role === "string") session.user.role = adminToken.role;
       }
       return session;
     },

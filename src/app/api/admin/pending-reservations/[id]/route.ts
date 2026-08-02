@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { getVillaCoverUrl } from "@/domain/villas/PhotoSorting";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const unauthorized = await requireAdmin();
@@ -30,15 +31,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const villa = Array.isArray(data.villa) ? data.villa[0] : data.villa;
   const photos = Array.isArray(villa?.photos) ? villa.photos.slice() : [];
 
-  photos.sort(
-    (a: any, b: any) =>
-      (b.is_primary ? 0 : 1) - (a.is_primary ? 0 : 1) ||
-      (a.order_index ?? 999) - (b.order_index ?? 999),
-  );
-
   return NextResponse.json({
     ...data,
     villa_name: villa?.name ?? "-",
-    cover_url: photos[0]?.url ?? null,
+    cover_url: getVillaCoverUrl(photos),
   });
 }

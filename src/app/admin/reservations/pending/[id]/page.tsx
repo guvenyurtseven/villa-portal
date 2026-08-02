@@ -5,28 +5,11 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import PendingReservationActions from "@/components/admin/pending/PendingReservationActions";
+import { getVillaCoverUrl } from "@/domain/villas/PhotoSorting";
+import { displayPgDateRangeCheckoutShort } from "@/lib/pgRange";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-function parsePGRange(range: string | null | undefined) {
-  if (!range) return null;
-  const m = /^\[([0-9]{4}-[0-9]{2}-[0-9]{2}),([0-9]{4}-[0-9]{2}-[0-9]{2})\)/.exec(range);
-  if (!m) return null;
-  return { start: m[1], end: m[2] };
-}
-
-function formatTr(d: string) {
-  try {
-    return new Date(d + "T00:00:00Z").toLocaleDateString("tr-TR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  } catch {
-    return d;
-  }
-}
 
 export default async function PendingReservationDetail({
   params,
@@ -68,14 +51,8 @@ export default async function PendingReservationDetail({
 
   const villa = Array.isArray(data.villa) ? data.villa[0] : data.villa;
   const photos = Array.isArray(villa?.photos) ? villa.photos.slice() : [];
-  photos.sort(
-    (a: any, b: any) =>
-      (b.is_primary ? 0 : 1) - (a.is_primary ? 0 : 1) ||
-      (a.order_index ?? 999) - (b.order_index ?? 999),
-  );
-  const coverUrl = photos[0]?.url ?? null;
-  const parsed = parsePGRange(data.date_range);
-  const dateText = parsed ? `${formatTr(parsed.start)} → ${formatTr(parsed.end)}` : "-";
+  const coverUrl = getVillaCoverUrl(photos);
+  const dateText = displayPgDateRangeCheckoutShort(data.date_range) ?? "-";
 
   return (
     <div className="space-y-6">

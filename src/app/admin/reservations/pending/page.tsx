@@ -1,34 +1,31 @@
 // src/app/admin/reservations/pending/page.tsx
-import Image from "next/image";
 import Link from "next/link";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import PendingReservationCard from "@/components/admin/pending/PendingReservationCard";
+import { getVillaCoverUrl } from "@/domain/villas/PhotoSorting";
+import { displayPgDateRangeCheckoutShort } from "@/lib/pgRange";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 type SearchParams = Record<string, string | string[] | undefined>;
+type RelationOne<T> = T | T[] | null | undefined;
+type PendingReservationRow = {
+  id: string;
+  villa_id: string | null;
+  date_range: string | null;
+  guest_name: string | null;
+  created_at: string | null;
+  villa?: RelationOne<{
+    name: string | null;
+    photos?: { url: string | null; is_primary: boolean | null; order_index: number | null }[] | null;
+  }>;
+};
 
-function parsePGRange(range: string | null | undefined) {
-  if (!range) return null;
-  // "[YYYY-MM-DD,YYYY-MM-DD)" şekli
-  const m = /^\[([0-9]{4}-[0-9]{2}-[0-9]{2}),([0-9]{4}-[0-9]{2}-[0-9]{2})\)/.exec(range);
-  if (!m) return null;
-  return { start: m[1], end: m[2] };
-}
-
-function formatTr(d: string) {
-  try {
-    return new Date(d + "T00:00:00Z").toLocaleDateString("tr-TR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  } catch {
-    return d;
-  }
+function firstRelation<T>(value: RelationOne<T>) {
+  return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
 }
 
 export default async function PendingReservationsPage({
@@ -66,22 +63,17 @@ export default async function PendingReservationsPage({
     );
   }
 
-  const items = (data ?? []).map((r: any) => {
-    const photos = Array.isArray(r.villa?.photos) ? r.villa.photos.slice() : [];
-    photos.sort(
-      (a: any, b: any) =>
-        (b.is_primary ? 0 : 1) - (a.is_primary ? 0 : 1) ||
-        (a.order_index ?? 999) - (b.order_index ?? 999),
-    );
-    const coverUrl = photos[0]?.url ?? null;
-    const parsed = parsePGRange(r.date_range);
+  const items = ((data ?? []) as PendingReservationRow[]).map((r) => {
+    const villa = firstRelation(r.villa);
+    const photos = Array.isArray(villa?.photos) ? villa.photos.slice() : [];
+    const coverUrl = getVillaCoverUrl(photos);
     return {
       id: r.id,
       villaId: r.villa_id as string,
-      villaName: r.villa?.name ?? "-",
+      villaName: villa?.name ?? "-",
       guestName: r.guest_name ?? "-",
       createdAt: r.created_at as string | null,
-      dateText: parsed ? `${formatTr(parsed.start)} → ${formatTr(parsed.end)}` : "-",
+      dateText: displayPgDateRangeCheckoutShort(r.date_range) ?? "-",
       coverUrl,
     };
   });

@@ -4,6 +4,27 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type DiscountVillaRow = {
+  villa_id: string | null;
+  province?: string | null;
+  district?: string | null;
+  neighborhood?: string | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  capacity?: number | null;
+  [key: string]: unknown;
+};
+
+type VillaExtraRow = {
+  id: string;
+  province: string | null;
+  district: string | null;
+  neighborhood: string | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  capacity: number | null;
+};
+
 // GET /api/discount-villas?limit=12&from=today
 export async function GET(req: Request) {
   try {
@@ -29,11 +50,11 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const items = data ?? [];
+    const items = (data ?? []) as DiscountVillaRow[];
 
     // 2) Eksik alanları villas'tan tamamla (konum + bedrooms/bathrooms/capacity)
     const needsExtra = items.some(
-      (row: any) =>
+      (row) =>
         (row.province == null && row.district == null && row.neighborhood == null) ||
         row.bedrooms == null ||
         row.bathrooms == null ||
@@ -44,8 +65,8 @@ export async function GET(req: Request) {
       const villaIds = Array.from(
         new Set(
           items
-            .map((r: any) => r.villa_id)
-            .filter((x: any) => typeof x === "string" && x.length > 0),
+            .map((r) => r.villa_id)
+            .filter((x): x is string => typeof x === "string" && x.length > 0),
         ),
       );
 
@@ -58,8 +79,10 @@ export async function GET(req: Request) {
         if (extraErr) {
           console.warn("villa extra fields fetch error:", extraErr.message);
         } else {
-          const byId = new Map((extra || []).map((v) => [v.id, v]));
-          for (const row of items as any[]) {
+          const extraRows = (extra ?? []) as VillaExtraRow[];
+          const byId = new Map(extraRows.map((v) => [v.id, v]));
+          for (const row of items) {
+            if (!row.villa_id) continue;
             const base = byId.get(row.villa_id);
             if (!base) continue;
             if (row.province == null) row.province = base.province ?? null;
@@ -74,8 +97,8 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json({ items }, { status: 200 });
-  } catch (e: any) {
-    console.error("discount-villas error:", e?.message || e);
-    return NextResponse.json({ items: [] }, { status: 200 });
+  } catch (e: unknown) {
+    console.error("discount-villas error:", e);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

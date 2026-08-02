@@ -1,33 +1,4 @@
-import React from "react";
-
-/** Veritabanındaki boolean kolonlar + görünen etiketler */
-const FEATURE_DEFS = [
-  { key: "heated_pool", label: "Isıtmalı Havuz" },
-  { key: "sheltered_pool", label: "Korunaklı havuz" },
-  { key: "tv_satellite", label: "TV - Uydu" },
-  { key: "master_bathroom", label: "Ebeveyn Banyosu" },
-  { key: "jacuzzi", label: "Jakuzi" },
-  { key: "fireplace", label: "Şömine" },
-  { key: "children_pool", label: "Çocuk Havuzu" },
-  { key: "in_site", label: "Site İçinde" },
-  { key: "private_pool", label: "Özel Havuzlu" },
-  { key: "playground", label: "Oyun Alanı" },
-  { key: "internet", label: "İnternet Bağlantısı" },
-  { key: "security", label: "Güvenlik" },
-  { key: "sauna", label: "Sauna" },
-  { key: "hammam", label: "Hamam" },
-  { key: "indoor_pool", label: "Kapalı Havuz" },
-  { key: "baby_bed", label: "Bebek Yatağı" },
-  { key: "high_chair", label: "Mama Sandalyesi" },
-  { key: "foosball", label: "Langırt" },
-  { key: "table_tennis", label: "Masa Tenisi" },
-  { key: "underfloor_heating", label: "Yerden Isıtma" },
-  { key: "generator", label: "Jeneratör" },
-  { key: "billiards", label: "Bilardo" },
-  { key: "pet_friendly", label: "Evcil Hayvan İzinli" },
-] as const;
-
-type FeatureKey = (typeof FEATURE_DEFS)[number]["key"];
+import { FEATURE_DEFS, type FeatureKey } from "@/domain/villas/FeatureCatalog";
 
 export default function VillaFeatures({
   villa,
@@ -35,7 +6,7 @@ export default function VillaFeatures({
   title = "Özellikler",
 }: {
   /** villa objesinde boolean kolonlar bulunuyor olmalı */
-  villa: Partial<Record<FeatureKey, boolean>> | any;
+  villa: Partial<Record<FeatureKey, boolean | null | undefined>>;
   className?: string;
   title?: string;
 }) {

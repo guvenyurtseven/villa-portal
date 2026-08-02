@@ -2,35 +2,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
+import { FEATURE_KEYS } from "@/domain/villas/FeatureCatalog";
+import { sortVillaPhotos } from "@/domain/villas/PhotoSorting";
+import type { Database } from "@/lib/supabase/database.types";
 
 export const runtime = "nodejs";
-
-// Formların gönderdiği boolean özellik anahtarları (villa kolonları)
-const FEATURE_KEYS = [
-  "heated_pool",
-  "sheltered_pool",
-  "tv_satellite",
-  "master_bathroom",
-  "jacuzzi",
-  "fireplace",
-  "children_pool",
-  "in_site",
-  "private_pool",
-  "playground",
-  "internet",
-  "security",
-  "sauna",
-  "hammam",
-  "indoor_pool",
-  "baby_bed",
-  "high_chair",
-  "foosball",
-  "table_tennis",
-  "underfloor_heating",
-  "generator",
-  "billiards",
-  "pet_friendly",
-] as const;
 
 type PhotoRow = {
   id: string;
@@ -39,8 +15,30 @@ type PhotoRow = {
   order_index: number | null;
 };
 
+type CategoryLinkRow = {
+  category_id: string;
+};
+
+type JsonRecord = Record<string, unknown>;
+type VillaUpdate = Database["public"]["Tables"]["villas"]["Update"];
+type VillaPhotoInput = {
+  id?: unknown;
+  url?: unknown;
+  is_primary?: unknown;
+  order_index?: unknown;
+};
+type VillaPatchPayload = {
+  villa?: unknown;
+  photos?: unknown;
+  categoryIds?: unknown;
+};
+
 function hasOwn<T extends object>(obj: T, key: string) {
   return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+function isRecord(value: unknown): value is JsonRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 // --- GET (sağlık kontrolü / basit test) ---
@@ -50,7 +48,57 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const { id } = await params;
   if (!id) return NextResponse.json({ error: "missing id" }, { status: 400 });
-  return NextResponse.json({ ok: true, id });
+
+  const supabase = createServiceRoleClient();
+
+  const { data: villa, error: villaErr } = await supabase
+    .from("villas")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (villaErr || !villa) {
+    if (villaErr) console.error("admin villa GET failed:", villaErr);
+    return NextResponse.json({ error: "Villa bulunamadı" }, { status: 404 });
+  }
+
+  const [photosResult, categoryLinksResult] = await Promise.all([
+    supabase
+      .from("villa_photos")
+      .select("id, url, is_primary, order_index")
+      .eq("villa_id", id)
+      .order("order_index", { ascending: true }),
+    supabase.from("villa_categories").select("category_id").eq("villa_id", id),
+  ]);
+
+  if (photosResult.error) {
+    console.error("admin villa photos GET failed:", photosResult.error);
+    return NextResponse.json(
+      { error: `Fotoğraflar alınamadı: ${photosResult.error.message}` },
+      { status: 500 },
+    );
+  }
+
+  if (categoryLinksResult.error) {
+    console.error("admin villa categories GET failed:", categoryLinksResult.error);
+    return NextResponse.json(
+      { error: `Kategori bağlantıları alınamadı: ${categoryLinksResult.error.message}` },
+      { status: 500 },
+    );
+  }
+
+  const photos = sortVillaPhotos((photosResult.data ?? []) as PhotoRow[]);
+  const categoryIds = ((categoryLinksResult.data ?? []) as CategoryLinkRow[]).map(
+    (link) => link.category_id,
+  );
+
+  return NextResponse.json({
+    villa: {
+      ...villa,
+      photos,
+      categoryIds,
+    },
+  });
 }
 
 /**
@@ -72,21 +120,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const supabase = createServiceRoleClient();
 
-  let payload: any = {};
+  let payload: VillaPatchPayload = {};
   try {
-    payload = await req.json();
+    const json = await req.json();
+    if (!isRecord(json)) {
+      return NextResponse.json({ error: "Geçersiz JSON" }, { status: 400 });
+    }
+    payload = json;
   } catch {
     return NextResponse.json({ error: "Geçersiz JSON" }, { status: 400 });
   }
 
-  const { villa, photos, categoryIds } = payload || {};
+  const villa = isRecord(payload.villa) ? payload.villa : null;
+  const photos = Array.isArray(payload.photos) ? (payload.photos as VillaPhotoInput[]) : null;
+  const categoryIds = Array.isArray(payload.categoryIds)
+    ? payload.categoryIds.filter((cid): cid is string => typeof cid === "string")
+    : null;
 
   // 1) VİLLA alanları (yalnızca gönderilen property'ler)
-  if (villa && typeof villa === "object") {
-    const v: Record<string, any> = {};
+  if (villa) {
+    const v: Record<string, unknown> = {};
 
     // Temel metin/sayı/boolean alanlar — alan gönderildiyse güncelle
-    const simpleKeys = [
+    const simpleKeys: Array<keyof VillaUpdate & string> = [
       "name",
       "description",
       "bedrooms",
@@ -162,7 +218,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // herhangi bir alan geldiyse updated_at'i güncelle
     if (Object.keys(v).length > 0) {
       v.updated_at = new Date().toISOString();
-      const { error: upErr } = await supabase.from("villas").update(v).eq("id", id);
+      const { error: upErr } = await supabase.from("villas").update(v as VillaUpdate).eq("id", id);
       if (upErr) {
         return NextResponse.json(
           { error: `Villa güncellenemedi: ${upErr.message}` },
@@ -173,7 +229,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   // 2) FOTOĞRAFLAR (yalnızca değişiklik)
-  if (Array.isArray(photos)) {
+  if (photos) {
     // Mevcut fotoğrafları çek
     const { data: existingPhotos, error: exPhErr } = await supabase
       .from("villa_photos")
@@ -192,8 +248,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     (existingPhotos || []).forEach((p) => existingById.set(p.id, p));
 
     // Payload'dan gelenleri ayır: yeni / mevcut
-    const incomingWithId = photos.filter((p: any) => p.id);
-    const incomingIds = new Set(incomingWithId.map((p: any) => String(p.id)));
+    const incomingWithId = photos.filter((p) => p.id);
+    const incomingIds = new Set(incomingWithId.map((p) => String(p.id)));
 
     const toDelete = (existingPhotos || [])
       .filter((p) => !incomingIds.has(p.id)) // payload'da artık yoksa sil
@@ -242,9 +298,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     // Yeni eklenecekler (id yok)
-    const newOnes = photos.filter((p: any) => !p.id);
+    const newOnes = photos.filter((p) => !p.id);
     if (newOnes.length > 0) {
-      const rows = newOnes.map((p: any, i: number) => ({
+      const rows = newOnes.map((p, i) => ({
         villa_id: id,
         url: String(p.url),
         is_primary: !!p.is_primary,

@@ -3,7 +3,6 @@ import { z } from "zod";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 
-// params artık Promise. Next.js 15'te await edilmesi zorunlu.
 type Ctx = { params: Promise<{ id: string }> };
 
 const ParamsSchema = z.object({ id: z.string().uuid() });
@@ -12,19 +11,15 @@ export async function POST(_req: Request, ctx: Ctx) {
   const unauthorized = await requireAdmin();
   if (unauthorized) return unauthorized;
 
+  const { id } = ParamsSchema.parse(await ctx.params);
   const supabase = createServiceRoleClient();
 
-  // ⬇️ HATA SEBEBİ BUYDU: ctx.params Promise => await et
-  const { id } = ParamsSchema.parse(await ctx.params);
-
-  // (İsteğe bağlı) arşive yanlışlıkla düşmüşse oradan da temizle
-  await supabase.from("past_reservations").delete().eq("id", id).throwOnError();
-
-  // İptal politikası: iptal edilen rezervasyonu tamamen sil
-  const { error } = await supabase.from("reservations").delete().eq("id", id);
+  const { data, error } = await supabase.rpc("cancel_reservation", { p_id: id });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    const status = error.code === "P0002" ? 404 : error.code === "23514" ? 409 : 400;
+    return NextResponse.json({ error: error.message }, { status });
   }
-  return NextResponse.json({ ok: true });
+
+  return NextResponse.json(data ?? { ok: true });
 }

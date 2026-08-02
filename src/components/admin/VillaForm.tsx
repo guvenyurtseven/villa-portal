@@ -10,37 +10,9 @@ import { Card } from "@/components/ui/card";
 import PhotoManager from "@/components/admin/PhotoManager";
 import LocationSelect from "@/components/admin/LocationSelect";
 import { OwnerSelect } from "@/components/admin/OwnerSelect";
+import { FEATURE_DEFS, type FeatureKey } from "@/domain/villas/FeatureCatalog";
 type Photo = { id?: string; url: string; is_primary: boolean; order_index: number };
 type CategoryOption = { id: string; name: string; slug: string };
-
-// Özellik tanımları (boolean kolon adları + görünen etiket)
-const FEATURE_DEFS = [
-  { key: "heated_pool", label: "Isıtmalı Havuz" },
-  { key: "sheltered_pool", label: "Korunaklı havuz" },
-  { key: "tv_satellite", label: "TV - Uydu" },
-  { key: "master_bathroom", label: "Ebeveyn Banyosu" },
-  { key: "jacuzzi", label: "Jakuzi" },
-  { key: "fireplace", label: "Şömine" },
-  { key: "children_pool", label: "Çocuk Havuzu" },
-  { key: "in_site", label: "Site İçinde" },
-  { key: "private_pool", label: "Özel Havuzlu" },
-  { key: "playground", label: "Oyun Alanı" },
-  { key: "internet", label: "İnternet Bağlantısı" },
-  { key: "security", label: "Güvenlik" },
-  { key: "sauna", label: "Sauna" },
-  { key: "hammam", label: "Hamam" },
-  { key: "indoor_pool", label: "Kapalı Havuz" },
-  { key: "baby_bed", label: "Bebek Yatağı" },
-  { key: "high_chair", label: "Mama Sandalyesi" },
-  { key: "foosball", label: "Langırt" },
-  { key: "table_tennis", label: "Masa Tenisi" },
-  { key: "underfloor_heating", label: "Yerden Isıtma" },
-  { key: "generator", label: "Jeneratör" },
-  { key: "billiards", label: "Bilardo" },
-  { key: "pet_friendly", label: "Evcil Hayvan İzinli" },
-] as const;
-
-type FeatureKey = (typeof FEATURE_DEFS)[number]["key"];
 
 export default function VillaForm({ categories = [] }: { categories?: CategoryOption[] }) {
   const router = useRouter();
@@ -74,7 +46,7 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
 
   const [documentNumber, setDocumentNumber] = useState("");
 
-  const onChange = (key: keyof typeof form, val: any) =>
+  const onChange = <K extends keyof typeof form>(key: K, val: (typeof form)[K]) =>
     setForm((prev) => ({ ...prev, [key]: val }));
 
   const toggleCategory = (id: string) =>

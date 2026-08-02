@@ -1,5 +1,6 @@
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import VillaCard from "./VillaCard";
+import { getSortedVillaPhotoUrls } from "@/domain/villas/PhotoSorting";
 
 type PhotoRow = {
   villa_id: string;
@@ -28,7 +29,7 @@ export const dynamic = "force-dynamic";
 export default async function FeaturedVillas() {
   const supabase = createServiceRoleClient();
 
-  const { data: villas, error } = await supabase
+  const { data: villaRows, error } = await supabase
     .from("villas")
     .select(
       `
@@ -46,7 +47,6 @@ export default async function FeaturedVillas() {
       villa_photos(villa_id, url, is_primary, order_index)
     `,
     )
-    .returns<VillaRow[]>() // Tip güvence: ParserError tipini ez
     .eq("is_hidden", false)
     .order("priority", { ascending: false })
     .order("id", { ascending: false })
@@ -57,19 +57,10 @@ export default async function FeaturedVillas() {
     // console.warn("FeaturedVillas query error:", error);
   }
 
-  const list = (villas ?? []).map((v) => {
-    const sortedUrls = (v.villa_photos ?? [])
-      .slice()
-      .sort((a, b) => {
-        const ap = a.is_primary ? 0 : 1;
-        const bp = b.is_primary ? 0 : 1;
-        if (ap !== bp) return ap - bp;
-        const ao = a.order_index ?? 999;
-        const bo = b.order_index ?? 999;
-        return ao - bo;
-      })
-      .map((p) => p.url)
-      .filter(Boolean) as string[];
+  const villas = (villaRows ?? []) as VillaRow[];
+
+  const list = villas.map((v) => {
+    const sortedUrls = getSortedVillaPhotoUrls(v.villa_photos);
 
     const images = sortedUrls.slice(0, 8);
 

@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { getErrorMessage } from "@/lib/errors";
 
 export default function PendingReservationActions({
   reservationId,
@@ -28,8 +29,8 @@ export default function PendingReservationActions({
       }
       // Onaylandı → ilgili villanın takvimine git
       router.replace(`/admin/villas/${villaId}/calendar?approved=1`);
-    } catch (e: any) {
-      alert(`Onaylanamadı: ${e?.message || "Bilinmeyen hata"}`);
+    } catch (e: unknown) {
+      alert(`Onaylanamadı: ${getErrorMessage(e)}`);
     } finally {
       setLoading(null);
     }
@@ -52,8 +53,8 @@ export default function PendingReservationActions({
         throw new Error(j?.error || res.statusText);
       }
       router.replace(`/admin/reservations/pending?deleted=1`);
-    } catch (e: any) {
-      alert(`Silme başarısız: ${e?.message || "Bilinmeyen hata"}`);
+    } catch (e: unknown) {
+      alert(`Silme başarısız: ${getErrorMessage(e)}`);
     } finally {
       setLoading(null);
     }
@@ -64,7 +65,7 @@ export default function PendingReservationActions({
       <Button
         onClick={approve}
         disabled={loading !== null}
-        className="bg-green-600 hover:bg-green-700 text-white"
+        variant="success"
       >
         {loading === "approve" ? "Onaylanıyor…" : "Rezervasyonu Onayla"}
       </Button>

@@ -6,12 +6,7 @@ import { Calendar, Users, BedDouble, Bath } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
 import { MapPin } from "lucide-react";
-
-const tl = new Intl.NumberFormat("tr-TR", {
-  style: "currency",
-  currency: "TRY",
-  maximumFractionDigits: 0,
-});
+import { formatTRYNoFraction } from "@/lib/formatters";
 
 type Props = {
   villaId: string;
@@ -100,18 +95,18 @@ export default function DiscountVillaCard(props: Props) {
             {originalAvgNightly && originalAvgNightly > 0 ? (
               <>
                 <span className="text-xs text-gray-500 line-through">
-                  {tl.format(originalAvgNightly)}
+                  {formatTRYNoFraction(originalAvgNightly)}
                 </span>
                 <span className="text-xs text-gray-400">→</span>
                 <span className="text-2xl leading-none font-bold text-gray-900">
-                  {tl.format(discountedNightly)}
+                  {formatTRYNoFraction(discountedNightly)}
                 </span>
                 <span className="text-xs text-gray-500 ml-1">/ gece</span>
               </>
             ) : (
               <>
                 <span className="text-2xl leading-none font-bold text-gray-900">
-                  {tl.format(discountedNightly)}
+                  {formatTRYNoFraction(discountedNightly)}
                 </span>
                 <span className="text-xs text-gray-500 ml-1">/ gece</span>
               </>

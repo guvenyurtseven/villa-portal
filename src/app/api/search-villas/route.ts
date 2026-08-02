@@ -2,41 +2,58 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { addDays, format, parseISO } from "date-fns";
-import { encodeSearchState, decodeSearchState, SearchState } from "@/lib/shortlink";
-import LZString from "lz-string"; // (tree-shake için direkt import da mümkün)
+import { decodeSearchState } from "@/lib/shortlink";
+import { isSearchableFeatureKey } from "@/domain/villas/FeatureCatalog";
+import { getSortedVillaPhotoUrls } from "@/domain/villas/PhotoSorting";
+import { toPgDateRange } from "@/lib/pgRange";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// daterange helper: [start, end)
-function mkRange(start: string, end: string) {
-  return `[${start},${end})`;
+type PhotoRow = { url: string; is_primary: boolean | null; order_index: number | null };
+type VillaIdRow = { villa_id: string | null };
+type PricingPeriodRow = {
+  villa_id: string;
+  start_date: string;
+  end_date: string;
+  nightly_price: number | string | null;
+};
+type SearchVillaRow = {
+  id: string;
+  name: string;
+  capacity: number | null;
+  priority: number | null;
+  province: string | null;
+  district: string | null;
+  neighborhood: string | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  villa_photos?: PhotoRow[] | null;
+};
+type LocationColumn = "province" | "district" | "neighborhood";
+
+function compactStringList(values: readonly unknown[]) {
+  return values.filter((value): value is string => typeof value === "string" && value.length > 0);
 }
 
-type PhotoRow = { url: string; is_primary: boolean | null; order_index: number | null };
+function stateStringList(value: unknown) {
+  return Array.isArray(value) ? compactStringList(value) : null;
+}
 
-// Villas tablosundaki boolean kolonlar (allowlist)
-const ALLOWED_FEATURES = [
-  "private_pool",
-  "heated_pool",
-  "indoor_pool",
-  "sheltered_pool",
-  "jacuzzi",
-  "sauna",
-  "hammam",
-  "fireplace",
-  "pet_friendly",
-  "internet",
-  "master_bathroom",
-  "children_pool",
-  "in_site",
-  "playground",
-  "billiards",
-  "table_tennis",
-  "foosball",
-  "underfloor_heating",
-  "generator",
-] as const;
+function queryStringList(searchParams: URLSearchParams, key: string) {
+  const csvValues = searchParams.get(key)?.split(",") ?? [];
+  return compactStringList([...csvValues, ...searchParams.getAll(key)]);
+}
+
+function quotePostgrestInValue(value: string) {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+function makeLocationInFilter(column: LocationColumn, values: readonly string[]) {
+  const quotedValues = Array.from(new Set(values)).map(quotePostgrestInValue);
+  if (quotedValues.length === 0) return null;
+  return `${column}.in.(${quotedValues.join(",")})`;
+}
 
 export async function GET(req: Request) {
   try {
@@ -44,7 +61,6 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
 
     // --- (A) KISA PARAM: s ---
-    const sParam = searchParams.get("s");
     const sState = decodeSearchState(searchParams.get("s")); // yoksa null
 
     // --- (B) Paramları oku (s varsa öncelik sState'te) ---
@@ -62,39 +78,21 @@ export async function GET(req: Request) {
       Math.min(21, Number(sState?.guests ?? searchParams.get("guests") ?? 2)),
     );
 
-    const provinces =
-      sState?.provinces ??
-      (searchParams.get("province")?.split(",").filter(Boolean) ?? [])
-        .concat(searchParams.getAll("province"))
-        .filter(Boolean);
-
-    const districts =
-      sState?.districts ??
-      (searchParams.get("district")?.split(",").filter(Boolean) ?? [])
-        .concat(searchParams.getAll("district"))
-        .filter(Boolean);
-
+    const provinces = stateStringList(sState?.provinces) ?? queryStringList(searchParams, "province");
+    const districts = stateStringList(sState?.districts) ?? queryStringList(searchParams, "district");
     const neighborhoods =
-      sState?.neighborhoods ??
-      (searchParams.get("neighborhood")?.split(",").filter(Boolean) ?? [])
-        .concat(searchParams.getAll("neighborhood"))
-        .filter(Boolean);
-
+      stateStringList(sState?.neighborhoods) ?? queryStringList(searchParams, "neighborhood");
     const categorySlugs =
-      sState?.categories ??
-      (searchParams.get("category")?.split(",").filter(Boolean) ?? [])
-        .concat(searchParams.getAll("category"))
-        .filter(Boolean);
+      stateStringList(sState?.categories) ?? queryStringList(searchParams, "category");
 
     const rawFeatureCsv = searchParams.get("feature");
-    const featuresFromQs = (rawFeatureCsv ? rawFeatureCsv.split(",") : [])
-      .concat(searchParams.getAll("feature"))
-      .filter(Boolean);
+    const featuresFromQs = compactStringList([
+      ...(rawFeatureCsv ? rawFeatureCsv.split(",") : []),
+      ...searchParams.getAll("feature"),
+    ]);
 
-    const wantedFeaturesRaw = sState?.features ?? featuresFromQs;
-    const wantedFeatures = Array.from(
-      new Set(wantedFeaturesRaw.filter((k) => (ALLOWED_FEATURES as readonly string[]).includes(k))),
-    );
+    const wantedFeaturesRaw = stateStringList(sState?.features) ?? featuresFromQs;
+    const wantedFeatures = Array.from(new Set(wantedFeaturesRaw.filter(isSearchableFeatureKey)));
 
     const priceMin =
       Number(
@@ -110,7 +108,7 @@ export async function GET(req: Request) {
       ) || 99999999;
 
     const endDate = format(addDays(parseISO(checkin), nights), "yyyy-MM-dd");
-    const rangeStr = mkRange(checkin, endDate);
+    const rangeStr = toPgDateRange(checkin, endDate);
 
     // --- (0) Kategori slug → villa_id eşleşmesi (varsa) ---
     let categoryVillaIds: string[] | null = null;
@@ -136,13 +134,11 @@ export async function GET(req: Request) {
 
     // --- (1) Aday villalar ---
     let orFilter = "";
-    const parts: string[] = [];
-    if (provinces.length > 0)
-      parts.push(`province.in.(${provinces.map((v) => `"${v}"`).join(",")})`);
-    if (districts.length > 0)
-      parts.push(`district.in.(${districts.map((v) => `"${v}"`).join(",")})`);
-    if (neighborhoods.length > 0)
-      parts.push(`neighborhood.in.(${neighborhoods.map((v) => `"${v}"`).join(",")})`);
+    const parts = [
+      makeLocationInFilter("province", provinces),
+      makeLocationInFilter("district", districts),
+      makeLocationInFilter("neighborhood", neighborhoods),
+    ].filter((part): part is string => part !== null);
     if (parts.length > 0) orFilter = parts.join(",");
 
     let base = supa
@@ -159,7 +155,6 @@ export async function GET(req: Request) {
       .gte("capacity", guests);
 
     if (orFilter) {
-      // @ts-ignore supabase-js .or() string kabul eder
       base = base.or(orFilter);
     }
     if (categoryVillaIds) {
@@ -173,10 +168,11 @@ export async function GET(req: Request) {
     if (baseErr) return NextResponse.json({ error: baseErr.message }, { status: 500 });
     if (!baseVillas || baseVillas.length === 0) return NextResponse.json({ items: [] });
 
-    const candidateIds = baseVillas.map((v) => v.id);
+    const baseVillaRows = baseVillas as SearchVillaRow[];
+    const candidateIds = baseVillaRows.map((v) => v.id);
 
     // --- (2) Müsaitlik: confirmed rezervasyon / blokkaj çakışanı ele ---
-    const [{ data: resv }, { data: blks }] = await Promise.all([
+    const [{ data: resv, error: resvErr }, { data: blks, error: blksErr }] = await Promise.all([
       supa
         .from("reservations")
         .select("villa_id")
@@ -189,11 +185,13 @@ export async function GET(req: Request) {
         .in("villa_id", candidateIds)
         .overlaps("date_range", rangeStr),
     ]);
+    if (resvErr) return NextResponse.json({ error: resvErr.message }, { status: 500 });
+    if (blksErr) return NextResponse.json({ error: blksErr.message }, { status: 500 });
     const notAvailable = new Set<string>([
-      ...(resv?.map((r: any) => r.villa_id) || []),
-      ...(blks?.map((b: any) => b.villa_id) || []),
+      ...compactStringList(((resv ?? []) as VillaIdRow[]).map((r) => r.villa_id)),
+      ...compactStringList(((blks ?? []) as VillaIdRow[]).map((b) => b.villa_id)),
     ]);
-    const available = baseVillas.filter((v) => !notAvailable.has(v.id));
+    const available = baseVillaRows.filter((v) => !notAvailable.has(v.id));
     if (available.length === 0) return NextResponse.json({ items: [] });
 
     // --- (3) Fiyat kapsama: her gün için period + min/max ---
@@ -206,8 +204,8 @@ export async function GET(req: Request) {
       .lte("nightly_price", priceMax);
     if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
 
-    const byVilla = new Map<string, any[]>();
-    for (const row of periods || []) {
+    const byVilla = new Map<string, PricingPeriodRow[]>();
+    for (const row of ((periods ?? []) as PricingPeriodRow[])) {
       const arr = byVilla.get(row.villa_id) || [];
       arr.push(row);
       byVilla.set(row.villa_id, arr);
@@ -239,18 +237,9 @@ export async function GET(req: Request) {
 
     // --- (4) Çıkış ---
     const items = priced
-      .map((v: any) => {
+      .map((v) => {
         const photos: PhotoRow[] = v.villa_photos || [];
-        const sorted = photos
-          .slice()
-          .sort((a, b) => {
-            const ap = a?.is_primary ? 0 : 1;
-            const bp = b?.is_primary ? 0 : 1;
-            if (ap !== bp) return ap - bp;
-            return (a?.order_index ?? 999) - (b?.order_index ?? 999);
-          })
-          .map((p) => p.url)
-          .filter(Boolean);
+        const sorted = getSortedVillaPhotoUrls(photos);
 
         return {
           id: v.id,
@@ -268,8 +257,8 @@ export async function GET(req: Request) {
       .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
 
     return NextResponse.json({ items });
-  } catch (e: any) {
-    console.error("search-villas error:", e?.message || e);
-    return NextResponse.json({ items: [] }, { status: 200 });
+  } catch (e: unknown) {
+    console.error("search-villas error:", e);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
