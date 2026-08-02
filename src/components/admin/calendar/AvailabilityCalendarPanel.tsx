@@ -5,6 +5,7 @@ import { DayPicker, type DateRange } from "react-day-picker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BlockDatesPanel } from "@/components/admin/calendar/BlockDatesPanel";
 import { CalendarLegend } from "@/components/admin/calendar/CalendarLegend";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import type {
   CalendarDisabledDate,
   PeriodModifiers,
@@ -68,12 +69,14 @@ export function AvailabilityCalendarPanel({
   blocking,
   onBlockDates,
 }: AvailabilityCalendarPanelProps) {
+  const isNarrowCalendar = useMediaQuery("(max-width: 1023px)");
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Tarih Bloke Et</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6 p-4 sm:p-6">
         <div className="bg-blue-50 p-4 rounded-lg text-sm">
           <p className="font-medium mb-2">📌 Takvim Kullanımı:</p>
           <ul className="space-y-1 text-gray-700">
@@ -85,13 +88,13 @@ export function AvailabilityCalendarPanel({
           </ul>
         </div>
 
-        <div className="border rounded-lg p-4">
+        <div className="overflow-hidden rounded-lg border p-2 sm:p-4">
           <DayPicker
             mode="range"
             selected={selectedRange}
             onSelect={onSelectedRangeChange}
             disabled={disabledDates}
-            numberOfMonths={2}
+            numberOfMonths={isNarrowCalendar ? 1 : 2}
             locale={tr}
             modifiers={{
               checkIn: checkInDays,
@@ -127,7 +130,7 @@ export function AvailabilityCalendarPanel({
               ...pricingStyles,
               ...discountStyles,
             }}
-            className="!text-sm"
+            className="admin-day-picker !text-sm"
           />
         </div>
 

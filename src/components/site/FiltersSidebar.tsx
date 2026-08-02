@@ -31,6 +31,21 @@ const PRICE_MIN = 1000;
 const PRICE_MAX = 100000;
 const PRICE_STEP = 100;
 const MIN_GAP = 100;
+const FILTER_QUERY_KEYS = new Set([
+  "s",
+  "checkin",
+  "nights",
+  "guests",
+  "province",
+  "district",
+  "neighborhood",
+  "category",
+  "feature",
+  "price_min",
+  "price_max",
+  "minPrice",
+  "maxPrice",
+]);
 
 type PopupName = "region" | "date" | "category" | "guests";
 
@@ -57,6 +72,10 @@ function buildInitialDateRange(checkin: string | undefined, nights: number): Dat
   if (Number.isNaN(from.getTime())) return undefined;
 
   return { from, to: addDays(from, Math.max(1, nights)) };
+}
+
+function hasFilterQuery(searchParams: ReturnType<typeof useSearchParams>) {
+  return Array.from(searchParams.keys()).some((key) => FILTER_QUERY_KEYS.has(key));
 }
 
 export default function FiltersSidebar() {
@@ -126,6 +145,7 @@ export default function FiltersSidebar() {
   );
   const [minPrice, setMinPrice] = useState<number>(clampedInitMin);
   const [maxPrice, setMaxPrice] = useState<number>(clampedInitMax);
+  const hasActiveFilterQuery = hasFilterQuery(sp);
 
   const regionPos = useAnchoredPosition(openRegion, regionBtnRef, {
     minWidth: 320,
@@ -321,6 +341,22 @@ export default function FiltersSidebar() {
     router.push(`${pathname}?s=${s}`, { scroll: false });
   }
 
+  function handleClearFilters() {
+    closePopups();
+    setDateError(false);
+    setQuery("");
+    setSelP([]);
+    setSelD([]);
+    setSelN([]);
+    setSelectedCats([]);
+    setRange(undefined);
+    setGuests(2);
+    setFeatureSet(new Set());
+    setMinPrice(PRICE_MIN);
+    setMaxPrice(PRICE_MAX);
+    window.location.assign(pathname);
+  }
+
   async function handleCopyShortLink() {
     if (!ensureCompleteDateRange()) return;
     const s = encodeSearchState(buildState());
@@ -502,6 +538,11 @@ export default function FiltersSidebar() {
         <Button variant="outline" className="w-full" onClick={handleCopyShortLink}>
           Filtre Linkini Kopyala
         </Button>
+        {hasActiveFilterQuery && (
+          <Button variant="ghost" className="w-full text-slate-600" onClick={handleClearFilters}>
+            Filtreleri Temizle
+          </Button>
+        )}
       </div>
 
       {openRegion && (

@@ -31,8 +31,8 @@ export function ReservationsList({
               const dates = parseCalendarDateRange(reservation.date_range);
               return (
                 <div key={reservation.id} className="border rounded-lg p-4">
-                  <div className="flex justify-between items-start">
-                    <div>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
                       <p className="font-medium text-lg">{reservation.guest_name}</p>
                       <p className="text-sm text-gray-600">📞 {reservation.guest_phone}</p>
                       {reservation.guest_email && (
@@ -45,7 +45,7 @@ export function ReservationsList({
                         💰 ₺{reservation.total_price?.toLocaleString("tr-TR")}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span
                         className={`px-2 py-1 text-xs rounded-full ${reservationStatusColor(
                           reservation.status,

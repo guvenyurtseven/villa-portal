@@ -344,8 +344,8 @@ export default function VillaForm({ categories = [] }: { categories?: CategoryOp
       <Card className="p-4 space-y-4">
         <h2 className="text-lg font-semibold">Fotoğraflar</h2>
         <PhotoManager villaId="new" initialPhotos={[]} onChange={setPhotos} />
-        <div className="pt-2 flex justify-end">
-          <Button type="submit" disabled={saving}>
+        <div className="flex justify-end pt-2">
+          <Button type="submit" disabled={saving} className="w-full sm:w-auto">
             {saving ? "Kaydediliyor..." : "Kaydet"}
           </Button>
         </div>

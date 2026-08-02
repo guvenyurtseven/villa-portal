@@ -43,7 +43,7 @@ export default async function AdminReviewDetail({ params }: { params: Promise<{ 
 
   return (
     <section className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold">Yorum Detayı</h1>
         <Button asChild variant="outline">
           <Link href="/admin/reviews">Geri</Link>
@@ -51,9 +51,9 @@ export default async function AdminReviewDetail({ params }: { params: Promise<{ 
       </div>
 
       <Card>
-        <CardContent className="p-6 space-y-4">
-          <div className="flex items-center gap-4">
-            <div className="relative w-24 h-24 flex-shrink-0">
+        <CardContent className="space-y-4 p-4 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="relative h-40 w-full flex-shrink-0 sm:h-24 sm:w-24">
               <Image
                 src={coverUrl || "/placeholder.jpg"}
                 alt={villaName}
@@ -61,7 +61,7 @@ export default async function AdminReviewDetail({ params }: { params: Promise<{ 
                 className="object-cover rounded-lg"
               />
             </div>
-            <div>
+            <div className="min-w-0">
               <h2 className="text-lg font-semibold">{villaName}</h2>
               <p className="text-sm text-gray-600">{dateStr}</p>
             </div>
@@ -94,7 +94,7 @@ export default async function AdminReviewDetail({ params }: { params: Promise<{ 
             <p className="whitespace-pre-wrap text-gray-800">{review.comment || "-"}</p>
           </div>
 
-          <div className="pt-2 flex gap-3">
+          <div className="flex flex-wrap gap-3 pt-2">
             <ReviewActions reviewId={review.id} />
           </div>
         </CardContent>

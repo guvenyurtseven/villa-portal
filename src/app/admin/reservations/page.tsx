@@ -97,7 +97,7 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
     if (rGuests.error || rVillas?.error) {
       return (
         <div>
-          <h1 className="text-3xl font-bold mb-4">Rezervasyonlar</h1>
+          <h1 className="mb-4 text-2xl font-bold sm:text-3xl">Rezervasyonlar</h1>
           <SearchBar defaultValue={qRaw} />
           <p className="text-red-600 mt-6">Arama sırasında hata oluştu.</p>
         </div>
@@ -117,7 +117,7 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
 
     return (
       <div>
-        <h1 className="text-3xl font-bold mb-4">Rezervasyonlar</h1>
+        <h1 className="mb-4 text-2xl font-bold sm:text-3xl">Rezervasyonlar</h1>
         <SearchBar defaultValue={qRaw} />
         {data.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mt-6">
@@ -133,8 +133,8 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
                   href={`/admin/reservations/${r.id}`}
                   className="block rounded-2xl border border-gray-200 hover:shadow-md transition p-4 bg-white"
                 >
-                  <div className="flex items-start justify-between">
-                    <h3 className="text-lg font-semibold">{villa?.name ?? "—"}</h3>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <h3 className="min-w-0 text-lg font-semibold">{villa?.name ?? "—"}</h3>
                     <span className="text-xs px-2 py-1 rounded-full bg-gray-100">
                       {reservationStatusLabel(r.status)}
                     </span>
@@ -146,7 +146,7 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
                     </div>
                     <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4 text-gray-400" />
-                      <span>{r.guest_phone}</span>
+                      <span className="min-w-0 truncate">{r.guest_phone}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-gray-400" />
@@ -179,8 +179,8 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
 
   return (
     <div>
-      <h1 className="text-3xl font-bold mb-4">Tüm Rezervasyonlar</h1>
-      <div className="flex items-center justify-end  px-8 py-8">
+      <h1 className="mb-4 text-2xl font-bold sm:text-3xl">Tüm Rezervasyonlar</h1>
+      <div className="mb-4 flex items-center justify-start sm:justify-end">
         <Link
           href="/api/admin/past-reservations/export"
           className={buttonVariants({ variant: "success", size: "lg" })}
@@ -199,8 +199,8 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
             return (
               <Card key={villa.id}>
                 <CardHeader className="bg-gray-50">
-                  <div className="flex justify-between items-center">
-                    <CardTitle className="flex items-center gap-2">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <CardTitle className="flex min-w-0 items-center gap-2">
                       <Home className="h-5 w-5" /> {villa.name}
                     </CardTitle>
                     <Button variant="outline" size="sm" asChild>
@@ -228,27 +228,27 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
                               href={`/admin/reservations/${reservation.id}`}
                               className="block border rounded-lg p-4 hover:bg-gray-50 transition-colors"
                             >
-                              <div className="flex justify-between items-start">
+                              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                 <div className="flex-1 space-y-2">
                                   <div className="flex items-start gap-4">
                                     <User className="h-5 w-5 text-gray-400 mt-0.5" />
                                     <div>
                                       <p className="font-semibold">{reservation.guest_name}</p>
-                                      <div className="flex items-center gap-3 text-sm text-gray-600 mt-1">
-                                        <span className="flex items-center gap-1">
+                                      <div className="mt-1 flex flex-col gap-1 text-sm text-gray-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+                                        <span className="flex min-w-0 items-center gap-1">
                                           <Phone className="h-3 w-3" />
-                                          {reservation.guest_phone}
+                                          <span className="truncate">{reservation.guest_phone}</span>
                                         </span>
                                         {reservation.guest_email && (
-                                          <span className="flex items-center gap-1">
+                                          <span className="flex min-w-0 items-center gap-1">
                                             <Mail className="h-3 w-3" />
-                                            {reservation.guest_email}
+                                            <span className="truncate">{reservation.guest_email}</span>
                                           </span>
                                         )}
                                       </div>
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-6 text-sm">
+                                  <div className="flex flex-col gap-2 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:gap-6">
                                     <span className="flex items-center gap-1">
                                       <Calendar className="h-4 w-4 text-gray-400" />
                                       {dates.start} → {dates.endInclusive}
@@ -263,7 +263,7 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
                                     </p>
                                   )}
                                 </div>
-                                <div className="text-right">
+                                <div className="shrink-0 sm:text-right">
                                   <span
                                     className={`px-3 py-1 text-xs rounded-full font-medium ${reservationStatusColor(reservation.status)}`}
                                   >
@@ -300,7 +300,7 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
 function SearchBar({ defaultValue = "" }: { defaultValue?: string }) {
   return (
     <form method="GET" className="mb-4">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <input
           type="text"
           name="q"
@@ -308,11 +308,11 @@ function SearchBar({ defaultValue = "" }: { defaultValue?: string }) {
           placeholder="Müşteri adı, telefon veya villa adı... Örn: +905462711279"
           className="w-full rounded-xl border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
         />
-        <Button type="submit" variant="secondary">
+        <Button type="submit" variant="secondary" className="w-full sm:w-auto">
           Ara
         </Button>
         {defaultValue && (
-          <Link href="/admin/reservations" className="text-sm text-gray-500 hover:underline">
+          <Link href="/admin/reservations" className="text-center text-sm text-gray-500 hover:underline sm:text-left">
             Temizle
           </Link>
         )}

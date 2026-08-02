@@ -45,11 +45,11 @@ export default async function AdminDashboard() {
   const recentReservationItems = (recentReservations ?? []) as RecentReservation[];
 
   return (
-    <div>
-      <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold sm:text-3xl">Dashboard</h1>
 
       {/* İstatistik Kartları */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Toplam Villa</CardTitle>
@@ -103,15 +103,15 @@ export default async function AdminDashboard() {
               {recentReservationItems.map((reservation) => (
                 <div
                   key={reservation.id}
-                  className="flex justify-between items-center border-b pb-2"
+                  className="flex flex-col gap-2 border-b pb-2 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-medium">{reservation.villa?.name}</p>
-                    <p className="text-sm text-gray-500">
+                    <p className="truncate text-sm text-gray-500">
                       {reservation.guest_name} - {reservation.guest_email}
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="shrink-0 sm:text-right">
                     <p className="font-medium">₺{reservation.total_price}</p>
                     <p className="text-sm text-gray-500">{reservation.status}</p>
                   </div>

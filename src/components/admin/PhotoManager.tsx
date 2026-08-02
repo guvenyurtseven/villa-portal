@@ -153,8 +153,8 @@ export default function PhotoManager({ villaId, initialPhotos, onChange }: Props
   return (
     <div className="space-y-3">
       {/* Toolbar */}
-      <div className="flex items-center gap-3">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="min-w-0">
           <label className="text-sm font-medium">Fotoğraf Yükle</label>
           <input
             type="file"
@@ -166,7 +166,7 @@ export default function PhotoManager({ villaId, initialPhotos, onChange }: Props
           {uploading && <p className="text-xs text-muted-foreground">Yükleniyor...</p>}
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:ml-auto sm:flex-row sm:items-center">
           <Button
             type="button"
             variant={selectMode ? "default" : "outline"}

@@ -6,17 +6,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const session = await auth();
   const role = session?.user?.role;
 
-  // Session/rol yoksa login'e yönlendir
   if (!session?.user || role !== "admin") {
     redirect("/admin-login");
   }
 
-  // Session varsa normal layout'u göster
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="min-h-dvh bg-gray-100 md:flex">
       <AdminSidebar />
-      <main className="flex-1 overflow-y-auto">
-        <div className="p-8">{children}</div>
+      <main className="min-w-0 flex-1">
+        <div className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8">{children}</div>
       </main>
     </div>
   );

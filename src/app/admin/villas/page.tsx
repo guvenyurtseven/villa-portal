@@ -92,9 +92,9 @@ export default async function AdminVillasPage({
 
   return (
     <div>
-      <div className="flex justify-between items-end mb-8 gap-3">
-        <div>
-          <h1 className="text-3xl font-bold">Villalar</h1>
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold sm:text-3xl">Villalar</h1>
           {(q || ownerId) && (
             <p className="text-sm text-muted-foreground mt-1">
               {q && (
@@ -143,9 +143,9 @@ export default async function AdminVillasPage({
 
             return (
               <Card key={villa.id}>
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-4">
+                <CardContent className="p-4 sm:p-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-4">
                       {/* Villa Fotoğrafı */}
                       <div className="relative w-24 h-24 flex-shrink-0">
                         <Image
@@ -159,9 +159,9 @@ export default async function AdminVillasPage({
                       </div>
 
                       {/* Villa Bilgileri */}
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-lg">{villa.name}</h3>
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <h3 className="min-w-0 truncate text-lg font-semibold">{villa.name}</h3>
                           {/* Gizli Durumu Badge */}
                           {villa.is_hidden ? (
                             <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
@@ -176,7 +176,7 @@ export default async function AdminVillasPage({
                           )}
                         </div>
 
-                        <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
+                        <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
                           <span>
                             {villa.bedrooms} Yatak • {villa.bathrooms} Banyo
                             {villa.has_pool && " • Havuz"}
@@ -199,7 +199,7 @@ export default async function AdminVillasPage({
                     </div>
 
                     {/* Aksiyonlar */}
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2 sm:justify-end">
                       <Button variant="outline" size="sm" asChild>
                         <Link href={`/admin/villas/${villa.id}/calendar`}>Takvim</Link>
                       </Button>
@@ -240,7 +240,7 @@ function FilterBar({ defaultQ, defaultOwnerId }: { defaultQ?: string; defaultOwn
   return (
     <form
       id={formId}
-      className="flex items-center gap-2 flex-wrap"
+      className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center"
       action="/admin/villas"
       method="get"
     >
@@ -249,11 +249,11 @@ function FilterBar({ defaultQ, defaultOwnerId }: { defaultQ?: string; defaultOwn
         name="q"
         defaultValue={defaultQ}
         placeholder="Villa adı veya #REFKOD"
-        className="h-9 w-64 rounded border px-3 text-sm"
+        className="h-9 w-full rounded border px-3 text-sm sm:w-64"
       />
 
       {/* Dropdown ile exact sahip filtresi */}
-      <div className="w-64">
+      <div className="w-full sm:w-64">
         <OwnerIdFilter
           defaultOwnerId={defaultOwnerId}
           autosubmit={false} // true yaparsan seçimde otomatik gönderir
@@ -264,13 +264,14 @@ function FilterBar({ defaultQ, defaultOwnerId }: { defaultQ?: string; defaultOwn
       <Button
         type="submit"
         variant="primary"
+        className="w-full sm:w-auto"
       >
         Ara
       </Button>
 
       <Link
         href="/admin/villas"
-        className="h-9 px-3 rounded border text-sm hover:bg-muted text-center items-center flex"
+        className="flex h-9 w-full items-center justify-center rounded border px-3 text-center text-sm hover:bg-muted sm:w-auto"
       >
         Temizle
       </Link>

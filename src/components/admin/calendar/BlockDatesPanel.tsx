@@ -55,7 +55,7 @@ export function BlockDatesPanel({
 
       <div className="space-y-3">
         <Label>Bloke Tipi</Label>
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-4">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="radio"

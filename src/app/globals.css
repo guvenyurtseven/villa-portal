@@ -287,3 +287,16 @@
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 } /* WebKit */
+
+.admin-day-picker {
+  max-width: 100%;
+}
+
+.admin-day-picker .rdp-months {
+  max-width: 100%;
+}
+
+.admin-day-picker .rdp-month_grid {
+  width: 100%;
+  table-layout: fixed;
+}

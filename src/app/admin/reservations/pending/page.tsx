@@ -80,7 +80,7 @@ export default async function PendingReservationsPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold">Bekleyen Rezervasyonlar</h1>
         <Button asChild variant="outline">
           <Link href="/admin/villas">Villalara Dön</Link>

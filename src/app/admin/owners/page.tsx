@@ -95,7 +95,7 @@ export default async function OwnersPage({
 
 function Header() {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <h1 className="text-2xl font-semibold">Sahipler</h1>
       <Link
         href="/admin/owners/new"
@@ -110,7 +110,7 @@ function Header() {
 function SearchBar({ defaultQuery }: { defaultQuery?: string }) {
   // Basit GET formu; App Router searchParams'a göre yeniden veri çeker
   return (
-    <form className="flex items-center gap-2" action="/admin/owners" method="get">
+    <form className="flex flex-col gap-2 sm:flex-row sm:items-center" action="/admin/owners" method="get">
       <input
         type="text"
         name="q"
@@ -118,7 +118,7 @@ function SearchBar({ defaultQuery }: { defaultQuery?: string }) {
         placeholder="İsim, e-posta veya telefon ara…"
         className="w-full rounded-md border px-3 py-2 text-sm"
       />
-      <button type="submit" className="rounded-md border px-3 py-2 text-sm hover:bg-muted">
+      <button type="submit" className="rounded-md border px-3 py-2 text-sm hover:bg-muted sm:w-auto">
         Ara
       </button>
     </form>
@@ -143,7 +143,7 @@ function Pagination({
     `${base}?page=${p}&pageSize=${pageSize}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
 
   return (
-    <div className="flex items-center justify-between pt-2 text-sm">
+    <div className="flex flex-col gap-3 pt-2 text-sm sm:flex-row sm:items-center sm:justify-between">
       <div className="text-muted-foreground">
         Sayfa {page} / {totalPages}
       </div>

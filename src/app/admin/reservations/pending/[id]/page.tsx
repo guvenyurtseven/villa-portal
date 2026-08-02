@@ -57,8 +57,8 @@ export default async function PendingReservationDetail({
   return (
     <div className="space-y-6">
       {/* Üst kısım: Villa adı ve kapak */}
-      <div className="flex gap-4 items-start">
-        <div className="relative w-40 h-28 rounded overflow-hidden border bg-muted/30">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <div className="relative h-40 w-full overflow-hidden rounded border bg-muted/30 sm:h-28 sm:w-40 sm:shrink-0">
           <Image
             src={coverUrl || "/placeholder.jpg"}
             alt={villa?.name || "Villa"}
@@ -66,10 +66,10 @@ export default async function PendingReservationDetail({
             className="object-cover"
           />
         </div>
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold">{villa?.name ?? "Villa"}</h1>
           <p className="text-sm text-gray-600">{dateText}</p>
-          <div className="mt-2 flex gap-2">
+          <div className="mt-2 flex flex-wrap gap-2">
             <Button asChild variant="outline">
               <Link href="/admin/reservations/pending">Listeye Dön</Link>
             </Button>

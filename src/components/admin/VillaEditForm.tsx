@@ -397,8 +397,8 @@ export default function VillaEditForm({
           initialPhotos={initialPhotos}
           onChange={setPhotos}
         />
-        <div className="pt-2 flex justify-end">
-          <Button type="submit" disabled={saving}>
+        <div className="flex justify-end pt-2">
+          <Button type="submit" disabled={saving} className="w-full sm:w-auto">
             {saving ? "Kaydediliyor..." : "Kaydet"}
           </Button>
         </div>

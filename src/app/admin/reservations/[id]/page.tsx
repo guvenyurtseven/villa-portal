@@ -74,12 +74,12 @@ export default async function ReservationDetailPage({
   const isCancellable = canCancelReservation(data.status);
 
   return (
-    <main className="space-y-4 p-6">
-      <div className="flex items-center justify-between">
+    <main className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold">Rezervasyon Detayi</h1>
-        {isCancellable && <CancelReservationButton id={data.id} />}
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {isCancellable && <CancelReservationButton id={data.id} />}
           <Button asChild variant="outline">
             <Link href="/admin/reservations">Listeye Don</Link>
           </Button>

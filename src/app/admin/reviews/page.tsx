@@ -36,7 +36,7 @@ export default async function AdminReviewsPage() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Yorumları Yönet</h1>
+          <h1 className="text-2xl font-bold sm:text-3xl">Yorumları Yönet</h1>
         </div>
         <Card>
           <CardContent className="p-6 text-center text-gray-600">
@@ -71,7 +71,7 @@ export default async function AdminReviewsPage() {
   return (
     <section className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Yorumları Yönet</h1>
+        <h1 className="text-2xl font-bold sm:text-3xl">Yorumları Yönet</h1>
       </div>
 
       <div className="grid gap-4">
@@ -84,7 +84,7 @@ export default async function AdminReviewsPage() {
             <Link href={`/admin/reviews/${r.id}`} key={r.id} className="block">
               <Card className="hover:shadow transition-shadow">
                 <CardContent className="p-4">
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                     <div className="relative w-20 h-20 flex-shrink-0">
                       <Image
                         src={cover || "/placeholder.jpg"}
@@ -93,7 +93,7 @@ export default async function AdminReviewsPage() {
                         className="object-cover rounded-md"
                       />
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <h3 className="font-semibold truncate">
                           {villa?.name ?? "Bilinmeyen Villa"}
@@ -103,8 +103,8 @@ export default async function AdminReviewsPage() {
                         {r.guest_name || "Misafir"} • {dateStr}
                       </p>
                     </div>
-                    <div className="ml-auto">
-                      <Button variant="outline" size="sm">
+                    <div className="w-full sm:ml-auto sm:w-auto">
+                      <Button variant="outline" size="sm" className="w-full sm:w-auto">
                         Detayı aç
                       </Button>
                     </div>

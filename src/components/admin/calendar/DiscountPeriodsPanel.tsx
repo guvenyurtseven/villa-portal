@@ -4,6 +4,7 @@ import { DayPicker, type DateRange } from "react-day-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import type {
   DateRangeChangeHandler,
   IdHandler,
@@ -37,8 +38,10 @@ export function DiscountPeriodsPanel({
   onAddDiscountPeriod,
   onRemoveDiscountPeriod,
 }: DiscountPeriodsPanelProps) {
+  const isNarrowCalendar = useMediaQuery("(max-width: 1023px)");
+
   return (
-    <div className="mt-6 rounded-xl border p-4">
+    <div className="mt-6 rounded-xl border p-3 sm:p-4">
       <h3 className="text-sm font-semibold mb-3">İndirim Dönemleri</h3>
 
       <div className="space-y-2 mb-4">
@@ -46,8 +49,8 @@ export function DiscountPeriodsPanel({
           <div className="text-sm text-gray-500">Kayıtlı indirim dönemi yok.</div>
         )}
         {discountPeriods.map((period) => (
-          <div key={period.id} className="flex items-center justify-between rounded-lg border p-3">
-            <div>
+          <div key={period.id} className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <div className="font-medium text-sm">
                 {period.start_date} – {period.end_date}
               </div>
@@ -66,12 +69,13 @@ export function DiscountPeriodsPanel({
       <div className="grid md:grid-cols-3 gap-3">
         <div className="md:col-span-2">
           <Label className="text-xs">Tarih Aralığı</Label>
-          <div className="rounded-md border p-2">
+          <div className="overflow-hidden rounded-md border p-2">
             <DayPicker
               mode="range"
-              numberOfMonths={2}
+              numberOfMonths={isNarrowCalendar ? 1 : 2}
               selected={newDiscountRange}
               onSelect={onNewDiscountRangeChange}
+              className="admin-day-picker"
             />
           </div>
         </div>
@@ -97,7 +101,7 @@ export function DiscountPeriodsPanel({
               placeholder="5"
             />
           </div>
-          <Button onClick={onAddDiscountPeriod} disabled={!villaId}>
+          <Button onClick={onAddDiscountPeriod} disabled={!villaId} className="w-full">
             İndirim Dönemi Ekle
           </Button>
         </div>

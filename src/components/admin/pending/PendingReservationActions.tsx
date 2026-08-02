@@ -61,15 +61,16 @@ export default function PendingReservationActions({
   };
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
       <Button
         onClick={approve}
         disabled={loading !== null}
         variant="success"
+        className="w-full sm:w-auto"
       >
         {loading === "approve" ? "Onaylanıyor…" : "Rezervasyonu Onayla"}
       </Button>
-      <Button onClick={reject} variant="destructive" disabled={loading !== null}>
+      <Button onClick={reject} variant="destructive" disabled={loading !== null} className="w-full sm:w-auto">
         {loading === "reject" ? "Siliniyor…" : "Rezervasyonu Reddet"}
       </Button>
     </div>

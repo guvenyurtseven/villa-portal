@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import type {
   DateRangeChangeHandler,
   IdHandler,
@@ -40,31 +41,34 @@ export function PricingPeriodsPanel({
   onSavePricingPeriod,
   onRemovePricingPeriod,
 }: PricingPeriodsPanelProps) {
+  const isNarrowCalendar = useMediaQuery("(max-width: 1023px)");
+
   return (
     <Card>
       <CardHeader>
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="flex items-center gap-2">
             <DollarSign className="h-5 w-5" />
             Özel Fiyat Dönemleri
           </CardTitle>
-          <Button onClick={onTogglePricingForm} variant="outline" size="sm">
+          <Button onClick={onTogglePricingForm} variant="outline" size="sm" className="w-full sm:w-auto">
             {showPricingForm ? "İptal" : "Yeni Dönem Ekle"}
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-4 sm:p-6">
         {showPricingForm && (
-          <div className="mb-6 p-4 border rounded-lg bg-gray-50 space-y-4">
-            <div className="border rounded-lg p-4 bg-white">
+          <div className="mb-6 space-y-4 rounded-lg border bg-gray-50 p-3 sm:p-4">
+            <div className="overflow-hidden rounded-lg border bg-white p-2 sm:p-4">
               <Label className="mb-2 block">Tarih Aralığı Seçin</Label>
               <DayPicker
                 mode="range"
                 selected={pricingRange}
                 onSelect={onPricingRangeChange}
                 disabled={{ before: new Date() }}
-                numberOfMonths={2}
+                numberOfMonths={isNarrowCalendar ? 1 : 2}
                 locale={tr}
+                className="admin-day-picker"
               />
             </div>
 
@@ -108,8 +112,8 @@ export function PricingPeriodsPanel({
         {pricingPeriods.length > 0 ? (
           <div className="space-y-2">
             {pricingPeriods.map((period) => (
-              <div key={period.id} className="flex justify-between items-center border rounded-lg p-3">
-                <div>
+              <div key={period.id} className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
                   <p className="font-medium">
                     {period.start_date} - {period.end_date}
                   </p>
