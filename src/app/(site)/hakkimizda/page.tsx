@@ -10,11 +10,11 @@ export default function HakkimizdaPage() {
         tek bir akışta sunulur.
       </p>
       <p className="text-gray-700 leading-7">
-        Rezervasyon ve bilgi talepleriniz için admin ekibi en kısa sürede geri dönüş sağlar.
+        Rezervasyon ve bilgi talepleriniz için ekibimiz en kısa sürede geri dönüş sağlar.
       </p>
       <div className="rounded-lg border bg-white p-4">
         <h2 className="font-medium mb-2">İletişim</h2>
-        <p className="text-sm text-gray-700">E-posta: info@villadunyasi.com</p>
+        <p className="text-sm text-gray-700">E-posta: info@villadünyası.com</p>
         <p className="text-sm text-gray-700">Telefon: +90 531 579 40 88</p>
       </div>
       <Link href="/villas" className="inline-block text-orange-600 hover:underline">
