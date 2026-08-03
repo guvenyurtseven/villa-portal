@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Resend } from "resend";
+import { Webhook } from "svix";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -48,15 +48,11 @@ function truncatePreview(value: string | null | undefined) {
 async function verifyOrParseEvent(req: NextRequest, payload: string) {
   const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
   if (webhookSecret) {
-    const resend = new Resend(process.env.RESEND_API_KEY || "re_webhook_verify_only");
-    return resend.webhooks.verify({
-      payload,
-      headers: {
-        id: req.headers.get("svix-id") ?? "",
-        timestamp: req.headers.get("svix-timestamp") ?? "",
-        signature: req.headers.get("svix-signature") ?? "",
-      },
-      webhookSecret,
+    const webhook = new Webhook(webhookSecret);
+    return webhook.verify(payload, {
+      "svix-id": req.headers.get("svix-id") ?? "",
+      "svix-timestamp": req.headers.get("svix-timestamp") ?? "",
+      "svix-signature": req.headers.get("svix-signature") ?? "",
     }) as unknown as ResendWebhookEvent;
   }
 
@@ -70,14 +66,22 @@ async function verifyOrParseEvent(req: NextRequest, payload: string) {
 async function fetchReceivedEmail(emailId: string) {
   if (!emailId || !process.env.RESEND_API_KEY) return null;
 
-  const resend = new Resend(process.env.RESEND_API_KEY);
-  const { data, error } = await resend.emails.receiving.get(emailId, { html_format: "cid" });
-  if (error) {
-    console.error("Resend received email content fetch failed:", error);
+  const response = await fetch(
+    `https://api.resend.com/emails/receiving/${encodeURIComponent(emailId)}?html_format=cid`,
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      },
+      cache: "no-store",
+    }
+  );
+
+  if (!response.ok) {
+    console.error("Resend received email content fetch failed:", response.status);
     return null;
   }
 
-  return data as ReceivedEmailContent | null;
+  return (await response.json()) as ReceivedEmailContent | null;
 }
 
 export async function POST(req: NextRequest) {
