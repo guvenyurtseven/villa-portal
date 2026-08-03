@@ -134,7 +134,9 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
                   className="block rounded-2xl border border-gray-200 hover:shadow-md transition p-4 bg-white"
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <h3 className="min-w-0 text-lg font-semibold">{villa?.name ?? "—"}</h3>
+                    <h3 className="min-w-0 max-w-full break-words text-lg font-semibold">
+                      {villa?.name ?? "—"}
+                    </h3>
                     <span className="text-xs px-2 py-1 rounded-full bg-gray-100">
                       {reservationStatusLabel(r.status)}
                     </span>
@@ -142,7 +144,7 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
                   <div className="mt-2 text-sm text-gray-700 space-y-1">
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-gray-400" />
-                      <span className="font-medium">{r.guest_name}</span>
+                      <span className="min-w-0 break-words font-medium">{r.guest_name}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4 text-gray-400" />
@@ -201,7 +203,8 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
                 <CardHeader className="bg-gray-50">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <CardTitle className="flex min-w-0 items-center gap-2">
-                      <Home className="h-5 w-5" /> {villa.name}
+                      <Home className="h-5 w-5 shrink-0" />
+                      <span className="min-w-0 break-words">{villa.name}</span>
                     </CardTitle>
                     <Button variant="outline" size="sm" asChild>
                       <Link href={`/admin/villas/${villa.id}/calendar`}>Takvimi Yönet</Link>
@@ -233,7 +236,9 @@ export default async function AdminReservationsPage(props: { searchParams: Searc
                                   <div className="flex items-start gap-4">
                                     <User className="h-5 w-5 text-gray-400 mt-0.5" />
                                     <div>
-                                      <p className="font-semibold">{reservation.guest_name}</p>
+                                      <p className="break-words font-semibold">
+                                        {reservation.guest_name}
+                                      </p>
                                       <div className="mt-1 flex flex-col gap-1 text-sm text-gray-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
                                         <span className="flex min-w-0 items-center gap-1">
                                           <Phone className="h-3 w-3" />

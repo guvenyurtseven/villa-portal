@@ -1,7 +1,20 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { getErrorCode } from "@/lib/errors";
+
+const pricingPeriodSchema = z
+  .object({
+    villa_id: z.string().uuid(),
+    start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    nightly_price: z.coerce.number().finite().positive(),
+  })
+  .refine((value) => value.start_date <= value.end_date, {
+    path: ["end_date"],
+    message: "end_date start_date'ten once olamaz",
+  });
 
 /**
  * GET /api/admin/pricing-periods?villa_id=...
@@ -57,11 +70,14 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { villa_id, start_date, end_date, nightly_price } = body ?? {};
-
-    if (!villa_id || !start_date || !end_date || nightly_price === undefined) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    const parsed = pricingPeriodSchema.safeParse(body ?? {});
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Gecersiz fiyat donemi", issues: parsed.error.flatten() },
+        { status: 400 },
+      );
     }
+    const { villa_id, start_date, end_date, nightly_price } = parsed.data;
 
     const supabase = createServiceRoleClient();
 

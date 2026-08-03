@@ -7,6 +7,20 @@ const corsHeaders = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-cron-secret",
 };
+const MAIL_DOMAIN = "xn--villadnyas-feb45d.com";
+const DEFAULT_MAIL_FROM = `Villa Dunyasi <noreply@${MAIL_DOMAIN}>`;
+
+function mailFromEnv() {
+  const value = Deno.env.get("MAIL_FROM_ADDRESS") || Deno.env.get("NEXT_PUBLIC_FROM_EMAIL") || "";
+  const match = value.match(/<([^>]+)>/);
+  const address = (match?.[1] ?? value).trim().toLowerCase();
+
+  if (address.endsWith(`@${MAIL_DOMAIN}`)) {
+    return `Villa Dunyasi <${address}>`;
+  }
+
+  return DEFAULT_MAIL_FROM;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -117,7 +131,7 @@ serve(async (req) => {
             Authorization: `Bearer ${resendApiKey}`,
           },
           body: JSON.stringify({
-            from: "Villa Dünyası <reviews@xn--villadnyas-feb45d.com>",
+            from: mailFromEnv(),
             to: [emailData.recipient],
             subject: `${emailData.villa_name} konaklamanız nasıldı?`,
             html: emailHtml,

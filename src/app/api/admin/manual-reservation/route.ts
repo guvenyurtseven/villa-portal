@@ -16,7 +16,7 @@ const bodySchema = z.object({
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), // YYYY-MM-DD (UI'de dahil)
   guest_name: z.string().min(1),
   guest_phone: z.string().min(1),
-  guest_email: z.string().optional().default(""),
+  guest_email: z.union([z.string().email(), z.literal("")]).optional().default(""),
   status: z.enum(["pending", "confirmed", "cancelled"]).default("confirmed"),
   notes: z.string().optional().nullable(),
 });
@@ -28,7 +28,14 @@ export async function POST(req: Request) {
   try {
     const supabase = createServiceRoleClient();
     const json = await req.json();
-    const input = bodySchema.parse(json);
+    const parsed = bodySchema.safeParse(json);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Gecersiz veri", issues: parsed.error.flatten() },
+        { status: 400 },
+      );
+    }
+    const input = parsed.data;
 
     // villa_total_price: check-in dahil, check-out hariç çalışır.
     // UI'den gelen end_date dahil olduğu için +1 gün ekleyip check-out yapıyoruz.

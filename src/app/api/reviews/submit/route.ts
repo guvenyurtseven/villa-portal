@@ -11,6 +11,10 @@ type ReviewTokenValidation = {
   reservation_id?: string | null;
 };
 
+function stripHtmlTags(value: string) {
+  return value.replace(/<[^>]*>/g, "").trim();
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -28,7 +32,7 @@ export async function POST(req: NextRequest) {
     const cr = Number(cleanliness_rating);
     const co = Number(comfort_rating);
     const ho = Number(hospitality_rating);
-    const text = typeof comment === "string" ? comment.trim() : "";
+    const text = typeof comment === "string" ? stripHtmlTags(comment) : "";
     const displayName =
       typeof guest_name === "string" && guest_name.trim()
         ? guest_name.trim().slice(0, 120)

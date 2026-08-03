@@ -58,6 +58,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "İsim zorunlu" }, { status: 400 });
   }
 
+  if (photos.length === 0) {
+    return NextResponse.json({ error: "En az bir fotoğraf ekleyin." }, { status: 400 });
+  }
+
+  if (photos.some((photo) => !trimmedTextOrNull(photo.url))) {
+    return NextResponse.json({ error: "Fotoğraf URL alanı zorunludur." }, { status: 400 });
+  }
+
+  const documentNumber = trimmedTextOrNull(villa.document_number);
+  if (!documentNumber) {
+    return NextResponse.json({ error: "Belge numarası alanı zorunludur." }, { status: 400 });
+  }
+
   // owner_id zorunlu + string doğrulama
   const owner_id: string | null =
     typeof villa?.owner_id === "string" && villa.owner_id.trim() ? villa.owner_id.trim() : null;
@@ -98,7 +111,7 @@ export async function POST(req: NextRequest) {
     province: trimmedTextOrNull(villa.province),
     district: trimmedTextOrNull(villa.district),
     neighborhood: trimmedTextOrNull(villa.neighborhood),
-    document_number: trimmedTextOrNull(villa.document_number),
+    document_number: documentNumber,
 
     // KRİTİK: owner_id'yi mutlaka yaz
     owner_id,

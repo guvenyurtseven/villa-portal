@@ -3,15 +3,12 @@ import { Resend } from "resend";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import type { Database } from "@/lib/supabase/database.types";
+import { MAIL_FROM, SITE_URL } from "@/lib/email/config";
 
 export const runtime = "nodejs";
 
 type PendingReviewEmail =
   Database["public"]["Functions"]["get_pending_review_emails"]["Returns"][number];
-
-const DEFAULT_FROM = "Villa Dunyasi <reviews@xn--villadnyas-feb45d.com>";
-const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 export async function POST() {
   const unauthorized = await requireAdmin();
@@ -69,7 +66,7 @@ export async function POST() {
     const guestName = row.guest_name || "Degerli Misafirimiz";
 
     const { data: emailData, error: sendError } = await resend.emails.send({
-      from: process.env.RESEND_FROM ?? DEFAULT_FROM,
+      from: MAIL_FROM,
       to: [row.recipient],
       subject: `${villaName} konaklamaniz nasildi?`,
       html: renderReviewEmail(guestName, villaName, reviewLink),

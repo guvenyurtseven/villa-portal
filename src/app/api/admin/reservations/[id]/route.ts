@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { isReservationStatus } from "@/domain/reservations/ReservationStatus";
+import {
+  approveReservationAndNotifyOwner,
+  ReservationApprovalError,
+} from "@/domain/reservations/approveReservation";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const unauthorized = await requireAdmin();
@@ -39,12 +43,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       );
     }
 
-    if (status === "confirmed" && current.status === "pending") {
-      const { data, error } = await supabase.rpc("approve_pending_reservation", { p_id: id });
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 409 });
+    if (status === "confirmed" && (current.status === "pending" || current.status === "confirmed")) {
+      try {
+        const result = await approveReservationAndNotifyOwner(supabase, id);
+        return NextResponse.json(result);
+      } catch (error: unknown) {
+        if (error instanceof ReservationApprovalError) {
+          return NextResponse.json({ error: error.message }, { status: error.status });
+        }
+        throw error;
       }
-      return NextResponse.json(data ?? { ok: true });
     }
 
     if (status === "completed" && current.status !== "confirmed") {

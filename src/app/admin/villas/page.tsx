@@ -161,7 +161,9 @@ export default async function AdminVillasPage({
                       {/* Villa Bilgileri */}
                       <div className="min-w-0">
                         <div className="flex min-w-0 flex-wrap items-center gap-2">
-                          <h3 className="min-w-0 truncate text-lg font-semibold">{villa.name}</h3>
+                          <h3 className="min-w-0 max-w-full break-all text-lg font-semibold">
+                            {villa.name}
+                          </h3>
                           {/* Gizli Durumu Badge */}
                           {villa.is_hidden ? (
                             <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
@@ -188,7 +190,10 @@ export default async function AdminVillasPage({
                         <div className="mt-1 text-sm">
                           Sahip:{" "}
                           {owner?.id ? (
-                            <Link href={`/admin/owners/${owner.id}/edit`} className="underline">
+                            <Link
+                              href={`/admin/owners/${owner.id}/edit`}
+                              className="break-all underline"
+                            >
                               {owner.full_name || "—"}
                             </Link>
                           ) : (

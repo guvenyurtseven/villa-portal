@@ -1,36 +1,64 @@
-// src/app/api/pre-reservations/route.ts
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Resend } from "resend";
-import { createServiceRoleClient } from "@/lib/supabase/server";
 import PreReservationEmail from "@/emails/PreReservationEmail";
 import {
   reservationRpcErrorMessage,
   reservationRpcErrorStatus,
 } from "@/domain/reservations/ReservationApiErrors";
-import { isoDateToUtcDate } from "@/lib/pgRange";
+import {
+  ADMIN_NOTIFICATION_RECIPIENTS,
+  MAIL_FROM,
+  MAIL_INBOX_ADDRESS,
+  SITE_URL,
+} from "@/lib/email/config";
 import { getErrorMessage } from "@/lib/errors";
+import { isoDateToUtcDate } from "@/lib/pgRange";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 
-export const runtime = "nodejs"; // Resend + Supabase için Node.js runtime
+export const runtime = "nodejs";
 
-/** İstek gövdesi doğrulama */
 const BodySchema = z.object({
   villaId: z.string().uuid(),
   villaName: z.string().min(1),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), // YYYY-MM-DD
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   name: z.string().min(2),
   email: z.string().email(),
-  phone: z.string().min(7, "Geçerli bir telefon girin"),
-  // Form’dan string gelebilir; güvenli biçimde sayıya coercede.
+  phone: z.string().min(7, "Gecerli bir telefon girin"),
   adults: z.coerce.number().int().min(1).optional(),
   children: z.coerce.number().int().min(0).optional(),
   message: z.string().max(2000).optional(),
-  _hp: z.string().optional(), // honeypot
+  _hp: z.string().optional(),
 });
 
+async function logPreReservationEmail(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  recipients: string[],
+  args: {
+    villaId: string;
+    reservationId: string;
+    status: "sent" | "failed";
+    externalId?: string | null;
+    errorMessage?: string | null;
+  },
+) {
+  const rows = recipients.map((recipient) => ({
+    recipient,
+    email_type: "pre_reservation_admin_notification",
+    villa_id: args.villaId,
+    reservation_id: args.reservationId,
+    external_id: args.externalId ?? null,
+    sent_at: args.status === "sent" ? new Date().toISOString() : null,
+    status: args.status,
+    error_message: args.errorMessage ?? null,
+  }));
+
+  const { error } = await supabase.from("email_logs").insert(rows);
+  if (error) console.error("pre-reservation email log failed:", error);
+}
+
 export async function POST(req: Request) {
-  // 1) JSON parse + doğrulama
   const json = await req.json().catch(() => null);
   const parsed = BodySchema.safeParse(json);
   if (!parsed.success) {
@@ -39,45 +67,23 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  const data = parsed.data;
 
-  // 2) Basit anti-spam (honeypot doluysa sessizce bitir)
+  const data = parsed.data;
   if (data._hp && data._hp.trim() !== "") {
     return new NextResponse(null, { status: 204 });
   }
 
-  // 3) Tarih doğrulama (start < end)
   const start = isoDateToUtcDate(data.startDate);
   const end = isoDateToUtcDate(data.endDate);
   if (!start || !end || start >= end) {
-    return NextResponse.json({ error: "Geçersiz tarih aralığı" }, { status: 400 });
-  }
-
-  // 4) Ortak env kontrolleri
-  if (!process.env.RESEND_API_KEY) {
-    console.error("RESEND_API_KEY missing");
-    return NextResponse.json(
-      { error: "Email provider API key is not configured (RESEND_API_KEY)." },
-      { status: 500 },
-    );
-  }
-  const siteBase = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "");
-  const from = process.env.RESEND_FROM || "Villa Portal <onboarding@resend.dev>";
-  let to = (process.env.ADMIN_EMAILS || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (to.length === 0) {
-    to = ["delivered@resend.dev"]; // Resend test alıcısı
+    return NextResponse.json({ error: "Gecersiz tarih araligi" }, { status: 400 });
   }
 
   const supabase = createServiceRoleClient();
-
-  // Not: adults/children ve mesajı notes alanına özetleyerek yazıyoruz
   const notesParts = [
     data.message ? `Mesaj: ${data.message}` : null,
-    data.adults != null ? `Yetişkin: ${data.adults}` : null,
-    data.children != null ? `Çocuk: ${data.children}` : null,
+    data.adults != null ? `Yetiskin: ${data.adults}` : null,
+    data.children != null ? `Cocuk: ${data.children}` : null,
   ].filter(Boolean);
   const notes = notesParts.join(" | ") || null;
 
@@ -101,20 +107,30 @@ export async function POST(req: Request) {
   }
 
   const reservationId = String(inserted.reservation_id);
+  const recipients =
+    ADMIN_NOTIFICATION_RECIPIENTS.length > 0 ? ADMIN_NOTIFICATION_RECIPIENTS : [MAIL_INBOX_ADDRESS];
 
-  // 6) Admin’e e-posta: buton “Bekleyen rezervasyonlar” sayfasına götürsün
-  //    Odaklanma için query param ekliyoruz (UI bu paramı opsiyonel kullanabilir)
-  const adminUrl = `${siteBase}/admin/reservations/pending?focus=${reservationId}`;
+  if (!process.env.RESEND_API_KEY) {
+    console.error("RESEND_API_KEY missing; reservation was created without email notification");
+    await logPreReservationEmail(supabase, recipients, {
+      villaId: data.villaId,
+      reservationId,
+      status: "failed",
+      errorMessage: "RESEND_API_KEY missing",
+    });
 
+    return NextResponse.json({ ok: true, reservationId, notificationStatus: "failed" });
+  }
+
+  const adminUrl = `${SITE_URL}/admin/reservations/pending?focus=${reservationId}`;
   const resend = new Resend(process.env.RESEND_API_KEY);
 
   try {
     const { data: sent, error } = await resend.emails.send({
-      from,
-      to,
-      subject: `Ön Rezervasyon: ${data.villaName} (${data.startDate} → ${data.endDate})`,
+      from: MAIL_FROM,
+      to: recipients,
+      subject: `On Rezervasyon: ${data.villaName} (${data.startDate} -> ${data.endDate})`,
       replyTo: data.email,
-      // ⚠️ Email şablonunda "buttonLabel" opsiyonel prop’unu destekleyin (aşağıda not var)
       react: PreReservationEmail({
         villaId: data.villaId,
         villaName: data.villaName,
@@ -127,21 +143,45 @@ export async function POST(req: Request) {
         children: data.children,
         message: data.message,
         adminUrl,
-        siteUrl: siteBase,
-        buttonLabel: "Bekleyen rezervasyonlar", // <— yeni metin
+        siteUrl: SITE_URL,
+        buttonLabel: "Bekleyen rezervasyonlar",
       }),
     });
 
     if (error) {
       console.error("Resend send error:", error);
-      return NextResponse.json({ error: error.message }, { status: 502 });
+      await logPreReservationEmail(supabase, recipients, {
+        villaId: data.villaId,
+        reservationId,
+        status: "failed",
+        errorMessage: error.message,
+      });
+
+      return NextResponse.json({ ok: true, reservationId, notificationStatus: "failed" });
     }
 
-    // (İsteğe bağlı) email_logs’a da yazmak isterseniz burada insert edebilirsiniz.
+    await logPreReservationEmail(supabase, recipients, {
+      villaId: data.villaId,
+      reservationId,
+      status: "sent",
+      externalId: sent?.id ?? null,
+    });
 
-    return NextResponse.json({ ok: true, id: sent?.id, reservationId });
+    return NextResponse.json({
+      ok: true,
+      id: sent?.id,
+      reservationId,
+      notificationStatus: "sent",
+    });
   } catch (err: unknown) {
     console.error("Resend unexpected error:", err);
-    return NextResponse.json({ error: getErrorMessage(err, "Email send failed") }, { status: 500 });
+    await logPreReservationEmail(supabase, recipients, {
+      villaId: data.villaId,
+      reservationId,
+      status: "failed",
+      errorMessage: getErrorMessage(err, "Email send failed"),
+    });
+
+    return NextResponse.json({ ok: true, reservationId, notificationStatus: "failed" });
   }
 }

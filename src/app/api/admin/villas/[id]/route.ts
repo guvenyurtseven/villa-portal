@@ -380,6 +380,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   // 1) Bağlı kayıtları sil
   const children: Array<{ table: string; col: string }> = [
+    { table: "email_logs", col: "villa_id" },
+    { table: "owner_portal_tokens", col: "villa_id" },
+    { table: "reviews", col: "villa_id" },
     { table: "reservations", col: "villa_id" },
     { table: "blocked_dates", col: "villa_id" },
     { table: "villa_pricing_periods", col: "villa_id" },

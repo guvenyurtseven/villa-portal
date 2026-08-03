@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
-import { createServiceRoleClient } from "@/lib/supabase/server";
+import {
+  reservationRpcErrorMessage,
+  reservationRpcErrorStatus,
+} from "@/domain/reservations/ReservationApiErrors";
 import { requireAdmin } from "@/lib/auth/requireAdmin";
-import { toPgDateRange } from "@/lib/pgRange";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
   const unauthorized = await requireAdmin();
@@ -12,7 +15,6 @@ export async function GET(request: Request) {
     const villa_id = searchParams.get("villa_id");
 
     const supabase = createServiceRoleClient();
-
     let query = supabase.from("blocked_dates").select("*");
 
     if (villa_id) {
@@ -20,7 +22,6 @@ export async function GET(request: Request) {
     }
 
     const { data, error } = await query.order("created_at", { ascending: false });
-
     if (error) {
       console.error("Blocked dates fetch error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -46,29 +47,19 @@ export async function POST(request: Request) {
     }
 
     const supabase = createServiceRoleClient();
-
-    // PostgreSQL daterange formatı
-    const date_range = toPgDateRange(start_date, end_date);
-
-    const { data, error } = await supabase
-      .from("blocked_dates")
-      .insert({
-        villa_id,
-        date_range,
-        reason: reason || null,
-      })
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc("create_blocked_date", {
+      p_villa_id: villa_id,
+      p_checkin: start_date,
+      p_checkout: end_date,
+      p_reason: reason || null,
+    });
 
     if (error) {
       console.error("Block dates error:", error);
-      if (error.code === "23P01") {
-        return NextResponse.json(
-          { error: "Bu tarihler zaten bloke edilmiş veya rezerve edilmiş" },
-          { status: 409 },
-        );
-      }
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { error: reservationRpcErrorMessage(error) },
+        { status: reservationRpcErrorStatus(error) },
+      );
     }
 
     return NextResponse.json(data);
@@ -91,9 +82,7 @@ export async function DELETE(request: Request) {
     }
 
     const supabase = createServiceRoleClient();
-
     const { error } = await supabase.from("blocked_dates").delete().eq("id", id);
-
     if (error) {
       console.error("Delete block error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });

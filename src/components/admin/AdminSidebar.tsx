@@ -9,6 +9,7 @@ import {
   Calendar,
   ClipboardClock,
   Home,
+  Inbox,
   LogOut,
   Menu,
   MessageCircle,
@@ -49,6 +50,11 @@ const menuItems = [
     title: "Yorumları Yönet",
     href: "/admin/reviews",
     icon: MessageCircle,
+  },
+  {
+    title: "Email Inbox",
+    href: "/admin/email-inbox",
+    icon: Inbox,
   },
   {
     title: "Bekleyen Rezervasyonlar",
