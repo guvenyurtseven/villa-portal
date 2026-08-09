@@ -1,13 +1,7 @@
 // src/components/site/QuickSearch.tsx
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { DayPicker, type DateRange } from "react-day-picker";
 import "react-day-picker/dist/style.css";
@@ -205,10 +199,7 @@ export default function QuickSearch({
   }, [regionOpen, dateOpen, guestsOpen, openCats]);
 
   function toggleSel(o: LocationOption) {
-    const next = toggleLocationOption(
-      { provinces: selP, districts: selD, neighborhoods: selN },
-      o,
-    );
+    const next = toggleLocationOption({ provinces: selP, districts: selD, neighborhoods: selN }, o);
     setSelP(next.provinces);
     setSelD(next.districts);
     setSelN(next.neighborhoods);
@@ -292,9 +283,7 @@ export default function QuickSearch({
             }}
           >
             {locationPreview ? (
-              <span className="block truncate text-sm">
-                {locationPreview}
-              </span>
+              <span className="block truncate text-sm">{locationPreview}</span>
             ) : (
               <span className="text-sm text-gray-500">Bölge seçiniz…</span>
             )}
@@ -476,11 +465,11 @@ export default function QuickSearch({
               locale={tr}
               mode="range"
               numberOfMonths={calendarMonths}
-              showOutsideDays
+              showOutsideDays={false}
               selected={range}
               onSelect={(r) => setRange(r ?? undefined)}
               disabled={{ before: today }}
-              className="!text-[12px]"
+              className="filter-range-calendar !text-[12px]"
               styles={{
                 months: {
                   display: "grid",
@@ -489,6 +478,7 @@ export default function QuickSearch({
                   alignItems: "start",
                 },
                 month: { margin: 0 },
+                month_grid: { width: "100%" },
               }}
               style={dayPickerStyle}
             />

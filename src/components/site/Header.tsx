@@ -4,7 +4,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { Building2, ChevronRight, Grid3X3, Home, Info, Menu, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 const mobileNavItems = [
   { href: "/", label: "Ana Sayfa", icon: Home },
@@ -82,25 +89,28 @@ export default function Header() {
 
                 <nav className="mt-5 grid gap-2">
                   {mobileNavItems.map(({ href, label, icon: Icon }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      className="group relative flex h-12 items-center justify-center rounded-lg border border-slate-200 bg-white px-10 text-sm font-medium text-slate-800 shadow-sm transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 active:scale-[0.99]"
-                    >
-                      <Icon className="pointer-events-none absolute left-3 h-4 w-4 text-orange-500 transition group-hover:text-orange-600" />
-                      <span className="truncate text-center">{label}</span>
-                      <ChevronRight className="pointer-events-none absolute right-3 h-4 w-4 text-slate-300 transition group-hover:text-orange-500" />
-                    </Link>
+                    <SheetClose asChild key={href}>
+                      <Link
+                        href={href}
+                        className="group relative flex h-12 items-center justify-center rounded-lg border border-slate-200 bg-white px-10 text-sm font-medium text-slate-800 shadow-sm transition hover:border-orange-200 hover:bg-orange-50 hover:text-orange-700 active:scale-[0.99]"
+                      >
+                        <Icon className="pointer-events-none absolute left-3 h-4 w-4 text-orange-500 transition group-hover:text-orange-600" />
+                        <span className="truncate text-center">{label}</span>
+                        <ChevronRight className="pointer-events-none absolute right-3 h-4 w-4 text-slate-300 transition group-hover:text-orange-500" />
+                      </Link>
+                    </SheetClose>
                   ))}
                 </nav>
 
                 <div className="mt-5">
-                  <Link href="/hakkimizda" className="block">
-                    <Button variant="primary" className="h-11 w-full gap-2">
-                      <Phone className="h-4 w-4" />
-                      Bize Ulaşın
-                    </Button>
-                  </Link>
+                  <SheetClose asChild>
+                    <Link href="/hakkimizda" className="block">
+                      <Button variant="primary" className="h-11 w-full gap-2">
+                        <Phone className="h-4 w-4" />
+                        Bize Ulaşın
+                      </Button>
+                    </Link>
+                  </SheetClose>
                 </div>
               </SheetContent>
             </Sheet>

@@ -549,7 +549,12 @@ export default function FiltersSidebar() {
         <Portal>
           <div
             ref={regionPanelRef}
-            style={{ position: "fixed", top: regionPos.top, left: regionPos.left, width: regionPos.width }}
+            style={{
+              position: "fixed",
+              top: regionPos.top,
+              left: regionPos.left,
+              width: regionPos.width,
+            }}
             className="z-[9999] max-h-[22rem] overflow-auto rounded-md border bg-white p-3 shadow-xl"
           >
             <Input
@@ -599,7 +604,12 @@ export default function FiltersSidebar() {
         <Portal>
           <div
             ref={datePanelRef}
-            style={{ position: "fixed", top: datePos.top, left: datePos.left, width: datePos.width }}
+            style={{
+              position: "fixed",
+              top: datePos.top,
+              left: datePos.left,
+              width: datePos.width,
+            }}
             className="z-[9999] max-h-[min(82vh,36rem)] overflow-auto overflow-x-hidden rounded-lg border bg-white p-3 shadow-xl"
           >
             <DayPicker
@@ -698,7 +708,10 @@ export default function FiltersSidebar() {
             {selectedCats.length > 0 && (
               <div className="flex flex-wrap gap-2 pt-3">
                 {selectedCats.map((slug) => (
-                  <span key={slug} className="rounded bg-orange-100 px-2 py-0.5 text-xs text-orange-800">
+                  <span
+                    key={slug}
+                    className="rounded bg-orange-100 px-2 py-0.5 text-xs text-orange-800"
+                  >
                     {slug}
                   </span>
                 ))}
@@ -718,7 +731,12 @@ export default function FiltersSidebar() {
         <Portal>
           <div
             ref={guestsPanelRef}
-            style={{ position: "fixed", top: guestsPos.top, left: guestsPos.left, width: guestsPos.width }}
+            style={{
+              position: "fixed",
+              top: guestsPos.top,
+              left: guestsPos.left,
+              width: guestsPos.width,
+            }}
             className="z-[9999] rounded-md border bg-white p-3 shadow-xl"
           >
             <div className="flex items-center justify-between gap-3">
@@ -750,58 +768,6 @@ export default function FiltersSidebar() {
           </div>
         </Portal>
       )}
-
-      <style jsx global>{`
-        .filter-range-calendar {
-          --rdp-accent-color: #fb923c;
-          --rdp-accent-background-color: #ffedd5;
-          --rdp-day_button-border-radius: 8px;
-          --rdp-range_middle-background-color: #ffedd5;
-          --rdp-range_middle-color: #111827;
-          --rdp-range_start-background: linear-gradient(135deg, white 50%, #ffedd5 50%);
-          --rdp-range_start-color: #111827;
-          --rdp-range_start-date-background-color: transparent;
-          --rdp-range_end-background: linear-gradient(135deg, #ffedd5 50%, white 50%);
-          --rdp-range_end-color: #111827;
-          --rdp-range_end-date-background-color: transparent;
-          --rdp-selected-border: 2px solid #fb923c;
-          max-width: 100%;
-        }
-        .filter-range-calendar .rdp-months {
-          max-width: 100%;
-        }
-        .filter-range-calendar .rdp-month_grid {
-          width: 100%;
-          table-layout: fixed;
-        }
-        .filter-range-calendar .rdp-selected {
-          font-size: inherit;
-        }
-        .filter-range-calendar .rdp-range_start .rdp-day_button,
-        .filter-range-calendar .rdp-range_end .rdp-day_button {
-          background: transparent !important;
-          border: 2px solid #fb923c !important;
-          border-radius: 8px !important;
-          color: #111827 !important;
-          font-weight: 700;
-        }
-        .filter-range-calendar .rdp-range_middle .rdp-day_button {
-          background: transparent !important;
-          border: 0 !important;
-          border-radius: 0 !important;
-          color: #111827 !important;
-        }
-        .filter-range-calendar .rdp-outside {
-          visibility: hidden;
-          pointer-events: none;
-        }
-        @media (max-width: 767px) {
-          .filter-range-calendar .rdp-months {
-            display: grid !important;
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }
